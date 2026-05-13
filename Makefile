@@ -1,5 +1,5 @@
 FILENAME=iotest
-XDIR:=../arm-gnu-toolchain-aarch64-none-elf
+XDIR:=arm-gnu-toolchain-aarch64-none-elf
 TRIPLE=aarch64-none-elf
 XBINDIR:=$(XDIR)/bin
 CC:=$(XBINDIR)/$(TRIPLE)-gcc -ffreestanding

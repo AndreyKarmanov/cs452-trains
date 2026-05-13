@@ -1,0 +1,38 @@
+{
+    "version": "2.0.0",
+    "tasks": [
+        {
+            "label": "build",
+            "type": "shell",
+            "command": "make",
+            "group": {
+                "kind": "build",
+                "isDefault": true
+            },
+            "problemMatcher": []
+        },
+        {
+
+            "label": "run",
+            "type": "shell",
+            "command": "qemu-system-aarch64",
+            "args": [
+                "-M",
+                "raspi4b",
+                "-kernel",
+                "${workspaceFolder}/iotest.img",
+                "-serial",
+                "stdio",
+                "-display",
+                "none"
+            ],
+            "dependsOn": "build",
+            "problemMatcher": []
+        },
+        {
+            "label": "clean",
+            "type": "shell",
+            "command": "make clean",
+        }
+    ]
+}
