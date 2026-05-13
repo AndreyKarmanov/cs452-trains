@@ -6,6 +6,7 @@
 #define CONSOLE 0
 
 void uart_config_and_enable(size_t line);
+char uart_maybec(size_t line);
 char uart_getc(size_t line);
 void uart_putc(size_t line, char c);
 void uart_putl(size_t line, const char *buf, size_t blen);

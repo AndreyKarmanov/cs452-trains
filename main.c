@@ -1,7 +1,9 @@
 #include <string.h>
+#include <stdint.h>
 #include "rpi.h"
 #include "mcp2515.h"
 #include "uart.h"
+#include "time.h"
 
 extern void setup_mmu(); // in mmu.S
 
@@ -17,13 +19,15 @@ int kmain() {
 	// not strictly necessary, since console is configured during boot
 	uart_config_and_enable(CONSOLE);
 	// welcome message
-	uart_puts(CONSOLE, "\r\nHello world, this is version: " __DATE__ " / " __TIME__ "\r\n\r\nPress 'q' to reboot\r\n");
+	uart_puts(CONSOLE, "\r\nHello world, this is version: " __DATE__ " / " __TIME__ "\r\n\r\nPremakess 'q' to reboot\r\n");
 
-	unsigned int counter = 1;
+	uint32_t time = time_get();  // tenths digit
 	for (;;) {
-		uart_printf(CONSOLE, "PI[%u]> ", counter++);
 		for (;;) {
-			char c = uart_getc(CONSOLE);
+			char c = uart_maybec(CONSOLE);
+			if (c == 0) {
+				break;
+			}
 			uart_putc(CONSOLE, c);
 			if (c == '\r') {
 				uart_putc(CONSOLE, '\n');
@@ -31,10 +35,27 @@ int kmain() {
 			} else if (c == 'q' || c == 'Q') {
 				uart_puts(CONSOLE, "\r\n");
 				return 0;
-			}
+			} else if (c == 'c') {
+				uart_puts(CONSOLE, "\033[2J\033[H");
+				break;
+			} else if (c == '1') {
+				uart_puts(CONSOLE, "\033(0\r\n");
+				break;
+			} else if (c == '0') {
+				uart_puts(CONSOLE, "\033(B\r\n");
+				break;
+			} 
 		}
 		if (mcp2515_fakerecv()) {
 			uart_puts(CONSOLE, "FRAME\n\r");
+		}
+
+		// update clock
+		uint32_t new_time = time_get();
+		if (new_time - time > 100000) {
+			time = new_time;
+			uart_puts(CONSOLE, "\033[2J\033[H");
+			uart_puts(CONSOLE, format_time(time));
 		}
 	}
 }

@@ -3,3 +3,7 @@ arm-gnu-toolchain-aarch64-none-elf
 # build artifacts
 *.o
 *.d
+
+# upload script stuff
+upload.sh
+cacert.pem

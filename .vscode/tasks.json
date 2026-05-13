@@ -12,7 +12,6 @@
             "problemMatcher": []
         },
         {
-
             "label": "run",
             "type": "shell",
             "command": "qemu-system-aarch64",

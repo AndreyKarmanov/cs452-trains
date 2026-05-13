@@ -1,0 +1,29 @@
+{
+  "MD013": false,
+  "MD003": {
+    "style": "consistent"
+  },
+  "MD004": {
+    "style": "consistent"
+  },
+  "MD007": {
+    "indent": 4
+  },
+  "MD009": {
+    "br_spaces": 0
+  },
+  "MD010": {
+    "code_blocks": true
+  },
+  "MD012": {
+    "maximum": 1
+  },
+  "MD024": true,
+  "MD025": false,
+  "MD033": false,
+  "no-hard-tabs": true,
+  "MD055": {
+    "style": "consistent"
+  },
+  "MD060": {"aligned_delimiter": true, "style": "aligned"}
+}
