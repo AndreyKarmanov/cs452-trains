@@ -2,6 +2,10 @@
 #include "rpi.h"
 #include "time.h"
 #include "util.h"
+#include "uart.h"
+
+#define TIME_COL "1"
+#define TIME_ROW "2"
 
 static char* const TIME_BASE = (char*)(MMIO_BASE + 0x3000);
 
@@ -12,7 +16,6 @@ static const uint32_t TIME_CHI  = 0x08;
 
 
 // Masks
-
 
 uint32_t time_get() {
     return *(volatile uint32_t*)(TIME_BASE + TIME_CLO);
@@ -42,4 +45,9 @@ const char* format_time(const uint32_t time_us) {
     buf[7] = '\0';
     
     return buf;
+}
+
+void print_time(uint32_t time_us) {
+    uart_puts(CONSOLE, "\033[" TIME_ROW ";" TIME_COL "H");
+    uart_puts(CONSOLE, format_time(time_us));
 }

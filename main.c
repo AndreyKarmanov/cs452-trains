@@ -4,8 +4,32 @@
 #include "mcp2515.h"
 #include "uart.h"
 #include "time.h"
+#include <ctype.h>
 
 extern void setup_mmu(); // in mmu.S
+
+#define CONSOLE_ROW "3"
+#define CLOCK_UPDATE_INTERVAL_US 100000
+
+void uart_clear_console() {
+	uart_puts(CONSOLE, "\033[" CONSOLE_ROW ";1H\033[K");
+}
+
+typedef enum COMMAND_T {
+	COMMAND_NONE,
+	COMMAND_QUIT
+} COMMAND_T;
+
+
+COMMAND_T parse_command(const char* buf, size_t blen) {
+	if (blen == 0) {
+		return COMMAND_NONE;
+	}
+	if (strcmp(buf, "Q") == 0 || strcmp(buf, "q") == 0) {
+		return COMMAND_QUIT;
+	}
+	return COMMAND_NONE;
+}
 
 int kmain() {
 #if defined(MMU)
@@ -18,33 +42,42 @@ int kmain() {
 	mcp2515_init();
 	// not strictly necessary, since console is configured during boot
 	uart_config_and_enable(CONSOLE);
-	// welcome message
-	uart_puts(CONSOLE, "\r\nHello world, this is version: " __DATE__ " / " __TIME__ "\r\n\r\nPremakess 'q' to reboot\r\n");
 
-	uint32_t time = time_get();  // tenths digit
+	// Clear, center
+	uart_puts(CONSOLE, "\033[2J\033[H");
+	uart_puts(CONSOLE, __DATE__ " / " __TIME__ " / Andrey Karmanov\r\n");
+
+	uint32_t time = time_get();  // tenths digit.
+
+	uint32_t chars = 0;
+
+	char buf[32];
+
 	for (;;) {
 		for (;;) {
 			char c = uart_maybec(CONSOLE);
 			if (c == 0) {
 				break;
 			}
-			uart_putc(CONSOLE, c);
-			if (c == '\r') {
-				uart_putc(CONSOLE, '\n');
-				break;
-			} else if (c == 'q' || c == 'Q') {
-				uart_puts(CONSOLE, "\r\n");
-				return 0;
-			} else if (c == 'c') {
-				uart_puts(CONSOLE, "\033[2J\033[H");
-				break;
-			} else if (c == '1') {
-				uart_puts(CONSOLE, "\033(0\r\n");
-				break;
-			} else if (c == '0') {
-				uart_puts(CONSOLE, "\033(B\r\n");
-				break;
-			} 
+			if (isprint(c)) {
+				if (chars < 30) {
+					buf[chars] = c;
+					uart_putc(CONSOLE, c);
+					++chars;
+				}
+			} else if ((c == 0x08 || c == 0x7f) && chars > 0) {
+				uart_puts(CONSOLE, "\b \b");
+				--chars;
+			} else if (c == '\r') {
+				uart_clear_console();
+				buf[chars] = '\0';
+				COMMAND_T cmd = parse_command(buf, chars);
+				chars = 0;
+				if (cmd == COMMAND_QUIT) {
+					uart_puts(CONSOLE, "Goodbye!\n\r");
+					return 0;
+				}
+			}
 		}
 		if (mcp2515_fakerecv()) {
 			uart_puts(CONSOLE, "FRAME\n\r");
@@ -52,11 +85,13 @@ int kmain() {
 
 		// update clock
 		uint32_t new_time = time_get();
-		if (new_time - time > 100000) {
+		if (new_time - time > CLOCK_UPDATE_INTERVAL_US) {
 			time = new_time;
-			uart_puts(CONSOLE, "\033[2J\033[H");
-			uart_puts(CONSOLE, format_time(time));
+			print_time(time);
 		}
+
+		// reset the cursor
+		uart_printf(CONSOLE, "\033[" CONSOLE_ROW ";%uH", 1 + chars);
 	}
 }
 
@@ -64,7 +99,7 @@ int kmain() {
 #include <stddef.h>
 
 // define our own memset to avoid SIMD instructions emitted from the compiler
-void* memset(void *s, int c, size_t n) {
+void* memset(void* s, int c, size_t n) {
 	for (char* it = (char*)s; n > 0; --n) *it++ = c;
 	return s;
 }
