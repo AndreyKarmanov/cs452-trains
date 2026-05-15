@@ -40,6 +40,17 @@ static const uint8_t CANCTRL_REQOP = 0xE0;
 // flags register
 static const uint8_t CANINTF = 0x2C;
 
+// TX buffer registers
+static const uint8_t TXB0DLC = 0x35;
+static const uint8_t TXB0D0 = 0x36;
+
+static const uint8_t TXB1DLC = 0x45;
+static const uint8_t TXB1D0 = 0x46;
+
+static const uint8_t TXB2DLC = 0x55;
+static const uint8_t TXB2D0 = 0x56;
+
+
 /** Read n consecutive registers starting from the specified one. */
 static void mcp2515_read_regs(uint8_t reg, uint8_t values[], const uint8_t n) {
 	spi_begin_transaction();

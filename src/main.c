@@ -47,32 +47,37 @@ int kmain() {
 	uart_puts(CONSOLE, "\033[2J\033[H");
 	uart_puts(CONSOLE, __DATE__ " / " __TIME__ " / Andrey Karmanov\r\n");
 
-	uint32_t time = time_get();  // tenths digit.
-
-	uint32_t chars = 0;
-
-	char buf[32];
+	uint32_t time = time_get();
+	
+	uint32_t cmd_buf_n = 0;
+	char cmd_buf[32];
 
 	for (;;) {
+
+		// handle user input in a timely manner, i.e. if they have a number of bytes we pull all at once
 		for (;;) {
+
+			// try to fetch a byte
 			char c = uart_maybec(CONSOLE);
 			if (c == 0) {
 				break;
 			}
+
+			// check if it's a printable character (i.e. a char used in a command)
 			if (isprint(c)) {
-				if (chars < 30) {
-					buf[chars] = c;
+				if (cmd_buf_n < 30) {
+					cmd_buf[cmd_buf_n] = c;
 					uart_putc(CONSOLE, c);
-					++chars;
+					++cmd_buf_n;
 				}
-			} else if ((c == 0x08 || c == 0x7f) && chars > 0) {
-				uart_puts(CONSOLE, "\b \b");
-				--chars;
-			} else if (c == '\r') {
+			} else if ((c == 0x08 || c == 0x7f) && cmd_buf_n > 0) { // backspace
+				uart_puts(CONSOLE, "\b \b"); // move back, print space, move back again
+				--cmd_buf_n;
+			} else if (c == '\r') { // enter
 				uart_clear_console();
-				buf[chars] = '\0';
-				COMMAND_T cmd = parse_command(buf, chars);
-				chars = 0;
+				cmd_buf[cmd_buf_n] = '\0';
+				COMMAND_T cmd = parse_command(cmd_buf, cmd_buf_n);
+				cmd_buf_n = 0;
 				if (cmd == COMMAND_QUIT) {
 					uart_puts(CONSOLE, "Goodbye!\n\r");
 					return 0;
@@ -91,7 +96,7 @@ int kmain() {
 		}
 
 		// reset the cursor
-		uart_printf(CONSOLE, "\033[" CONSOLE_ROW ";%uH", 1 + chars);
+		uart_printf(CONSOLE, "\033[" CONSOLE_ROW ";%uH", 1 + cmd_buf_n);
 	}
 }
 
