@@ -14,12 +14,16 @@ SECTIONS {
 	.data : {
 		KEEP(*(.data*))
 	}
+	. = ALIGN(8); 				/* align bss to 8 bytes so we can quickly set in a loop */
 	.bss : {
+		__bss_start = .;
 		KEEP(*(.bss*))
+		. = ALIGN(8);			/* also align the end */
+		__bss_end = .;
 	}
-	__init__array_start = .;
 	.init_array : {
+		__init_array_start = .;
 		KEEP(*(.init_array*)) /* for C++ global constructors */
+		__init_array_end = .;
 	}
-	__init_array_end = .;
 }
