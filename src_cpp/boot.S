@@ -81,9 +81,10 @@ el1_entry:
 	ldr x20, =__bss_end
 loop_bss_zero:
     cmp x19, x20          	// compare current with end
-    b.ge done_bss_zero	// if current >= end, we're done
+    b.ge done_bss_zero		// if current >= end, we're done
 	str xzr, [x19]
 	add x19, x19, #8
+	b loop_bss_zero
 done_bss_zero:
 
 	// call each function in init array

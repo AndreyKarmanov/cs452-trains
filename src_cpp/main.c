@@ -20,10 +20,17 @@ typedef enum COMMAND_T {
 	COMMAND_QUIT
 } COMMAND_T;
 
+int bss_flag;
+
 class Dog {
 public:
 	int happy = 0;
 	Dog () {
+		if (bss_flag == 0) {
+			bss_flag = 1;
+			happy = 67;
+			return;
+		}
 		happy = 1;
 	}
 };
