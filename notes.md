@@ -14,11 +14,34 @@
 - actual virtual memory instead of identity mapping
 - set up CPP to work
 
-# Assignments
+# Documentation
+
+## Getting C++ to work
+
+Generally, C++ works almost out of the box. The main things that need changes is a) symbols used in `Boot.s` need to be decorated with `extern "C"`, e.g. the `kmain` function needs this so that `Boot.s` sees and it and can jump to it. 
+
+### Implemented
+
+- global objects with non-trivial constructors
+    - need to initalize by iterating through & jumping to the addresses in `.init_array`
+
+### Not implemented (yet?)
+
+- global or function-local static objects with non-trivial destructors
+    - need to iterate through `.fini_array`
+    - support `__cxa_atexit` which is registering destructors, required for function-local static object destructors because they are lazy.
+    - there's also a `__cxa_finalize` and `__dso_handle` thing but I don't really understand what those are for, think it's for running the destructors and some sort of ID, but I don't get it and don't really need it just yet so not bothering with implementation
+- malloc / free / `new` / `delete`
+    - these are required for a number of different functions. most notably for vectors and probably some OS-level stuff (threads?) but those can be handled with fixed size arrays for now.
+- standard library support
+    - haven't really looked into what is required, but I suspect It can be added incrementally
 
 ## A0: Polling Loop
 
 Implement a big polling loop that essentially just reads memory in a loop and updates the UI. Also needs to communicate on CAN with the controller.
+
+- initalizing variables to 0
+    - .bss section must be zero'd out (worth aligning to 8 byte boundaries  with `ALIGN(8)` to make it easy)
 
 # Lectures
 

@@ -20,18 +20,21 @@ typedef enum COMMAND_T {
 	COMMAND_QUIT
 } COMMAND_T;
 
-int bss_flag;
+
+int bss_value;
+int initialized_value = 7;
+int constructor_result;
+int destroyed;
 
 class Dog {
 public:
 	int happy = 0;
 	Dog () {
-		if (bss_flag == 0) {
-			bss_flag = 1;
-			happy = 67;
-			return;
-		}
+        constructor_result = (bss_value == 0 && initialized_value == 7) ? 1 : -1;
 		happy = 1;
+	}
+	~Dog() {
+		++destroyed;
 	}
 };
 
@@ -46,6 +49,10 @@ COMMAND_T parse_command(const char* buf, size_t blen) {
 }
 
 Dog shared_dog;
+
+void test() {
+	Dog t;
+}
 
 extern "C" int kmain() {
 #if defined(MMU)
@@ -66,6 +73,11 @@ extern "C" int kmain() {
 
 	Dog t;
 	uart_printf(CONSOLE, "Output test: %d ", t.happy);
+	uart_printf(CONSOLE, "Output test: %d ", constructor_result);
+	uart_printf(CONSOLE, "Destroyed before: %d ", destroyed);
+	test();
+	uart_printf(CONSOLE, "Destroyed after: %d ", destroyed);
+
 
 
 	uint32_t time = time_get();
