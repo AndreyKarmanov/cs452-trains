@@ -6,7 +6,7 @@
 #include "time.h"
 #include <ctype.h>
 
-extern void setup_mmu(); // in mmu.S
+extern "C" void setup_mmu(); // in mmu.S
 
 #define CONSOLE_ROW "3"
 #define CLOCK_UPDATE_INTERVAL_US 100000
@@ -21,6 +21,20 @@ typedef enum COMMAND_T {
 } COMMAND_T;
 
 
+int bss_value;
+int initialized_value = 7;
+int constructor_result;
+int destroyed;
+
+class Dog {
+public:
+	int happy = 0;
+	Dog () {
+        constructor_result = (bss_value == 0 && initialized_value == 7) ? 1 : -1;
+		happy = 1;
+	}
+};
+
 COMMAND_T parse_command(const char* buf, size_t blen) {
 	if (blen == 0) {
 		return COMMAND_NONE;
@@ -31,7 +45,13 @@ COMMAND_T parse_command(const char* buf, size_t blen) {
 	return COMMAND_NONE;
 }
 
-int kmain() {
+Dog shared_dog;
+
+void test() {
+	Dog t;
+}
+
+extern "C" int kmain() {
 #if defined(MMU)
 	setup_mmu();
 #endif
@@ -45,9 +65,20 @@ int kmain() {
 
 	// Clear, center
 	uart_puts(CONSOLE, "\033[2J\033[H");
-	uart_puts(CONSOLE, __DATE__ " / " __TIME__ " / Andrey Karmanov\r\n");
+	uart_puts(CONSOLE, __DATE__ " / " __TIME__ " / Andrey Karmanov ");
+	uart_printf(CONSOLE, "Output test: %d ", shared_dog.happy);
+
+	Dog t;
+	uart_printf(CONSOLE, "Output test: %d ", t.happy);
+	uart_printf(CONSOLE, "Output test: %d ", constructor_result);
+	uart_printf(CONSOLE, "Destroyed before: %d ", destroyed);
+	test();
+	uart_printf(CONSOLE, "Destroyed after: %d ", destroyed);
+
+
 
 	uint32_t time = time_get();
+
 	
 	uint32_t cmd_buf_n = 0;
 	char cmd_buf[32];

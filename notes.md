@@ -12,13 +12,13 @@
 - multicore
 - hardware level memory protection?
 - actual virtual memory instead of identity mapping
-- set up CPP to work
+- set up CPP
 
 # Documentation
 
 ## Getting C++ to work
 
-Generally, C++ works almost out of the box. The main things that need changes is a) symbols used in `Boot.s` need to be decorated with `extern "C"`, e.g. the `kmain` function needs this so that `Boot.s` sees and it and can jump to it. 
+Generally, C++ works almost out of the box. The main things that need changes is a) symbols used in `Boot.s` need to be decorated with `extern "C"`, e.g. the `kmain` function needs this so that `Boot.s` sees and it and can jump to it.
 
 ### Implemented
 

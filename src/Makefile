@@ -2,7 +2,7 @@ FILENAME=iotest
 XDIR:=../arm-gnu-toolchain-aarch64-none-elf
 TRIPLE=aarch64-none-elf
 XBINDIR:=$(XDIR)/bin
-CC:=$(XBINDIR)/$(TRIPLE)-gcc -ffreestanding
+CC:=$(XBINDIR)/$(TRIPLE)-g++ -ffreestanding
 OBJCOPY:=$(XBINDIR)/$(TRIPLE)-objcopy
 OBJDUMP:=$(XBINDIR)/$(TRIPLE)-objdump
 
@@ -48,6 +48,6 @@ endif
 	$(CC) $(CFLAGS) -MMD -MP -c $< -o $@
 
 %.o: %.c Makefile
-	$(CC) $(CFLAGS) -MMD -MP -c $< -o $@
+	$(CC) $(CFLAGS) -x c++ -MMD -MP -c $< -o $@ 
 
 -include $(DEPENDS)

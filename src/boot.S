@@ -42,6 +42,7 @@ _start:
 	msr s3_1_c15_c2_1, x0
 
 	// are we already in EL1?
+	// if so, we jump to el1_entry
 	mrs	x1, CurrentEL
 	and	x1, x1, #8
 	cbz	x1, el1_entry
@@ -74,6 +75,31 @@ el1_entry:
 	// initialize SP (initial stack below text here)
 	ldr x2, =_start
 	mov sp, x2
+
+	// zero out bss
+	ldr x19, =__bss_start
+	ldr x20, =__bss_end
+loop_bss_zero:
+    cmp x19, x20          	// compare current with end
+    b.ge done_bss_zero		// if current >= end, we're done
+	str xzr, [x19]
+	add x19, x19, #8
+	b loop_bss_zero
+done_bss_zero:
+
+	// call each function in init array
+	// we use x19-x28 for callee-saved registers, aka we don't have to worry about clobbering by convention (followed in c/cpp)
+	// note: if I write hand-assembly in future, need to make sure i'm not clobbering these!
+	ldr x19, =__init_array_start
+	ldr x20, =__init_array_end
+loop_init_array:
+    cmp x19, x20          	// compare current with end
+    b.ge done_init_array	// if current >= end, we're done
+    ldr x2, [x19]        	// load function pointer at [x19]
+    blr x2              	// call the function
+    add x19, x19, #8      	// move to next 64-bit pointer 
+    b loop_init_array
+done_init_array:
 	// branch and link to main routine in C/C++
 	bl kmain
 
@@ -84,7 +110,7 @@ _reboot:
 	mov x0, 28
 	movk	x2, 0xfe10, lsl 16
 	movk	x0, 0xfe10, lsl 16
-	mov w3, 1
+	mov w3, 1 
 	mov w1, 32
 	movk	w3, 0x5a00, lsl 16
 	str w3, [x2]
