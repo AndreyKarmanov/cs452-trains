@@ -4,6 +4,7 @@
 #include "mcp2515.h"
 #include "uart.h"
 #include "time.h"
+#include "can.h"
 #include <ctype.h>
 
 extern "C" void setup_mmu(); // in mmu.S
@@ -21,20 +22,6 @@ typedef enum COMMAND_T {
 } COMMAND_T;
 
 
-int bss_value;
-int initialized_value = 7;
-int constructor_result;
-int destroyed;
-
-class Dog {
-public:
-	int happy = 0;
-	Dog () {
-        constructor_result = (bss_value == 0 && initialized_value == 7) ? 1 : -1;
-		happy = 1;
-	}
-};
-
 COMMAND_T parse_command(const char* buf, size_t blen) {
 	if (blen == 0) {
 		return COMMAND_NONE;
@@ -45,11 +32,13 @@ COMMAND_T parse_command(const char* buf, size_t blen) {
 	return COMMAND_NONE;
 }
 
-Dog shared_dog;
 
-void test() {
-	Dog t;
-}
+void print_bytes(void* start, uint8_t n) {
+	uint8_t* addr = (uint8_t*) start;
+	for (int i = 0; i < n; ++i) {
+		uart_printf(CONSOLE, "%x: %x\r\n", (addr + i), *(addr + i));
+	}
+};
 
 extern "C" int kmain() {
 #if defined(MMU)
@@ -66,20 +55,17 @@ extern "C" int kmain() {
 	// Clear, center
 	uart_puts(CONSOLE, "\033[2J\033[H");
 	uart_puts(CONSOLE, __DATE__ " / " __TIME__ " / Andrey Karmanov ");
-	uart_printf(CONSOLE, "Output test: %d ", shared_dog.happy);
 
-	Dog t;
-	uart_printf(CONSOLE, "Output test: %d ", t.happy);
-	uart_printf(CONSOLE, "Output test: %d ", constructor_result);
-	uart_printf(CONSOLE, "Destroyed before: %d ", destroyed);
-	test();
-	uart_printf(CONSOLE, "Destroyed after: %d ", destroyed);
 
+	auto t = LightCommand(13, 1);
+	uart_printf(CONSOLE, "full: %u, %u", sizeof(t), sizeof(t.frame.msgid));
+
+	print_bytes(&t, sizeof(t));
 
 
 	uint32_t time = time_get();
 
-	
+
 	uint32_t cmd_buf_n = 0;
 	char cmd_buf[32];
 
@@ -119,15 +105,15 @@ extern "C" int kmain() {
 			uart_puts(CONSOLE, "FRAME\n\r");
 		}
 
-		// update clock
-		uint32_t new_time = time_get();
-		if (new_time - time > CLOCK_UPDATE_INTERVAL_US) {
-			time = new_time;
-			print_time(time);
-		}
+		// // update clock
+		// uint32_t new_time = time_get();
+		// if (new_time - time > CLOCK_UPDATE_INTERVAL_US) {
+		// 	time = new_time;
+		// 	print_time(time);
+		// }
 
-		// reset the cursor
-		uart_printf(CONSOLE, "\033[" CONSOLE_ROW ";%uH", 1 + cmd_buf_n);
+		// // reset the cursor
+		// uart_printf(CONSOLE, "\033[" CONSOLE_ROW ";%uH", 1 + cmd_buf_n);
 	}
 }
 

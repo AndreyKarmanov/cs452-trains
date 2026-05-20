@@ -1,6 +1,7 @@
 #include "mcp2515.h"
 #include "spi.h"
 
+
 // configuration registers
 static const uint8_t CNF3 = 0x28;
 static const uint8_t CNF2 = 0x29;
@@ -41,6 +42,9 @@ static const uint8_t CANCTRL_REQOP = 0xE0;
 static const uint8_t CANINTF = 0x2C;
 
 // TX buffer registers
+// set bit 3 to 1 to send, check if 0 before writing
+static const uint8_t TXB0CTRL = 0x30;
+static const uint8_t TXB0SIDH = 0x31;
 static const uint8_t TXB0DLC = 0x35;
 static const uint8_t TXB0D0 = 0x36;
 
@@ -49,7 +53,7 @@ static const uint8_t TXB1D0 = 0x46;
 
 static const uint8_t TXB2DLC = 0x55;
 static const uint8_t TXB2D0 = 0x56;
-
+static const uint64_t t = 0x3D;
 
 /** Read n consecutive registers starting from the specified one. */
 static void mcp2515_read_regs(uint8_t reg, uint8_t values[], const uint8_t n) {

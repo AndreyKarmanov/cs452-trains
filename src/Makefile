@@ -16,7 +16,7 @@ else
 MMUFLAGS:=-mstrict-align -mgeneral-regs-only
 endif
 WARNINGS:=-Wall -Wextra -Wpedantic -Wno-unused-const-variable
-CFLAGS:=-g -pipe -static -march=armv8-a -mcpu=cortex-a72 $(OPT) $(MMUFLAGS) $(WARNINGS)
+CFLAGS:=-g -pipe -static -march=armv8-a -mcpu=cortex-a72 -std=c++20 $(OPT) $(MMUFLAGS) $(WARNINGS)
 
 # -Wl,option tells gcc to pass 'option' to the linker with commas replaced by spaces
 # doing this rather than calling the linker directly simplifies the compilation procedure
@@ -48,6 +48,6 @@ endif
 	$(CC) $(CFLAGS) -MMD -MP -c $< -o $@
 
 %.o: %.c Makefile
-	$(CC) $(CFLAGS) -x c++ -MMD -MP -c $< -o $@ 
+	$(CC) $(CFLAGS) -MMD -MP -c $< -o $@ 
 
 -include $(DEPENDS)
