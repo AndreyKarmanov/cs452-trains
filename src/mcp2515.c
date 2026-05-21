@@ -146,34 +146,39 @@ void mcp2515_send(const CANFRAME* frame) {
 	memset(&mcp_frame, 0, sizeof(mcp_frame));
 
 	debug_put_bin32(CONSOLE, (frame->prio << 4) | (frame->cmdid & 0xF0));
-	mcp_frame.sid.H = (frame->prio << 4) | (frame->cmdid & 0xF0); // SID[10:3]
+	mcp_frame.SIDH = (frame->prio << 4) | (frame->cmdid & 0xF0);
 
 	uart_puts(CONSOLE, "\n\rSIDL\n\r");
-	mcp_frame.sid.L = ((frame->cmdid & 0b00001110) << 4) | (1 << 3) | ((frame->cmdid & 0b00000001) << 1) | frame->resp; // SID[2:0] in bits 7:5, EXIDE in bit 3, EID[17:16] in bits 1:0
-	debug_put_bin8(CONSOLE, mcp_frame.sid.L);
+	mcp_frame.SIDL.bits.SID_2_0 = (frame->cmdid & 0b00001110) >> 1;
+	mcp_frame.SIDL.bits.EXIDE = 1;
+	mcp_frame.SIDL.bits.EID_17_16 = ((frame->cmdid & 0b00000001) << 1) | frame->resp;
+	debug_put_bin8(CONSOLE, mcp_frame.SIDL.byte);
 
 	uart_puts(CONSOLE, "\n\rEID8\n\r");
-	mcp_frame.eid.EID8 = (frame->hash >> 8) & 0xFF; // EID[15:8]
-	debug_put_bin8(CONSOLE, mcp_frame.eid.EID8);
+	mcp_frame.EID8 = (frame->hash >> 8) & 0xFF;
+	debug_put_bin8(CONSOLE, mcp_frame.EID8);
 
 	uart_puts(CONSOLE, "\n\rEID0\n\r");
-	mcp_frame.eid.EID0 = frame->hash & 0xFF; // EID[7:0]
-	debug_put_bin8(CONSOLE, mcp_frame.eid.EID0);
+	mcp_frame.EID0 = frame->hash & 0xFF; 
+	debug_put_bin8(CONSOLE, mcp_frame.EID0);
 
 	uart_puts(CONSOLE, "\n\rDLC\n\r");
-	mcp_frame.dlc.DLC = frame->dlc; // DLC is 4 bits
-	mcp_frame.dlc.RTR = 0; // Data frame
-	debug_put_bin8(CONSOLE, *(uint8_t*)&mcp_frame.dlc);
+	mcp_frame.DLC.bits.DLC = frame->dlc;
+	mcp_frame.DLC.bits.RTR = 0;
+	debug_put_bin8(CONSOLE, *(uint8_t*)&mcp_frame.DLC.byte);
 
 	for (int i = 0; i < 8; ++i) {
 		mcp_frame.data[i] = frame->data[i];
 	}
 
-	
 	uart_puts(CONSOLE, "TXBnFrame bit view:\n\r");
 	debug_print_memory_bits(&mcp_frame, sizeof(mcp_frame));
-	mcp2515_write_regs(TXB0SIDH, (const uint8_t*)&mcp_frame.sid, sizeof(TXBnFrame) - 1);
+	mcp2515_write_regs(TXB0SIDH, (const uint8_t*)&mcp_frame.SIDH, sizeof(TXBnFrame) - sizeof(TXBnFrame::CTRL));
 
-	mcp_frame.ctrl.bits.TXREQ = 1;
-	mcp2515_write_reg(TXB0CTRL, mcp_frame.ctrl.byte);
+	mcp_frame.CTRL.bits.TXREQ = 1;
+	mcp2515_write_reg(TXB0CTRL, mcp_frame.CTRL.byte);
 }
+
+void mcp2515_recieve() {
+
+};

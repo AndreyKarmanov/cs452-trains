@@ -53,7 +53,7 @@ extern "C" int kmain() {
 	uart_puts(CONSOLE, "\033[2J\033[H");
 	uart_puts(CONSOLE, __DATE__ " / " __TIME__ " / Andrey Karmanov ");
 
-	SpeedCommand sample(15, 100);
+	SwitchCommand sample(11, 1);
 
 	CANFRAME frame = sample.frame;
 
@@ -66,7 +66,6 @@ extern "C" int kmain() {
 
 	uint32_t cmd_buf_n = 0;
 	char cmd_buf[32];
-
 
 	for (;;) {
 
