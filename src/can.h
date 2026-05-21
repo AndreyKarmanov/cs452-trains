@@ -1,22 +1,33 @@
-#include <stdint.h>
-#include <variant>
+#ifndef _can_h_
+#define _can_h_ 1
 
-constexpr uint32_t MRK_HASH = 0xC3;
+#include <stdint.h>
+
+// 1100 0011 0000 0000
+constexpr uint16_t MRK_HASH = 0xC300;
 
 struct TXBnCTRL {
-    uint8_t TXP0 : 1 = 0; // default to lowest prio
-    uint8_t TXP1 : 1 = 0;
-    uint8_t : 1;
-    uint8_t TXREQ : 1 = 1; // default to sendable
-    uint8_t TXERR : 1;
-    uint8_t MLOA : 1;
-    uint8_t ABTF : 1;
-    uint8_t : 1;
+    union
+    {
+        // we write the TXBnCTRL register separately, so we need a byte-level view
+        // otherwise we just write the full TXBnFrame starting from SIDH to DATA8
+        uint8_t byte; 
+        struct {
+            uint8_t TXP0 : 1;
+            uint8_t TXP1 : 1;
+            uint8_t : 1;
+            uint8_t TXREQ : 1;
+            uint8_t TXERR : 1;
+            uint8_t MLOA : 1;
+            uint8_t ABTF : 1;
+            uint8_t : 1;
+        } bits;
+    };
 };
 
 struct TXBnSID {
-    uint8_t SIDH;   // SID[10:3]
-    uint8_t SIDL;   // SID[2:0] | EXIDE | EID[17:16]
+    uint8_t H;   // SID[10:3]
+    uint8_t L;  // SID[2:0] in bits 7:5, EXIDE in bit 3, EID[17:16] in bits 1:0
 };
 
 struct TXBnEID {
@@ -33,7 +44,7 @@ struct TXBnDLC {
 
 
 struct TXBnFrame {
-    TXBnCTRL   ctrl;
+    TXBnCTRL   ctrl{ ctrl.byte = 0 };
     TXBnSID    sid;
     TXBnEID    eid;
     TXBnDLC    dlc;
@@ -42,53 +53,55 @@ struct TXBnFrame {
 
 
 struct CANFRAME {
-    union {
-        uint32_t raw;
-
-        struct
-        {
-            uint32_t prio : 4;
-            uint32_t cmdid : 8;
-            uint32_t resp : 1;
-            uint32_t hash : 16;
-        } b;
-    } msgid;
+    uint32_t prio : 4 = 0;
+    uint32_t cmdid : 8;
+    uint32_t resp : 1 = 0;
+    uint32_t hash : 16 = MRK_HASH;
 
     uint16_t dlc : 4;
+
     uint8_t data[8];
+
+
+    void encode_loco_id(uint32_t loco_id) {
+        data[0] = (loco_id >> 24) & 0xFF;
+        data[1] = (loco_id >> 16) & 0xFF;
+        data[2] = (loco_id >> 8) & 0xFF;
+        data[3] = loco_id & 0xFF;
+    }
 };
 
 struct LightCommand
 {
-    CANFRAME frame{
-        frame.msgid.b.cmdid = 0x06,
-        frame.msgid.b.prio = 0,
-        frame.msgid.b.resp = 0,
-        frame.msgid.b.hash = MRK_HASH,
-        frame.dlc = 6,
-        frame.data[4] = 0
-    };
+    CANFRAME frame;
 
     LightCommand(uint32_t loco_id, bool value) {
+
+        frame.cmdid = 0x06;
+
+        frame.dlc = 6;
+
+        frame.encode_loco_id(loco_id);
+
         frame.data[4] = 0;
         frame.data[5] = value;
-
-        frame.data[0] = loco_id & 0xFF;
-        frame.data[1] = (loco_id >> 8) & 0xFF;
-        frame.data[2] = (loco_id >> 16) & 0xFF;
-        frame.data[3] = (loco_id >> 24) & 0xFF;
     };
 };
 
+struct SpeedCommand
+{
+    CANFRAME frame;
 
+    SpeedCommand(uint32_t loco_id, uint16_t speed) {
+        frame.cmdid = 0x04;
 
-// flow is RXBnFrame <-> MRKCommand <-> TXBnFrame
-// this is specialized locmotive funciton?
+        frame.dlc = 6;
 
-// struct LightCommand {
-//     uint8_t cmdid = 0x06; // Lok Funktion mention page 32 on MRK
-//     uint8_t dlc = 0x06; // Aktivieren einer Funktion (lol)
-//     uint32_t loco_id = 0; // DATA[0:3]
-//     uint8_t func = 0; // DATA[4], 0 is light
-//     uint8_t on = 1; // DATA[5], 1/0 for on /off
-// };
+        frame.encode_loco_id(loco_id);
+
+        frame.data[4] = (speed >> 8) & 0xFF;
+        frame.data[5] = speed & 0xFF;
+    };
+};
+
+#endif /* _can_h_ */

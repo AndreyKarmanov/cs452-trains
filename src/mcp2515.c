@@ -1,6 +1,8 @@
 #include "mcp2515.h"
+#include "debug.h"
 #include "spi.h"
-
+#include "can.h"
+#include "uart.h"
 
 // configuration registers
 static const uint8_t CNF3 = 0x28;
@@ -18,9 +20,9 @@ static const uint8_t MCP_16MHz_250kbPS_CFG3 = 0x85;
 static const uint8_t OPMODE_NORMAL = 0x00;
 
 // MCP2515 instruction set
-static const uint8_t INSTRUCTION_WRITE       = 0x02;
-static const uint8_t INSTRUCTION_READ        = 0x03;
-static const uint8_t INSTRUCTION_BIT_MODIFY  = 0x05;
+static const uint8_t INSTRUCTION_WRITE = 0x02;
+static const uint8_t INSTRUCTION_READ = 0x03;
+static const uint8_t INSTRUCTION_BIT_MODIFY = 0x05;
 static const uint8_t INSTRUCTION_READ_STATUS = 0xA0;
 
 // MCP2515 status mask
@@ -132,4 +134,46 @@ int mcp2515_fakerecv() {
 	if (!(mcp2515_read_status() & STATUS_RX0)) return 0;
 	mcp2515_write_reg(CANINTF, 0); // fake confirm receipt of frame
 	return 1;
+}
+
+void* memset(void* s, int c, size_t n) {
+	for (char* it = (char*)s; n > 0; --n) *it++ = c;
+	return s;
+}
+
+void mcp2515_send(const CANFRAME* frame) {
+	TXBnFrame mcp_frame;
+	memset(&mcp_frame, 0, sizeof(mcp_frame));
+
+	debug_put_bin32(CONSOLE, (frame->prio << 4) | (frame->cmdid & 0xF0));
+	mcp_frame.sid.H = (frame->prio << 4) | (frame->cmdid & 0xF0); // SID[10:3]
+
+	uart_puts(CONSOLE, "\n\rSIDL\n\r");
+	mcp_frame.sid.L = ((frame->cmdid & 0b00001110) << 4) | (1 << 3) | ((frame->cmdid & 0b00000001) << 1) | frame->resp; // SID[2:0] in bits 7:5, EXIDE in bit 3, EID[17:16] in bits 1:0
+	debug_put_bin8(CONSOLE, mcp_frame.sid.L);
+
+	uart_puts(CONSOLE, "\n\rEID8\n\r");
+	mcp_frame.eid.EID8 = (frame->hash >> 8) & 0xFF; // EID[15:8]
+	debug_put_bin8(CONSOLE, mcp_frame.eid.EID8);
+
+	uart_puts(CONSOLE, "\n\rEID0\n\r");
+	mcp_frame.eid.EID0 = frame->hash & 0xFF; // EID[7:0]
+	debug_put_bin8(CONSOLE, mcp_frame.eid.EID0);
+
+	uart_puts(CONSOLE, "\n\rDLC\n\r");
+	mcp_frame.dlc.DLC = frame->dlc; // DLC is 4 bits
+	mcp_frame.dlc.RTR = 0; // Data frame
+	debug_put_bin8(CONSOLE, *(uint8_t*)&mcp_frame.dlc);
+
+	for (int i = 0; i < 8; ++i) {
+		mcp_frame.data[i] = frame->data[i];
+	}
+
+	
+	uart_puts(CONSOLE, "TXBnFrame bit view:\n\r");
+	debug_print_memory_bits(&mcp_frame, sizeof(mcp_frame));
+	mcp2515_write_regs(TXB0SIDH, (const uint8_t*)&mcp_frame.sid, sizeof(TXBnFrame) - 1);
+
+	mcp_frame.ctrl.bits.TXREQ = 1;
+	mcp2515_write_reg(TXB0CTRL, mcp_frame.ctrl.byte);
 }

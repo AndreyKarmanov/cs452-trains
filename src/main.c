@@ -1,7 +1,9 @@
 #include <string.h>
 #include <stdint.h>
+#include <stddef.h>
 #include "rpi.h"
 #include "mcp2515.h"
+#include "debug.h"
 #include "uart.h"
 #include "time.h"
 #include "can.h"
@@ -12,38 +14,33 @@ extern "C" void setup_mmu(); // in mmu.S
 #define CONSOLE_ROW "3"
 #define CLOCK_UPDATE_INTERVAL_US 100000
 
-void uart_clear_console() {
-	uart_puts(CONSOLE, "\033[" CONSOLE_ROW ";1H\033[K");
-}
-
 typedef enum COMMAND_T {
 	COMMAND_NONE,
+	COMMAND_MOVE,
 	COMMAND_QUIT
 } COMMAND_T;
 
+const int x = 0x3D - 0x36;
 
-COMMAND_T parse_command(const char* buf, size_t blen) {
+static COMMAND_T parse_command(const char* buf, size_t blen) {
 	if (blen == 0) {
 		return COMMAND_NONE;
 	}
 	if (strcmp(buf, "Q") == 0 || strcmp(buf, "q") == 0) {
 		return COMMAND_QUIT;
 	}
+	if (strcmp(buf, "MOVE") == 0) {
+		return COMMAND_MOVE;
+	}
 	return COMMAND_NONE;
 }
 
-
-void print_bytes(void* start, uint8_t n) {
-	uint8_t* addr = (uint8_t*) start;
-	for (int i = 0; i < n; ++i) {
-		uart_printf(CONSOLE, "%x: %x\r\n", (addr + i), *(addr + i));
-	}
-};
 
 extern "C" int kmain() {
 #if defined(MMU)
 	setup_mmu();
 #endif
+
 
 	// set up GPIO pins for both console uart and canbus
 	gpio_init();
@@ -56,18 +53,20 @@ extern "C" int kmain() {
 	uart_puts(CONSOLE, "\033[2J\033[H");
 	uart_puts(CONSOLE, __DATE__ " / " __TIME__ " / Andrey Karmanov ");
 
+	SpeedCommand sample(15, 100);
 
-	auto t = LightCommand(13, 1);
-	uart_printf(CONSOLE, "full: %u, %u", sizeof(t), sizeof(t.frame.msgid));
+	CANFRAME frame = sample.frame;
 
-	print_bytes(&t, sizeof(t));
-
-
-	uint32_t time = time_get();
-
+	uart_printf(CONSOLE, "Initial frame data[0]: %u\n\r", sizeof(TXBnFrame));
+	uart_puts(CONSOLE, "Raw CANFRAME bytes:\n\r");
+	debug_print_memory_dump(&frame, sizeof(frame));
+	uart_puts(CONSOLE, "Raw CANFRAME bits:\n\r");
+	debug_print_memory_bits(&frame, sizeof(frame));
+	mcp2515_send(&frame);
 
 	uint32_t cmd_buf_n = 0;
 	char cmd_buf[32];
+
 
 	for (;;) {
 
@@ -91,13 +90,18 @@ extern "C" int kmain() {
 				uart_puts(CONSOLE, "\b \b"); // move back, print space, move back again
 				--cmd_buf_n;
 			} else if (c == '\r') { // enter
-				uart_clear_console();
+				debug_clear_console();
 				cmd_buf[cmd_buf_n] = '\0';
 				COMMAND_T cmd = parse_command(cmd_buf, cmd_buf_n);
 				cmd_buf_n = 0;
 				if (cmd == COMMAND_QUIT) {
 					uart_puts(CONSOLE, "Goodbye!\n\r");
 					return 0;
+				} else if (cmd == COMMAND_MOVE) {
+					SpeedCommand cmd(15, 500);
+					mcp2515_send(&cmd.frame);
+				} else {
+					uart_puts(CONSOLE, "Unknown command\n\r");
 				}
 			}
 		}
