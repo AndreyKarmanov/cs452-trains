@@ -63,11 +63,11 @@ struct CANFRAME {
     uint8_t data[8];
 
 
-    void encode_loco_id(uint32_t loco_id) {
-        data[0] = (loco_id >> 24) & 0xFF;
-        data[1] = (loco_id >> 16) & 0xFF;
-        data[2] = (loco_id >> 8) & 0xFF;
-        data[3] = loco_id & 0xFF;
+    void encode_data_0_4(uint32_t value) {
+        data[0] = (value >> 24) & 0xFF;
+        data[1] = (value >> 16) & 0xFF;
+        data[2] = (value >> 8) & 0xFF;
+        data[3] = value & 0xFF;
     }
 };
 
@@ -81,7 +81,7 @@ struct LightCommand
 
         frame.dlc = 6;
 
-        frame.encode_loco_id(loco_id);
+        frame.encode_data_0_4(loco_id);
 
         frame.data[4] = 0;
         frame.data[5] = value;
@@ -97,10 +97,43 @@ struct SpeedCommand
 
         frame.dlc = 6;
 
-        frame.encode_loco_id(loco_id);
+        frame.encode_data_0_4(loco_id);
 
         frame.data[4] = (speed >> 8) & 0xFF;
         frame.data[5] = speed & 0xFF;
+    };
+};
+
+struct DirectionCommand
+{
+    CANFRAME frame;
+
+    DirectionCommand(uint32_t loco_id, bool backward) {
+        frame.cmdid = 0x05;
+
+        frame.dlc = 5;
+
+        frame.encode_data_0_4(loco_id);
+
+        frame.data[4] = backward + 1;
+    };
+};
+
+struct SwitchCommand
+{
+    CANFRAME frame;
+
+    SwitchCommand(uint16_t sw_id, bool straight) {
+        frame.cmdid = 0x0B;
+
+        frame.dlc = 6;
+        
+        // sw_id is 1-indexed in diagram, but can is 0-indexed. 
+        frame.encode_data_0_4(0x3000 + sw_id - 1);
+
+        frame.data[4] = straight;
+
+        frame.data[5] = 1;
     };
 };
 
