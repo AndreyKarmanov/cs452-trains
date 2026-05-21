@@ -89,7 +89,7 @@ struct RXBnFRAME {
             uint8_t : 1;
             uint8_t IDE : 1; // EXIDE equiv, should be 1 always
             uint8_t SRR : 1;
-            uint8_t SID_2_0 : 2;
+            uint8_t SID_2_0 : 3;
         } bits;
     } SIDL;
 

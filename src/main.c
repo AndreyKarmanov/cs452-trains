@@ -53,7 +53,7 @@ extern "C" int kmain() {
 	uart_puts(CONSOLE, "\033[2J\033[H");
 	uart_puts(CONSOLE, __DATE__ " / " __TIME__ " / Andrey Karmanov ");
 
-	SwitchCommand sample(11, 1);
+	LightCommand sample(13, 1);
 
 	CANFRAME frame = sample.frame;
 
@@ -100,13 +100,17 @@ extern "C" int kmain() {
 					SpeedCommand cmd(15, 500);
 					mcp2515_send(&cmd.frame);
 				} else {
+					LightCommand sample(13, 1);
+
+					CANFRAME frame = sample.frame;
+					mcp2515_send(&frame);
+
+
 					uart_puts(CONSOLE, "Unknown command\n\r");
 				}
 			}
 		}
-		if (mcp2515_fakerecv()) {
-			uart_puts(CONSOLE, "FRAME\n\r");
-		}
+		mcp2515_recieve();
 
 		// // update clock
 		// uint32_t new_time = time_get();

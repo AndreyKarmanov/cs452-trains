@@ -9,6 +9,7 @@ void mcp2515_init(void);
 
 /** Report and drop a frame if RX0 is full. */
 int mcp2515_fakerecv();
+void mcp2515_recieve();
 
 void mcp2515_send(const CANFRAME* frame);
 

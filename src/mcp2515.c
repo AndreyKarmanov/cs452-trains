@@ -28,9 +28,15 @@ static const uint8_t INSTRUCTION_READ_STATUS = 0xA0;
 // 1000 0abc where abc is txb2, 1, 0 rts
 static const uint8_t INSTRUCTION_RTS = 0b10000000;
 
-
 // MCP2515 status mask
 static const uint8_t STATUS_RX0 = 0x01;
+static const uint8_t STATUS_RX1 = 0x02;
+static const uint8_t STATUS_TX0 = 0x04;
+static const uint8_t STATUS_TX0IF = 0x08;
+static const uint8_t STATUS_TX1 = 0x10;
+static const uint8_t STATUS_TX1IF = 0x20;
+static const uint8_t STATUS_TX2 = 0x40;
+static const uint8_t STATUS_TX2IF = 0x80;
 
 // MCP2515 buffer registers
 static const uint8_t RXBnCTRL0 = 0x60;
@@ -48,9 +54,12 @@ static const uint8_t CANCTRL_REQOP = 0xE0;
 static const uint8_t CANINTF = 0x2C;
 
 // TX buffer registers
-// set bit 3 to 1 to send, check if 0 before writing
 static const uint8_t TXB0CTRL = 0x30;
 static const uint8_t TXB0SIDH = 0x31;
+
+// RX buffer registers
+static const uint8_t RXB0CTRL = 0x60;
+static const uint8_t RXB1CTRL = 0x70;
 
 /** Read n consecutive registers starting from the specified one. */
 static void mcp2515_read_regs(uint8_t reg, uint8_t values[], const uint8_t n) {
@@ -146,39 +155,75 @@ void mcp2515_send(const CANFRAME* frame) {
 	TXBnFrame mcp_frame;
 	memset(&mcp_frame, 0, sizeof(mcp_frame));
 
-	debug_put_bin32(CONSOLE, (frame->prio << 4) | (frame->cmdid & 0xF0));
 	mcp_frame.SIDH = (frame->prio << 4) | (frame->cmdid & 0xF0);
 
-	uart_puts(CONSOLE, "\n\rSIDL\n\r");
 	mcp_frame.SIDL.bits.SID_2_0 = (frame->cmdid & 0b00001110) >> 1;
 	mcp_frame.SIDL.bits.EXIDE = 1;
 	mcp_frame.SIDL.bits.EID_17_16 = ((frame->cmdid & 0b00000001) << 1) | frame->resp;
-	debug_put_bin8(CONSOLE, mcp_frame.SIDL.byte);
 
-	uart_puts(CONSOLE, "\n\rEID8\n\r");
 	mcp_frame.EID8 = (frame->hash >> 8) & 0xFF;
-	debug_put_bin8(CONSOLE, mcp_frame.EID8);
 
-	uart_puts(CONSOLE, "\n\rEID0\n\r");
 	mcp_frame.EID0 = frame->hash & 0xFF;
-	debug_put_bin8(CONSOLE, mcp_frame.EID0);
 
-	uart_puts(CONSOLE, "\n\rDLC\n\r");
 	mcp_frame.DLC.bits.DLC = frame->dlc;
 	mcp_frame.DLC.bits.RTR = 0;
-	debug_put_bin8(CONSOLE, *(uint8_t*)&mcp_frame.DLC.byte);
 
 	for (int i = 0; i < 8; ++i) {
 		mcp_frame.data[i] = frame->data[i];
 	}
 
-	uart_puts(CONSOLE, "TXBnFrame bit view:\n\r");
-	debug_print_memory_bits(&mcp_frame, sizeof(mcp_frame));
+	uart_puts(CONSOLE, "TX Frame bit view:\n\r");
+	debug_print_can_frame(frame);
 	mcp2515_write_regs(TXB0SIDH, (const uint8_t*)&mcp_frame.SIDH, sizeof(TXBnFrame) - sizeof(TXBnFrame::CTRL));
 
 	mcp2515_rts(1, 0, 0);
 }
 
 void mcp2515_recieve() {
+	if ((mcp2515_read_status() & STATUS_RX0)) {
 
+		RXBnFRAME mcp_frame;
+		CANFRAME frame;
+
+		mcp2515_read_regs(RXB0CTRL, (uint8_t*)&mcp_frame, sizeof(RXBnFRAME));
+
+		frame.prio = (mcp_frame.SIDH & 0xF0) >> 4;
+		frame.cmdid = ((mcp_frame.SIDH & 0x0F) << 4) | (mcp_frame.SIDL.bits.SID_2_0 << 1) | ((mcp_frame.SIDL.bits.EID_17_16 & 0b10) >> 1);
+		frame.resp = mcp_frame.SIDL.bits.EID_17_16 & 0b1;
+		frame.hash = (mcp_frame.EID8 << 8) | mcp_frame.EID0;
+
+		frame.dlc = mcp_frame.DLC.bits.DLC;
+
+		for (int i = 0; i < frame.dlc; ++i) {
+			frame.data[i] = mcp_frame.data[i];
+		}
+		uart_puts(CONSOLE, "FRAME (RX0):\n\r");
+		debug_print_can_frame(&frame);
+
+	};
+
+	if ((mcp2515_read_status() & STATUS_RX1)) {
+
+		RXBnFRAME mcp_frame;
+		CANFRAME frame;
+
+		mcp2515_read_regs(RXB1CTRL, (uint8_t*)&mcp_frame, sizeof(RXBnFRAME));
+
+		frame.prio = (mcp_frame.SIDH & 0xF0) >> 4;
+		frame.cmdid = ((mcp_frame.SIDH & 0x0F) << 4) | (mcp_frame.SIDL.bits.SID_2_0 << 1) | ((mcp_frame.SIDL.bits.EID_17_16 & 0b10) >> 1);
+		frame.resp = mcp_frame.SIDL.bits.EID_17_16 & 0b1;
+		frame.hash = (mcp_frame.EID8 << 8) | mcp_frame.EID0;
+
+		frame.dlc = mcp_frame.DLC.bits.DLC;
+
+		for (int i = 0; i < frame.dlc; ++i) {
+			frame.data[i] = mcp_frame.data[i];
+		}
+		uart_puts(CONSOLE, "FRAME (RX1):\n\r");
+		debug_print_can_frame(&frame);
+
+	};
+	if ((mcp2515_read_status() & (STATUS_RX0 | STATUS_RX1))) {
+		mcp2515_write_reg(CANINTF, 0);
+	}
 };

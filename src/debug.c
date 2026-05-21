@@ -54,7 +54,6 @@ void debug_print_memory_dump(const void* start, uint32_t nbytes) {
 void debug_print_memory_bits(const void* start, uint32_t nbytes) {
     const uint8_t* bytes = (const uint8_t*)start;
 
-    uart_puts(CONSOLE, "Bit inspector\n\r");
     uart_puts(CONSOLE, "addr.  bits       hex\n\r");
     uart_puts(CONSOLE, "-----  ---------  ----\n\r");
     for (uint32_t i = 0; i < nbytes; ++i) {
@@ -62,4 +61,24 @@ void debug_print_memory_bits(const void* start, uint32_t nbytes) {
         debug_put_bin8(CONSOLE, bytes[i]);
         uart_printf(CONSOLE, " 0x%x\n\r", bytes[i]);
     }
+}
+
+void debug_print_can_frame(const CANFRAME* frame) {
+    uart_printf(
+        CONSOLE,
+        "CAN prio=%u cmd=0x%x resp=%u hash=0x%x dlc=%u data=[%x %x %x %x %x %x %x %x]\n\r",
+        frame->prio,
+        frame->cmdid,
+        frame->resp,
+        frame->hash,
+        frame->dlc,
+        frame->data[0],
+        frame->data[1],
+        frame->data[2],
+        frame->data[3],
+        frame->data[4],
+        frame->data[5],
+        frame->data[6],
+        frame->data[7]
+    );
 }
