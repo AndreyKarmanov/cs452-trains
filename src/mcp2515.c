@@ -25,6 +25,10 @@ static const uint8_t INSTRUCTION_READ = 0x03;
 static const uint8_t INSTRUCTION_BIT_MODIFY = 0x05;
 static const uint8_t INSTRUCTION_READ_STATUS = 0xA0;
 
+// 1000 0abc where abc is txb2, 1, 0 rts
+static const uint8_t INSTRUCTION_RTS = 0b10000000;
+
+
 // MCP2515 status mask
 static const uint8_t STATUS_RX0 = 0x01;
 
@@ -47,15 +51,6 @@ static const uint8_t CANINTF = 0x2C;
 // set bit 3 to 1 to send, check if 0 before writing
 static const uint8_t TXB0CTRL = 0x30;
 static const uint8_t TXB0SIDH = 0x31;
-static const uint8_t TXB0DLC = 0x35;
-static const uint8_t TXB0D0 = 0x36;
-
-static const uint8_t TXB1DLC = 0x45;
-static const uint8_t TXB1D0 = 0x46;
-
-static const uint8_t TXB2DLC = 0x55;
-static const uint8_t TXB2D0 = 0x56;
-static const uint64_t t = 0x3D;
 
 /** Read n consecutive registers starting from the specified one. */
 static void mcp2515_read_regs(uint8_t reg, uint8_t values[], const uint8_t n) {
@@ -112,6 +107,12 @@ static uint8_t mcp2515_read_status(void) {
 	return ret;
 }
 
+static void mcp2515_rts(bool txb0 = 0, bool txb1 = 0, bool txb2 = 0) {
+	spi_begin_transaction();
+	spi_transfer_one(INSTRUCTION_RTS | txb0 | (txb1 << 1) | (txb2 << 2));
+	spi_end_transaction();
+}
+
 void mcp2515_init(void) {
 	// No need to reset MCP2515 here as a hardware reset is done during boot.
 	// MCP2515 automatically enters config mode after hardware reset.
@@ -159,7 +160,7 @@ void mcp2515_send(const CANFRAME* frame) {
 	debug_put_bin8(CONSOLE, mcp_frame.EID8);
 
 	uart_puts(CONSOLE, "\n\rEID0\n\r");
-	mcp_frame.EID0 = frame->hash & 0xFF; 
+	mcp_frame.EID0 = frame->hash & 0xFF;
 	debug_put_bin8(CONSOLE, mcp_frame.EID0);
 
 	uart_puts(CONSOLE, "\n\rDLC\n\r");
@@ -175,8 +176,7 @@ void mcp2515_send(const CANFRAME* frame) {
 	debug_print_memory_bits(&mcp_frame, sizeof(mcp_frame));
 	mcp2515_write_regs(TXB0SIDH, (const uint8_t*)&mcp_frame.SIDH, sizeof(TXBnFrame) - sizeof(TXBnFrame::CTRL));
 
-	mcp_frame.CTRL.bits.TXREQ = 1;
-	mcp2515_write_reg(TXB0CTRL, mcp_frame.CTRL.byte);
+	mcp2515_rts(1, 0, 0);
 }
 
 void mcp2515_recieve() {
