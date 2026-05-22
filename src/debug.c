@@ -1,6 +1,6 @@
 #include "debug.h"
-
 #include "uart.h"
+#include <variant>
 
 static char debug_to_hex_digit(uint8_t x) {
     return x < 10 ? (char)('0' + x) : (char)('A' + (x - 10));
@@ -81,4 +81,47 @@ void debug_print_can_frame(const CANFRAME* frame) {
         frame->data[6],
         frame->data[7]
     );
+}
+
+void debug_print_mrk(const MRK_CMD& cmd) {
+    switch (cmd.index()) {
+    case 0: {
+        const LightCommand& command = std::get<0>(cmd);
+        uart_printf(CONSOLE, "LIGHT loco=%u value=%u\n\r", command.loco_id, command.value ? 1 : 0);
+        return;
+    }
+    case 1: {
+        const SpeedCommand& command = std::get<1>(cmd);
+        uart_printf(CONSOLE, "SPEED loco=%u speed=%u\n\r", command.loco_id, command.speed);
+        return;
+    }
+    case 2: {
+        const DirectionCommand& command = std::get<2>(cmd);
+        uart_printf(CONSOLE, "DIR loco=%u backward=%u\n\r", command.loco_id, command.backward ? 1 : 0);
+        return;
+    }
+    case 3: {
+        const SwitchCommand& command = std::get<3>(cmd);
+        uart_printf(CONSOLE, "SWITCH sw=%u straight=%u\n\r", command.sw_id, command.straight ? 1 : 0);
+        return;
+    }
+    case 4: {
+        const SensorData& command = std::get<4>(cmd);
+        uart_printf(
+            CONSOLE,
+            "SENSOR id=%u bank=%u number=%u old=%u new=%u\n\r",
+            command.sensor_id,
+            command.bank,
+            command.number,
+            command.old_state ? 1 : 0,
+            command.new_state ? 1 : 0
+        );
+        return;
+    }
+    default: {
+        const UnknownCommand& command = std::get<5>(cmd);
+        uart_printf(CONSOLE, "UNKNOWN cmd=0x%x dlc=%u\n\r", command.frame.cmdid, command.frame.dlc);
+        return;
+    }
+    }
 }

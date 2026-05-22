@@ -13,5 +13,6 @@ void debug_clear_console(void);
 void debug_print_memory_dump(const void* start, uint32_t nbytes);
 void debug_print_memory_bits(const void* start, uint32_t nbytes);
 void debug_print_can_frame(const CANFRAME* frame);
+void debug_print_mrk(const MRK_CMD& cmd);
 
 #endif /* _debug_h_ */

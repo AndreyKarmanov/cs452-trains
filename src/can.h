@@ -2,6 +2,7 @@
 #define _can_h_ 1
 
 #include <stdint.h>
+#include <variant>
 
 // 1100 0011 0000 0000
 constexpr uint16_t MRK_HASH = 0xC300;
@@ -80,7 +81,7 @@ struct RXBnFRAME {
     } CTRL;
 
     uint8_t SIDH;   // SID[10:3]
-    
+
     union
     {
         uint8_t byte;
@@ -167,7 +168,8 @@ struct SpeedCommand {
     SpeedCommand(uint32_t loco_id, uint16_t speed) : loco_id(loco_id), speed(speed) {}
 
     SpeedCommand(const CANFRAME& frame)
-        : loco_id(frame.decode_data_0_4()), speed((frame.data[4] << 8) | frame.data[5]) {}
+        : loco_id(frame.decode_data_0_4()), speed((frame.data[4] << 8) | frame.data[5]) {
+    }
 
     CANFRAME to_frame() const {
         CANFRAME frame;
@@ -213,7 +215,8 @@ struct SwitchCommand {
     SwitchCommand(uint16_t sw_id, bool straight) : sw_id(sw_id), straight(straight) {}
 
     SwitchCommand(const CANFRAME& frame)
-        : sw_id(uint16_t(frame.decode_data_0_4() - 0x3000 + 1)), straight(frame.data[4] != 0) {}
+        : sw_id(uint16_t(frame.decode_data_0_4() - 0x3000 + 1)), straight(frame.data[4] != 0) {
+    }
 
     CANFRAME to_frame() const {
         CANFRAME frame;
@@ -231,27 +234,50 @@ struct SwitchCommand {
 };
 
 struct SensorData {
-    static constexpr uint8_t cmdid = 0x0A;
+    static constexpr uint8_t cmdid = 0x11;
 
-    uint32_t sensor_id;
-    bool value;
+    uint16_t sensor_id;
 
-    SensorData(uint32_t sensor_id, bool value) : sensor_id(sensor_id), value(value) {}
+    uint8_t bank;
+    uint8_t number;
 
-    SensorData(const CANFRAME& frame) : sensor_id(frame.decode_data_0_4()), value(frame.data[4] != 0) {}
+    bool old_state;
+    bool new_state;
 
-    CANFRAME to_frame() const {
-        CANFRAME frame;
-
-        frame.cmdid = cmdid;
-        frame.dlc = 5;
-        frame.encode_data_0_4(sensor_id);
-        frame.data[4] = value;
-
-        return frame;
+    SensorData(const CANFRAME& frame) : sensor_id((frame.decode_data_0_4() & 0xFFFF)),
+        old_state(frame.data[4]), new_state(frame.data[5]) {
+        bank = (sensor_id / 16);
+        number = (sensor_id % 16);
     }
 };
 
+struct UnknownCommand
+{
+    CANFRAME frame;
+    UnknownCommand(const CANFRAME& frame) : frame(frame) {};
+};
+
+
+using MRK_CMD = std::variant<LightCommand, SpeedCommand, DirectionCommand, SwitchCommand, SensorData, UnknownCommand>;
+
+
+inline MRK_CMD decode_frame(const CANFRAME& frame) {
+    switch (frame.cmdid)
+    {
+    case LightCommand::cmdid:
+        return LightCommand(frame);
+    case SpeedCommand::cmdid:
+        return SpeedCommand(frame);
+    case DirectionCommand::cmdid:
+        return DirectionCommand(frame);
+    case SwitchCommand::cmdid:
+        return SwitchCommand(frame);
+    case SensorData::cmdid:
+        return SensorData(frame);
+    default:
+        return UnknownCommand(frame);
+    }
+}
 
 #endif /* _can_h_ */
 

@@ -24,6 +24,11 @@ Generally, C++ works almost out of the box. The main things that need changes is
 
 - global objects with non-trivial constructors
     - need to initalize by iterating through & jumping to the addresses in `.init_array`
+- stub syscalls
+    - https://sourceware.org/newlib/libc.html#Syscalls
+    - bare minimum ones to support
+    - after you use a lbrary (e.g. std::variant) you can try compiling and for each syscall that is missing during compilation, add a stub
+    - I'm hoping this will be good enough, I have no idea (will prob get screwed later)
 
 ### Not implemented (yet?)
 
