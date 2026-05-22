@@ -29,10 +29,6 @@ void debug_put_bin32(size_t line, uint32_t value) {
     }
 }
 
-void debug_clear_console(void) {
-    uart_puts(CONSOLE, "\033[3;1H\033[K");
-}
-
 void debug_print_memory_dump(const void* start, uint32_t nbytes) {
     const uint8_t* bytes = (const uint8_t*)start;
 
@@ -115,6 +111,15 @@ void debug_print_mrk(const MRK_CMD& cmd) {
             command.number,
             command.old_state ? 1 : 0,
             command.new_state ? 1 : 0
+        );
+        return;
+    }
+    case 6: {
+        const ControlCommand& command = std::get<6>(cmd);
+        uart_printf(
+            CONSOLE,
+            "CONTROL command=%u",
+            command.type  
         );
         return;
     }

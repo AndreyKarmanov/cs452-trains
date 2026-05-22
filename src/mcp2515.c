@@ -196,33 +196,13 @@ void mcp2515_send(const CANFRAME& frame) {
 	mcp2515_rts(1, 0, 0);
 }
 
-bool mcp2515_recieve_RX0(CANFRAME& frame) {
-	if (!(mcp2515_read_status() & STATUS_RX0)) return false;
+bool mcp2515_recieve_RXn(bool rx0, CANFRAME& frame) {
+	uint8_t flag = rx0 ? STATUS_RX0 : STATUS_RX1;
+	if (!(mcp2515_read_status() & flag)) return false;
 
 	RXBnFRAME mcp_frame;
 
-	mcp2515_read_RXn(0, (uint8_t*)&mcp_frame.SIDH, sizeof(RXBnFRAME) - sizeof(RXBnFRAME::CTRL));
-
-	frame.prio = (mcp_frame.SIDH & 0xF0) >> 4;
-	frame.cmdid = ((mcp_frame.SIDH & 0x0F) << 4) | (mcp_frame.SIDL.bits.SID_2_0 << 1) | ((mcp_frame.SIDL.bits.EID_17_16 & 0b10) >> 1);
-	frame.resp = mcp_frame.SIDL.bits.EID_17_16 & 0b1;
-	frame.hash = (mcp_frame.EID8 << 8) | mcp_frame.EID0;
-
-	frame.dlc = mcp_frame.DLC.bits.DLC;
-
-	for (int i = 0; i < frame.dlc; ++i) {
-		frame.data[i] = mcp_frame.data[i];
-	}
-
-	return true;
-};
-
-bool mcp2515_recieve_RX1(CANFRAME& frame) {
-	if (!(mcp2515_read_status() & STATUS_RX1)) return false;
-
-	RXBnFRAME mcp_frame;
-
-	mcp2515_read_RXn(1, (uint8_t*)&mcp_frame.SIDH, sizeof(RXBnFRAME) - sizeof(RXBnFRAME::CTRL));
+	mcp2515_read_RXn(rx0, (uint8_t*)&mcp_frame.SIDH, sizeof(RXBnFRAME) - sizeof(RXBnFRAME::CTRL));
 
 	frame.prio = (mcp_frame.SIDH & 0xF0) >> 4;
 	frame.cmdid = ((mcp_frame.SIDH & 0x0F) << 4) | (mcp_frame.SIDL.bits.SID_2_0 << 1) | ((mcp_frame.SIDL.bits.EID_17_16 & 0b10) >> 1);

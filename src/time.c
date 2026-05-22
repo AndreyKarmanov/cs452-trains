@@ -20,7 +20,7 @@ uint32_t time_get() {
     return *(volatile uint32_t*)(TIME_BASE + TIME_CLO);
 }
 
-const char* format_time(const uint32_t time_us) {
+const char* format_time(uint32_t time_us) {
     static char buf[8] = "00:00.0";
 
     // time is in microseconds
@@ -46,7 +46,7 @@ const char* format_time(const uint32_t time_us) {
     return buf;
 }
 
-void print_time(uint32_t time_us) {
+void print_time(const uint32_t time_us) {
     uart_puts(CONSOLE, "\033[" TIME_ROW ";" TIME_COL "H");
     uart_puts(CONSOLE, format_time(time_us));
 }

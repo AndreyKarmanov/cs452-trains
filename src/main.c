@@ -1,6 +1,7 @@
 #include <string.h>
 #include <stdint.h>
-#include <stddef.h>
+#include <ctype.h>
+
 #include "rpi.h"
 #include "mcp2515.h"
 #include "debug.h"
@@ -8,33 +9,11 @@
 #include "time.h"
 #include "can.h"
 #include "state.h"
-#include <ctype.h>
+#include "console.h"
 
 extern "C" void setup_mmu(); // in mmu.S
 
-#define CONSOLE_ROW "3"
 #define CLOCK_UPDATE_INTERVAL_US 100000
-
-typedef enum COMMAND_T {
-	COMMAND_NONE,
-	COMMAND_MOVE,
-	COMMAND_QUIT
-} COMMAND_T;
-
-const int x = 0x3D - 0x36;
-
-static COMMAND_T parse_command(const char* buf, size_t blen) {
-	if (blen == 0) {
-		return COMMAND_NONE;
-	}
-	if (strcmp(buf, "Q") == 0 || strcmp(buf, "q") == 0) {
-		return COMMAND_QUIT;
-	}
-	if (strcmp(buf, "MOVE") == 0) {
-		return COMMAND_MOVE;
-	}
-	return COMMAND_NONE;
-}
 
 extern "C" int kmain() {
 #if defined(MMU)
@@ -49,77 +28,38 @@ extern "C" int kmain() {
 	// not strictly necessary, since console is configured during boot
 	uart_config_and_enable(CONSOLE);
 
-	// Clear, center
-	uart_puts(CONSOLE, "\033[2J\033[H");
-	uart_puts(CONSOLE, __DATE__ " / " __TIME__ " / Andrey Karmanov ");
-
-	uint32_t cmd_buf_n = 0;
-	char cmd_buf[32];
+	uart_puts(CONSOLE, "\033[2J\033[H" __DATE__ " / " __TIME__ " / Andrey Karmanov ");
 
 	CANFRAME frame;
-
 	uint32_t time = 0;
 	State state;
 
 	for (;;) {
 
-		// handle user input in a timely manner, i.e. if they have a number of bytes we pull all at once
-		for (;;) {
+		auto cmd = update_console();
 
-			// try to fetch a byte
-			char c = uart_maybec(CONSOLE);
-			if (c == 0) {
-				break;
-			}
-
-			// check if it's a printable character (i.e. a char used in a command)
-			if (isprint(c)) {
-				if (cmd_buf_n < 30) {
-					cmd_buf[cmd_buf_n] = c;
-					uart_putc(CONSOLE, c);
-					++cmd_buf_n;
-				}
-			} else if ((c == 0x08 || c == 0x7f) && cmd_buf_n > 0) { // backspace
-				uart_puts(CONSOLE, "\b \b"); // move back, print space, move back again
-				--cmd_buf_n;
-			} else if (c == '\r') { // enter
-				debug_clear_console();
-				cmd_buf[cmd_buf_n] = '\0';
-				COMMAND_T cmd = parse_command(cmd_buf, cmd_buf_n);
-				cmd_buf_n = 0;
-				if (cmd == COMMAND_QUIT) {
-					uart_puts(CONSOLE, "Goodbye!\n\r");
-					return 0;
-				} else if (cmd == COMMAND_MOVE) {
-					mcp2515_send(SpeedCommand(15, 100).to_frame());
-				} else {
-					apply_state(state);
-					uart_puts(CONSOLE, "Unknown command\n\r");
-				}
-			}
+		if (cmd == COMMAND_T::COMMAND_QUIT) {
+			uart_puts(CONSOLE, "\033[2J\033[HGoodbye!");
+			break;
 		}
 
-		if (mcp2515_recieve_RX0(frame)) {
+		if (mcp2515_recieve_RXn(0, frame)) {
 			uart_puts(CONSOLE, "FRAME (RX0):\n\r");
 			debug_print_can_frame(&frame);
 			debug_print_mrk(decode_frame(frame));
 		}
 
-		if (mcp2515_recieve_RX1(frame)) {
+		if (mcp2515_recieve_RXn(1, frame)) {
 			uart_puts(CONSOLE, "FRAME (RX1):\n\r");
 			debug_print_can_frame(&frame);
 			debug_print_mrk(decode_frame(frame));
 		}
 
-		// // update clock
 		uint32_t new_time = time_get();
 		if (new_time - time > CLOCK_UPDATE_INTERVAL_US) {
 			time = new_time;
 			print_time(time);
 		}
-
-		// reset the cursor
-		uart_printf(CONSOLE, "\033[" CONSOLE_ROW ";%uH", 1 + cmd_buf_n);
 	}
 }
 
