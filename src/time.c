@@ -14,7 +14,6 @@ static const uint32_t TIME_CS   = 0x00;
 static const uint32_t TIME_CLO  = 0x04;
 static const uint32_t TIME_CHI  = 0x08;
 
-
 // Masks
 
 uint32_t time_get() {

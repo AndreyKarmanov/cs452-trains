@@ -61,7 +61,6 @@ struct TXBnFrame {
     uint8_t    data[8];
 };
 
-
 struct RXBnFRAME {
 
     // the ctrl are diff for the two buffers
@@ -251,6 +250,38 @@ struct SensorData {
     }
 };
 
+struct ControlCommand
+{
+    static constexpr uint8_t cmdid = 0x00;
+
+    typedef enum {
+        CMD_STOP = 0x00,
+        CMD_GO = 0x01,
+        CMD_HALT = 0x02
+    } CommandType;
+
+    CommandType type;
+
+    ControlCommand(CommandType type) : type(type) {}
+    ControlCommand(const CANFRAME& frame) : type(static_cast<CommandType>(frame.data[4])) {}
+
+    CANFRAME to_frame() const {
+        CANFRAME frame;
+
+        frame.cmdid = cmdid;
+        frame.dlc = 5;
+
+        for (int i = 0; i < 3; ++i) {
+            frame.data[i] = 0;
+        }
+
+        frame.data[4] = type;
+
+        return frame;
+    }
+};
+
+
 struct UnknownCommand
 {
     CANFRAME frame;
@@ -258,8 +289,7 @@ struct UnknownCommand
 };
 
 
-using MRK_CMD = std::variant<LightCommand, SpeedCommand, DirectionCommand, SwitchCommand, SensorData, UnknownCommand>;
-
+using MRK_CMD = std::variant<UnknownCommand, LightCommand, SpeedCommand, DirectionCommand, SwitchCommand, SensorData, ControlCommand>;
 
 inline MRK_CMD decode_frame(const CANFRAME& frame) {
     switch (frame.cmdid)
@@ -274,6 +304,8 @@ inline MRK_CMD decode_frame(const CANFRAME& frame) {
         return SwitchCommand(frame);
     case SensorData::cmdid:
         return SensorData(frame);
+    case ControlCommand::cmdid:
+        return ControlCommand(frame);
     default:
         return UnknownCommand(frame);
     }

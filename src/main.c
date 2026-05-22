@@ -7,6 +7,7 @@
 #include "uart.h"
 #include "time.h"
 #include "can.h"
+#include "state.h"
 #include <ctype.h>
 
 extern "C" void setup_mmu(); // in mmu.S
@@ -35,7 +36,6 @@ static COMMAND_T parse_command(const char* buf, size_t blen) {
 	return COMMAND_NONE;
 }
 
-
 extern "C" int kmain() {
 #if defined(MMU)
 	setup_mmu();
@@ -53,19 +53,13 @@ extern "C" int kmain() {
 	uart_puts(CONSOLE, "\033[2J\033[H");
 	uart_puts(CONSOLE, __DATE__ " / " __TIME__ " / Andrey Karmanov ");
 
-	LightCommand sample(13, 1);
-
-	CANFRAME frame = sample.to_frame();
-
-	uart_printf(CONSOLE, "Initial frame data[0]: %u\n\r", sizeof(TXBnFrame));
-	uart_puts(CONSOLE, "Raw CANFRAME bytes:\n\r");
-	debug_print_memory_dump(&frame, sizeof(frame));
-	uart_puts(CONSOLE, "Raw CANFRAME bits:\n\r");
-	debug_print_memory_bits(&frame, sizeof(frame));
-	mcp2515_send(frame);
-
 	uint32_t cmd_buf_n = 0;
 	char cmd_buf[32];
+
+	CANFRAME frame;
+
+	uint32_t time = 0;
+	State state;
 
 	for (;;) {
 
@@ -99,10 +93,7 @@ extern "C" int kmain() {
 				} else if (cmd == COMMAND_MOVE) {
 					mcp2515_send(SpeedCommand(15, 100).to_frame());
 				} else {
-					LightCommand sample(13, 1);
-
-					mcp2515_send(sample.to_frame());
-
+					apply_state(state);
 					uart_puts(CONSOLE, "Unknown command\n\r");
 				}
 			}
@@ -121,14 +112,14 @@ extern "C" int kmain() {
 		}
 
 		// // update clock
-		// uint32_t new_time = time_get();
-		// if (new_time - time > CLOCK_UPDATE_INTERVAL_US) {
-		// 	time = new_time;
-		// 	print_time(time);
-		// }
+		uint32_t new_time = time_get();
+		if (new_time - time > CLOCK_UPDATE_INTERVAL_US) {
+			time = new_time;
+			print_time(time);
+		}
 
-		// // reset the cursor
-		// uart_printf(CONSOLE, "\033[" CONSOLE_ROW ";%uH", 1 + cmd_buf_n);
+		// reset the cursor
+		uart_printf(CONSOLE, "\033[" CONSOLE_ROW ";%uH", 1 + cmd_buf_n);
 	}
 }
 

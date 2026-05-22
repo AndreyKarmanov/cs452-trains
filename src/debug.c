@@ -85,28 +85,28 @@ void debug_print_can_frame(const CANFRAME* frame) {
 
 void debug_print_mrk(const MRK_CMD& cmd) {
     switch (cmd.index()) {
-    case 0: {
-        const LightCommand& command = std::get<0>(cmd);
+    case 1: {
+        const LightCommand& command = std::get<1>(cmd);
         uart_printf(CONSOLE, "LIGHT loco=%u value=%u\n\r", command.loco_id, command.value ? 1 : 0);
         return;
     }
-    case 1: {
-        const SpeedCommand& command = std::get<1>(cmd);
+    case 2: {
+        const SpeedCommand& command = std::get<2>(cmd);
         uart_printf(CONSOLE, "SPEED loco=%u speed=%u\n\r", command.loco_id, command.speed);
         return;
     }
-    case 2: {
-        const DirectionCommand& command = std::get<2>(cmd);
+    case 3: {
+        const DirectionCommand& command = std::get<3>(cmd);
         uart_printf(CONSOLE, "DIR loco=%u backward=%u\n\r", command.loco_id, command.backward ? 1 : 0);
         return;
     }
-    case 3: {
-        const SwitchCommand& command = std::get<3>(cmd);
+    case 4: {
+        const SwitchCommand& command = std::get<4>(cmd);
         uart_printf(CONSOLE, "SWITCH sw=%u straight=%u\n\r", command.sw_id, command.straight ? 1 : 0);
         return;
     }
-    case 4: {
-        const SensorData& command = std::get<4>(cmd);
+    case 5: {
+        const SensorData& command = std::get<5>(cmd);
         uart_printf(
             CONSOLE,
             "SENSOR id=%u bank=%u number=%u old=%u new=%u\n\r",
@@ -119,8 +119,23 @@ void debug_print_mrk(const MRK_CMD& cmd) {
         return;
     }
     default: {
-        const UnknownCommand& command = std::get<5>(cmd);
-        uart_printf(CONSOLE, "UNKNOWN cmd=0x%x dlc=%u\n\r", command.frame.cmdid, command.frame.dlc);
+        const UnknownCommand& command = std::get<0>(cmd);
+        uart_printf(
+            CONSOLE,
+            "UNKNOWN CMD cmd=0x%x resp=%u hash=0x%x dlc=%u data=[%x %x %x %x %x %x %x %x]\n\r",
+            command.frame.cmdid,
+            command.frame.resp,
+            command.frame.hash,
+            command.frame.dlc,
+            command.frame.data[0],
+            command.frame.data[1],
+            command.frame.data[2],
+            command.frame.data[3],
+            command.frame.data[4],
+            command.frame.data[5],
+            command.frame.data[6],
+            command.frame.data[7]
+        );
         return;
     }
     }

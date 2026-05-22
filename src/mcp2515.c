@@ -169,6 +169,9 @@ void* memset(void* s, int c, size_t n) {
 }
 
 void mcp2515_send(const CANFRAME& frame) {
+	while ((mcp2515_read_status() & STATUS_TX0)) {};
+
+
 	TXBnFrame mcp_frame;
 	memset(&mcp_frame, 0, sizeof(mcp_frame));
 
@@ -226,7 +229,7 @@ bool mcp2515_recieve_RX1(CANFRAME& frame) {
 	frame.resp = mcp_frame.SIDL.bits.EID_17_16 & 0b1;
 	frame.hash = (mcp_frame.EID8 << 8) | mcp_frame.EID0;
 
-	frame.dlc = mcp_frame.DLC.bits.DLC; 
+	frame.dlc = mcp_frame.DLC.bits.DLC;
 
 	for (int i = 0; i < frame.dlc; ++i) {
 		frame.data[i] = mcp_frame.data[i];
