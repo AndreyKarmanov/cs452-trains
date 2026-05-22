@@ -55,14 +55,14 @@ extern "C" int kmain() {
 
 	LightCommand sample(13, 1);
 
-	CANFRAME frame = sample.frame;
+	CANFRAME frame = sample.to_frame();
 
 	uart_printf(CONSOLE, "Initial frame data[0]: %u\n\r", sizeof(TXBnFrame));
 	uart_puts(CONSOLE, "Raw CANFRAME bytes:\n\r");
 	debug_print_memory_dump(&frame, sizeof(frame));
 	uart_puts(CONSOLE, "Raw CANFRAME bits:\n\r");
 	debug_print_memory_bits(&frame, sizeof(frame));
-	mcp2515_send(&frame);
+	mcp2515_send(frame);
 
 	uint32_t cmd_buf_n = 0;
 	char cmd_buf[32];
@@ -97,20 +97,26 @@ extern "C" int kmain() {
 					uart_puts(CONSOLE, "Goodbye!\n\r");
 					return 0;
 				} else if (cmd == COMMAND_MOVE) {
-					SpeedCommand cmd(15, 500);
-					mcp2515_send(&cmd.frame);
+					mcp2515_send(SpeedCommand(15, 100).to_frame());
 				} else {
 					LightCommand sample(13, 1);
 
-					CANFRAME frame = sample.frame;
-					mcp2515_send(&frame);
-
+					mcp2515_send(sample.to_frame());
 
 					uart_puts(CONSOLE, "Unknown command\n\r");
 				}
 			}
 		}
-		mcp2515_recieve();
+
+		if (mcp2515_recieve_RX0(frame)) {
+			uart_puts(CONSOLE, "FRAME (RX0):\n\r");
+			debug_print_can_frame(&frame);
+		}
+
+		if (mcp2515_recieve_RX1(frame)) {
+			uart_puts(CONSOLE, "FRAME (RX1):\n\r");
+			debug_print_can_frame(&frame);
+		}
 
 		// // update clock
 		// uint32_t new_time = time_get();
