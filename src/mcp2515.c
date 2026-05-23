@@ -171,7 +171,6 @@ void* memset(void* s, int c, size_t n) {
 void mcp2515_send(const CANFRAME& frame) {
 	while ((mcp2515_read_status() & STATUS_TX0)) {};
 
-
 	TXBnFrame mcp_frame;
 	memset(&mcp_frame, 0, sizeof(mcp_frame));
 

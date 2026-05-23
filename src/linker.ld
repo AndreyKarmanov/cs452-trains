@@ -23,7 +23,7 @@ SECTIONS {
 	}
 	.init_array : {
 		__init_array_start = .;
-		KEEP(*(.init_array*)) /* for C++ global constructors */
+		KEEP(*(.init_array*)) 	/* for C++ global constructors */
 		__init_array_end = .;
 	}
 }

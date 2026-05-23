@@ -16,7 +16,7 @@ static const uint32_t TIME_CHI  = 0x08;
 
 // Masks
 
-uint32_t time_get() {
+inline uint32_t time_get() {
     return *(volatile uint32_t*)(TIME_BASE + TIME_CLO);
 }
 

@@ -5,6 +5,8 @@
 
 #include "console.h"
 #include "uart.h"
+#include "can.h"
+#include "mcp2515.h"
 
 #define CONSOLE_ROW "3"
 
@@ -17,91 +19,70 @@ void clear_console(void) {
     uart_puts(CONSOLE, "\033[" CONSOLE_ROW ";1H\033[K>");
 }
 
-inline static size_t bite_blank(const char* buf, size_t blen) {
-    size_t i = 0;
-
-    while (i < blen && isblank(buf[i]))
-        ++i;
-
-    return i;
-}
-
-inline static size_t bite_string(const char* buf, size_t blen) {
-    size_t i = 0;
-
-    while (i < blen && isalpha(buf[i]))
-        ++i;
-
-    return i;
-}
-
-inline static size_t bite_int(const char* buf, size_t blen) {
-    size_t i = 0;
-
-    while (i < blen && isdigit(buf[i]))
-        ++i;
-
-    return i;
-}
-
-inline static uint32_t s2l(const char* buf, size_t blen) {
-    uint32_t out = 0;
-
-    size_t i = 0;
-    while (i < blen && isdigit(buf[i]))
-    {
-        out *= 10;
-        out += buf[i] - '0';
-        ++i;
-    }
-
-    return out;
-}
-
 // parse and fire command 
 static COMMAND_T fire_command(const char* buf, size_t blen) {
-    if (blen == 0) {
+    if (blen == 0) return COMMAND_NONE;
+
+    size_t pos = 0;
+    
+    // skip leading spaces
+    while (pos < blen && isblank(buf[pos])) pos++;
+    if (pos == blen) return COMMAND_NONE;
+
+    size_t cmd_start = pos;
+    while (pos < blen && !isblank(buf[pos])) pos++;
+    size_t cmd_len = pos - cmd_start;
+
+    auto expect_int = [&]() -> int32_t {
+        while (pos < blen && isblank(buf[pos])) pos++;
+        if (pos == blen || !isdigit(buf[pos])) return -1;
+        uint32_t val = 0;
+        while (pos < blen && isdigit(buf[pos])) {
+            val = val * 10 + (buf[pos] - '0');
+            pos++;
+        }
+        return val;
+    };
+
+    if (cmd_len == 1 && (buf[cmd_start] == 'q' || buf[cmd_start] == 'Q') && pos == blen) {
+        return COMMAND_QUIT;
+    }
+    
+    if (cmd_len == 2 && strncmp(buf + cmd_start, "tr", 2) == 0) {
+        int32_t loco_id = expect_int();
+        int32_t speed = expect_int();
+        if (loco_id >= 0 && speed >= 0) {
+            SpeedCommand cmd(loco_id, speed);
+            mcp2515_send(cmd.to_frame());
+            uart_printf(CONSOLE, "\033[4;1H\033[K>tr %u %u (sent)", loco_id, speed);
+        }
         return COMMAND_NONE;
     }
 
-    size_t start = bite_blank(buf, blen);
-    size_t end = bite_string(buf + start, blen - start);
-
-    if (end == 1 && strncmp(buf + start, "q", end) == 0) {
-        return COMMAND_QUIT;
+    if (cmd_len == 2 && strncmp(buf + cmd_start, "sw", 2) == 0) {
+        int32_t sw_id = expect_int();
+        // expect 'C' or 'S'
+        while (pos < blen && isblank(buf[pos])) pos++;
+        if (sw_id >= 0 && pos < blen) {
+            char dir = buf[pos];
+            if (dir == 'S' || dir == 'C' || dir == 's' || dir == 'c') {
+                bool is_straight = (dir == 'S' || dir == 's');
+                SwitchCommand cmd(sw_id, is_straight);
+                mcp2515_send(cmd.to_frame());
+                uart_printf(CONSOLE, "\033[4;1H\033[K>sw %u %c (sent)", sw_id, is_straight ? 'S' : 'C');
+            }
+        }
+        return COMMAND_NONE;
     }
 
-    if (end == 2) {
-        if (strncmp(buf + start, "tr", end) == 0) {
-            start += end;
-            start += bite_blank(buf + start, blen - start);
-
-            end = bite_int(buf + start, blen - start);
-
-            uart_printf(CONSOLE, "\033[4;1H\033[K>1r %u, %u, |%s|", start, end, buf + start);
-            if (end == 0)
-                return COMMAND_NONE;
-
-            uint32_t loco_id = s2l(buf + start, end);
-
-            start += end;
-            start += bite_blank(buf + start, blen - start);
-
-            end = bite_int(buf + start, blen - start);
-
-            uart_printf(CONSOLE, "\033[4;1H\033[K>2r %u, %u, |%s|", start, end, buf + start);
-            if (end == 0)
-                return COMMAND_NONE;
-            uint32_t speed = s2l(buf + start, end);
-
-            start += end;
-            start += bite_blank(buf + start, blen - start);
-
-            if (start != blen)
-                return COMMAND_NONE;
-
-            uart_printf(CONSOLE, "\033[4;1H\033[K>tr %u, %u add %u len %u", loco_id, speed, start + end, blen);
+    if (cmd_len == 2 && strncmp(buf + cmd_start, "rv", 2) == 0) {
+        int32_t loco_id = expect_int();
+        if (loco_id >= 0) {
+            SpeedCommand cmd(loco_id, 0); // initial stop command
+            mcp2515_send(cmd.to_frame());
+            uart_printf(CONSOLE, "\033[4;1H\033[K>rv %u (stopped)", loco_id);
         }
+        return COMMAND_NONE;
     }
 
     return COMMAND_NONE;
