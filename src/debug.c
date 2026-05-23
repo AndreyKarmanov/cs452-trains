@@ -119,7 +119,7 @@ void debug_print_mrk(const MRK_CMD& cmd) {
         uart_printf(
             CONSOLE,
             "CONTROL command=%u",
-            command.type  
+            command.type
         );
         return;
     }
@@ -144,4 +144,13 @@ void debug_print_mrk(const MRK_CMD& cmd) {
         return;
     }
     }
+}
+
+bool assert(bool value, const char* msg) {
+    if (value)
+        return false;
+
+    uart_puts(CONSOLE, msg);
+
+    return true;
 }

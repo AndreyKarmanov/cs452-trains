@@ -8,15 +8,13 @@
 #include "can.h"
 #include "mcp2515.h"
 
-#define CONSOLE_ROW "3"
-
-void print_cmd_line(char buf[], uint32_t n) {
-    uart_printf(CONSOLE, "\033[" CONSOLE_ROW ";1H\033[K>");
-    uart_putl(CONSOLE, buf, n);
-}
+#define CONSOLE_ROW_START "3"
+#define CONSOLE_ROW_TERM "4"
+#define CONSOLE_ROW_HIST "5"
 
 void clear_console(void) {
-    uart_puts(CONSOLE, "\033[" CONSOLE_ROW ";1H\033[K>");
+    uart_puts(CONSOLE, "\033[" CONSOLE_ROW_START ";1H\033[KConsole\n\r");
+    uart_puts(CONSOLE, "\033[" CONSOLE_ROW_TERM ";1H\033[K> ");
 }
 
 // parse and fire command 
@@ -24,7 +22,7 @@ static COMMAND_T fire_command(const char* buf, size_t blen) {
     if (blen == 0) return COMMAND_NONE;
 
     size_t pos = 0;
-    
+
     // skip leading spaces
     while (pos < blen && isblank(buf[pos])) pos++;
     if (pos == blen) return COMMAND_NONE;
@@ -44,17 +42,23 @@ static COMMAND_T fire_command(const char* buf, size_t blen) {
         return val;
     };
 
-    if (cmd_len == 1 && (buf[cmd_start] == 'q' || buf[cmd_start] == 'Q') && pos == blen) {
+    auto expect_end = [&]() -> bool {
+        while (pos < blen && isblank(buf[pos])) pos++;
+        return pos == blen;
+    };
+
+    if (cmd_len == 1 && (buf[cmd_start] == 'q' || buf[cmd_start] == 'Q') && expect_end()) {
         return COMMAND_QUIT;
     }
-    
+
     if (cmd_len == 2 && strncmp(buf + cmd_start, "tr", 2) == 0) {
         int32_t loco_id = expect_int();
         int32_t speed = expect_int();
-        if (loco_id >= 0 && speed >= 0) {
-            SpeedCommand cmd(loco_id, speed);
-            mcp2515_send(cmd.to_frame());
-            uart_printf(CONSOLE, "\033[4;1H\033[K>tr %u %u (sent)", loco_id, speed);
+        if (loco_id >= 0 && speed >= 0 && expect_end()) {
+            mcp2515_send(SpeedCommand(loco_id, speed).to_frame());
+            uart_printf(CONSOLE, "\033[" CONSOLE_ROW_HIST ";1H\033[K> %s\n\r\033[K  Success: tr %u %u", buf, loco_id, speed);
+        } else {
+            uart_printf(CONSOLE, "\033[" CONSOLE_ROW_HIST ";1H\033[K> %s\n\r\033[K  Error: Format is tr <train number> <train speed>", buf);
         }
         return COMMAND_NONE;
     }
@@ -65,26 +69,30 @@ static COMMAND_T fire_command(const char* buf, size_t blen) {
         while (pos < blen && isblank(buf[pos])) pos++;
         if (sw_id >= 0 && pos < blen) {
             char dir = buf[pos];
-            if (dir == 'S' || dir == 'C' || dir == 's' || dir == 'c') {
+            pos++; // consume 'C' or 'S'
+            if ((dir == 'S' || dir == 'C' || dir == 's' || dir == 'c') && expect_end()) {
                 bool is_straight = (dir == 'S' || dir == 's');
-                SwitchCommand cmd(sw_id, is_straight);
-                mcp2515_send(cmd.to_frame());
-                uart_printf(CONSOLE, "\033[4;1H\033[K>sw %u %c (sent)", sw_id, is_straight ? 'S' : 'C');
+                mcp2515_send(SwitchCommand(sw_id, is_straight).to_frame());
+                uart_printf(CONSOLE, "\033[" CONSOLE_ROW_HIST ";1H\033[K> %s\n\r\033[K  Success: sw %u %c", buf, sw_id, is_straight ? 'S' : 'C');
+                return COMMAND_NONE;
             }
         }
+        uart_printf(CONSOLE, "\033[" CONSOLE_ROW_HIST ";1H\033[K> %s\n\r\033[K  Error: Format is sw <switch number> <switch direction>", buf);
         return COMMAND_NONE;
     }
 
     if (cmd_len == 2 && strncmp(buf + cmd_start, "rv", 2) == 0) {
         int32_t loco_id = expect_int();
-        if (loco_id >= 0) {
-            SpeedCommand cmd(loco_id, 0); // initial stop command
-            mcp2515_send(cmd.to_frame());
-            uart_printf(CONSOLE, "\033[4;1H\033[K>rv %u (stopped)", loco_id);
+        if (loco_id >= 0 && expect_end()) {
+            mcp2515_send(SpeedCommand(loco_id, 0).to_frame());
+            uart_printf(CONSOLE, "\033[" CONSOLE_ROW_HIST ";1H\033[K> %s\n\r\033[K  Success: rv %u (stopped)", buf, loco_id);
+        } else {
+            uart_printf(CONSOLE, "\033[" CONSOLE_ROW_HIST ";1H\033[K> %s\n\r\033[K  Error: Format is rv <train number>", buf);
         }
         return COMMAND_NONE;
     }
 
+    uart_printf(CONSOLE, "\033[" CONSOLE_ROW_HIST ";1H\033[K> %s\n\r\033[K  Error: Unknown command. Available: q, tr, sw, rv", buf);
     return COMMAND_NONE;
 }
 
@@ -96,7 +104,7 @@ COMMAND_T update_console() {
 
     char c = uart_maybec(CONSOLE);
     if (c) {
-        uart_printf(CONSOLE, "\033[" CONSOLE_ROW ";%uH", 2 + cmd_buf_n);
+        uart_printf(CONSOLE, "\033[" CONSOLE_ROW_TERM ";%uH", 3 + cmd_buf_n);
     }
     while (c) {
         // check if it's a printable character (i.e. a char used in a command)

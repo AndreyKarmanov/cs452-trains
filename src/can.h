@@ -291,6 +291,7 @@ struct UnknownCommand
 
 using MRK_CMD = std::variant<UnknownCommand, LightCommand, SpeedCommand, DirectionCommand, SwitchCommand, SensorData, ControlCommand>;
 
+
 inline MRK_CMD decode_frame(const CANFRAME& frame) {
     switch (frame.cmdid)
     {

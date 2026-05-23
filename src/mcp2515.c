@@ -168,7 +168,8 @@ void* memset(void* s, int c, size_t n) {
 	return s;
 }
 
-void mcp2515_send(const CANFRAME& frame) {
+// can pass by value (16 bytes) so compiler uses first 2 registers
+void mcp2515_send(const CANFRAME frame) {
 	while ((mcp2515_read_status() & STATUS_TX0)) {};
 
 	TXBnFrame mcp_frame;

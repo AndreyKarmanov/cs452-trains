@@ -6,10 +6,11 @@
 #include "mcp2515.h"
 #include "debug.h"
 #include "uart.h"
-#include "time.h"
 #include "can.h"
 #include "state.h"
 #include "console.h"
+#include "buffer.h"
+#include "time.h"
 
 extern "C" void setup_mmu(); // in mmu.S
 
@@ -27,12 +28,15 @@ extern "C" int kmain() {
 	mcp2515_init();
 	// not strictly necessary, since console is configured during boot
 	uart_config_and_enable(CONSOLE);
-
 	uart_puts(CONSOLE, "\033[2J\033[H" __DATE__ " / " __TIME__ " / Andrey Karmanov ");
 
 	CANFRAME frame;
 	uint32_t time = 0;
 	State state;
+	print_state(state, 1);
+	clear_console();
+
+	uart_puts(CONSOLE, "\033[?25l");
 
 	for (;;) {
 
@@ -60,7 +64,12 @@ extern "C" int kmain() {
 			time = new_time;
 			print_time(time);
 		}
+		
+		print_state(state);
 	}
+	uart_puts(CONSOLE, "\033[?25h");
+
+	return 0;
 }
 
 #if !defined(MMU)

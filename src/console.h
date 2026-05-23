@@ -8,6 +8,7 @@ typedef enum COMMAND_T {
 	COMMAND_QUIT
 } COMMAND_T;
 
+void clear_console();
 COMMAND_T update_console();
 
 #endif /* _console_h_ */

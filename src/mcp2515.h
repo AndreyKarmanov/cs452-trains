@@ -12,6 +12,6 @@ int mcp2515_fakerecv();
 
 bool mcp2515_recieve_RXn(bool rx0, CANFRAME& frame);
 
-void mcp2515_send(const CANFRAME& frame);
+void mcp2515_send(const CANFRAME frame);
 
 #endif /* _mcp2515_h_ */
