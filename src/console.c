@@ -85,7 +85,7 @@ static COMMAND_T fire_command(const char* buf, size_t blen) {
         int32_t loco_id = expect_int();
         if (loco_id >= 0 && expect_end()) {
             mcp2515_send(SpeedCommand(loco_id, 0).to_frame());
-            uart_printf(CONSOLE, "\033[" CONSOLE_ROW_HIST ";1H\033[K> %s\n\r\033[K  Success: rv %u (stopped)", buf, loco_id);
+            uart_printf(CONSOLE, "\033[" CONSOLE_ROW_HIST ";1H\033[K> %s\n\r\033[K  Success: rv %u (stopping)", buf, loco_id);
         } else {
             uart_printf(CONSOLE, "\033[" CONSOLE_ROW_HIST ";1H\033[K> %s\n\r\033[K  Error: Format is rv <train number>", buf);
         }
