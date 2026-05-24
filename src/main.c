@@ -28,17 +28,19 @@ extern "C" int kmain() {
 	mcp2515_init();
 	// not strictly necessary, since console is configured during boot
 	uart_config_and_enable(CONSOLE);
-	uart_puts(CONSOLE, "\033[2J\033[H" __DATE__ " / " __TIME__ " / Andrey Karmanov ");
 
+	uart_puts(CONSOLE, "\033[2J\033[?25l\033[1;1H" __DATE__ " / " __TIME__ " / Andrey Karmanov\n\r");
 	CANFRAME frame;
 	uint32_t time = 0;
 	State state;
 	print_state(state, 1);
 	clear_console();
 
-	uart_puts(CONSOLE, "\033[?25l");
+
+	uint32_t last_loop_time = 0;
 
 	for (;;) {
+		uint32_t start = time_get();
 
 		auto cmd = update_console(state);
 
@@ -59,9 +61,12 @@ extern "C" int kmain() {
 		if (new_time - time > CLOCK_UPDATE_INTERVAL_US) {
 			time = new_time;
 			print_time(time);
+			uart_printf(CONSOLE, "\033[1;1H" __DATE__ " / " __TIME__ " / Andrey Karmanov / Loop: %u us (%u ms)  ", last_loop_time, last_loop_time / 1000);
 		}
 		mcp2515_send_pending();
 		print_state(state);
+
+		last_loop_time = time_get() - start;
 	}
 	uart_puts(CONSOLE, "\033[?25h");
 
