@@ -122,7 +122,7 @@ void apply_state(const State& state) {
     }
 
     for (int sw_id = 0; sw_id < 22; ++sw_id) {
-        mcp2515_send(SwitchCommand((sw_id + (sw_id > 17 ? 135 : 0)), state.switches & (1 << sw_id)).to_frame());
+        mcp2515_send(SwitchCommand((sw_id + (sw_id > 17 ? 135 : 0)), state.switches & (1 << sw_id)).to_frame(), sw_id * 100);
     }
 
     mcp2515_send(ControlCommand(state.stopped ? ControlCommand::CMD_STOP : ControlCommand::CMD_GO).to_frame());
