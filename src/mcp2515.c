@@ -1,8 +1,9 @@
 #include "mcp2515.h"
 #include "debug.h"
 #include "spi.h"
-#include "can.h"
 #include "uart.h"
+#include "buffer.h"
+#include "time.h"
 
 // configuration registers
 static const uint8_t CNF3 = 0x28;
@@ -61,6 +62,8 @@ static const uint8_t CANINTF = 0x2C;
 // TX buffer registers
 static const uint8_t TXB0CTRL = 0x30;
 static const uint8_t TXB0SIDH = 0x31;
+static const uint8_t TXB1SIDH = 0x41;
+static const uint8_t TXB2SIDH = 0x51;
 
 // RX buffer registers
 static const uint8_t RXB0CTRL = 0x60;
@@ -168,32 +171,48 @@ void* memset(void* s, int c, size_t n) {
 	return s;
 }
 
-// can pass by value (16 bytes) so compiler uses first 2 registers
-void mcp2515_send(const CANFRAME frame) {
-	while ((mcp2515_read_status() & STATUS_TX0)) {};
+struct TXBnPending
+{
+	TXBnFrame frame;
+	uint32_t time;
+};
 
-	TXBnFrame mcp_frame;
-	memset(&mcp_frame, 0, sizeof(mcp_frame));
+static Buffer<TXBnPending, 8> pending_frames;
 
-	mcp_frame.SIDH = (frame.prio << 4) | (frame.cmdid & 0xF0);
-
-	mcp_frame.SIDL.bits.SID_2_0 = (frame.cmdid & 0b00001110) >> 1;
-	mcp_frame.SIDL.bits.EXIDE = 1;
-	mcp_frame.SIDL.bits.EID_17_16 = ((frame.cmdid & 0b00000001) << 1) | frame.resp;
-
-	mcp_frame.EID8 = (frame.hash >> 8) & 0xFF;
-
-	mcp_frame.EID0 = frame.hash & 0xFF;
-
-	mcp_frame.DLC.bits.DLC = frame.dlc;
-	mcp_frame.DLC.bits.RTR = 0;
-
-	for (int i = 0; i < 8; ++i) {
-		mcp_frame.data[i] = frame.data[i];
+void mcp2515_send(const TXBnFrame frame) {
+	int txb = -1;
+	while (txb == -1) {
+		uint8_t status = mcp2515_read_status();
+		if (!(status & STATUS_TX0)) {
+			txb = 0;
+		} else if (!(status & STATUS_TX1)) {
+			txb = 1;
+		} else if (!(status & STATUS_TX2)) {
+			txb = 2;
+		} 
 	}
-	mcp2515_write_regs(TXB0SIDH, (const uint8_t*)&mcp_frame.SIDH, sizeof(TXBnFrame) - sizeof(TXBnFrame::CTRL));
 
-	mcp2515_rts(1, 0, 0);
+	uint16_t buffer = txb == 0 ? TXB0SIDH : (txb == 1 ? TXB1SIDH : TXB2SIDH);
+
+	mcp2515_write_regs(buffer, (const uint8_t*)&frame, sizeof(TXBnFrame));
+
+	mcp2515_rts(txb == 0, txb == 1, txb == 2);
+}
+
+void mcp2515_send(const TXBnFrame frame, uint32_t delay) {
+	pending_frames.push({ .frame = frame, .time = time_get() + delay });
+}
+
+void mcp2515_send_pending() {
+	while (!pending_frames.is_empty()) {
+		const auto& pending = pending_frames.peek();
+		if (time_get() >= pending.time) {
+			mcp2515_send(pending.frame);
+			pending_frames.pop();
+		} else {
+			break;
+		}
+	}
 }
 
 bool mcp2515_recieve_RXn(bool rx0, CANFRAME& frame) {
@@ -201,8 +220,7 @@ bool mcp2515_recieve_RXn(bool rx0, CANFRAME& frame) {
 	if (!(mcp2515_read_status() & flag)) return false;
 
 	RXBnFRAME mcp_frame;
-
-	mcp2515_read_RXn(rx0, (uint8_t*)&mcp_frame.SIDH, sizeof(RXBnFRAME) - sizeof(RXBnFRAME::CTRL));
+	mcp2515_read_RXn(rx0, (uint8_t*)&mcp_frame, sizeof(RXBnFRAME));
 
 	frame.prio = (mcp_frame.SIDH & 0xF0) >> 4;
 	frame.cmdid = ((mcp_frame.SIDH & 0x0F) << 4) | (mcp_frame.SIDL.bits.SID_2_0 << 1) | ((mcp_frame.SIDL.bits.EID_17_16 & 0b10) >> 1);
@@ -211,9 +229,7 @@ bool mcp2515_recieve_RXn(bool rx0, CANFRAME& frame) {
 
 	frame.dlc = mcp_frame.DLC.bits.DLC;
 
-	for (int i = 0; i < frame.dlc; ++i) {
-		frame.data[i] = mcp_frame.data[i];
-	}
+	__builtin_memcpy(frame.data, mcp_frame.data, frame.dlc);
 
 	return true;
 };

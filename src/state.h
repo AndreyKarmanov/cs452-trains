@@ -27,8 +27,7 @@ struct State
     uint32_t switches = 0;
 
     // recent sensors
-    // uint32_t sensors[10]{ 0 };
-    Buffer<uint16_t, MAX_SENSORS_RECENT> sensors;
+    Buffer<uint16_t, MAX_SENSORS_RECENT> sensors{};
 
     // trains
     Train trains[MAX_TRAINS]{
@@ -41,10 +40,10 @@ struct State
     };
 
     // track go / stop
-    bool stopped : 1;
-    bool trains_dirty : 1;
-    bool switches_dirty : 1;
-    bool sensors_dirty : 1;
+    bool stopped : 1 = true;
+    bool trains_dirty : 1 = true;
+    bool switches_dirty : 1 = true;
+    bool sensors_dirty : 1 = true;
 
 
     void update_from_mrk(const MRK_CMD& cmd);

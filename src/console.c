@@ -4,6 +4,7 @@
 #include <ctype.h>
 
 #include "console.h"
+#include "state.h"
 #include "uart.h"
 #include "can.h"
 #include "mcp2515.h"
@@ -101,6 +102,37 @@ static COMMAND_T fire_command(const char* buf, size_t blen) {
             uart_printf(CONSOLE, "\033[" CONSOLE_ROW_HIST ";1H\033[K> %s\n\r\033[K  Success: rv %u (stopping)", buf, loco_id);
         } else {
             uart_printf(CONSOLE, "\033[" CONSOLE_ROW_HIST ";1H\033[K> %s\n\r\033[K  Error: Format is rv <train number>", buf);
+        }
+        return COMMAND_NONE;
+    }
+
+
+    if (cmd_len == 4 && strncmp(buf + cmd_start, "stop", 4) == 0) {
+        if (expect_end()) {
+            mcp2515_send(ControlCommand(ControlCommand::CMD_STOP).to_frame());
+            uart_printf(CONSOLE, "\033[" CONSOLE_ROW_HIST ";1H\033[K> %s\n\r\033[K  Success: stop (stopping)", buf);
+        } else {
+            uart_printf(CONSOLE, "\033[" CONSOLE_ROW_HIST ";1H\033[K> %s\n\r\033[K  Error: Format is stop", buf);
+        }
+        return COMMAND_NONE;
+    }
+
+    if (cmd_len == 2 && strncmp(buf + cmd_start, "go", 2) == 0) {
+        if (expect_end()) {
+            mcp2515_send(ControlCommand(ControlCommand::CMD_GO).to_frame());
+            uart_printf(CONSOLE, "\033[" CONSOLE_ROW_HIST ";1H\033[K> %s\n\r\033[K  Success: go (starting)", buf);
+        } else {
+            uart_printf(CONSOLE, "\033[" CONSOLE_ROW_HIST ";1H\033[K> %s\n\r\033[K  Error: Format is go", buf);
+        }
+        return COMMAND_NONE;
+    }
+
+    if (cmd_len == 5 && strncmp(buf + cmd_start, "reset", 5) == 0) {
+        if (expect_end()) {
+            apply_state(State{});
+            uart_printf(CONSOLE, "\033[" CONSOLE_ROW_HIST ";1H\033[K> %s\n\r\033[K  Success: reset (resetting all state)", buf);
+        } else {
+            uart_printf(CONSOLE, "\033[" CONSOLE_ROW_HIST ";1H\033[K> %s\n\r\033[K  Error: Format is reset", buf);
         }
         return COMMAND_NONE;
     }
