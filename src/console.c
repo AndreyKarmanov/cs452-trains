@@ -8,6 +8,8 @@
 #include "uart.h"
 #include "can.h"
 #include "mcp2515.h"
+#include "time.h"
+#include "state.h"
 
 #define CONSOLE_ROW_START "3"
 #define CONSOLE_ROW_TERM "4"
@@ -19,7 +21,7 @@ void clear_console(void) {
 }
 
 // parse and fire command 
-static COMMAND_T fire_command(const char* buf, size_t blen) {
+static COMMAND_T fire_command(const char* buf, size_t blen, const State& state) {
     if (blen == 0) return COMMAND_NONE;
 
     size_t pos = 0;
@@ -99,6 +101,9 @@ static COMMAND_T fire_command(const char* buf, size_t blen) {
         int32_t loco_id = expect_int();
         if (loco_id >= 0 && expect_end()) {
             mcp2515_send(SpeedCommand(loco_id, 0).to_frame());
+            mcp2515_send(DirectionCommand(loco_id, false).to_frame(), TIME_1S_US * 10);
+            mcp2515_send(SpeedCommand(loco_id, state.get_loco(loco_id).requested_speed).to_frame(), TIME_1S_US * 11);
+
             uart_printf(CONSOLE, "\033[" CONSOLE_ROW_HIST ";1H\033[K> %s\n\r\033[K  Success: rv %u (stopping)", buf, loco_id);
         } else {
             uart_printf(CONSOLE, "\033[" CONSOLE_ROW_HIST ";1H\033[K> %s\n\r\033[K  Error: Format is rv <train number>", buf);
@@ -144,7 +149,7 @@ static COMMAND_T fire_command(const char* buf, size_t blen) {
 static char cmd_buf[32];
 static uint32_t cmd_buf_n = 0;
 
-COMMAND_T update_console() {
+COMMAND_T update_console(const State& state) {
     COMMAND_T cmd = COMMAND_NONE;
 
     char c = uart_maybec(CONSOLE);
@@ -165,7 +170,7 @@ COMMAND_T update_console() {
         } else if (c == '\r') { // enter
             clear_console();
             cmd_buf[cmd_buf_n] = '\0';
-            cmd = fire_command(cmd_buf, cmd_buf_n);
+            cmd = fire_command(cmd_buf, cmd_buf_n, state);
             cmd_buf_n = 0;
             break;
         }

@@ -44,9 +44,18 @@ struct State
     bool trains_dirty : 1 = true;
     bool switches_dirty : 1 = true;
     bool sensors_dirty : 1 = true;
+    bool status_dirty : 1 = true;
 
 
     void update_from_mrk(const MRK_CMD& cmd);
+    Train get_loco(uint32_t loco_id) const {
+        for (const Train& train : trains) {
+            if (train.loco_id == loco_id) {
+                return train;
+            }
+        }
+        return Train{ loco_id, 0, false, false };
+    }
 };
 
 void apply_state(const State& state);

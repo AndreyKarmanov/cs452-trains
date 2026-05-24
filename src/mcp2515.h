@@ -7,24 +7,9 @@
 // frame is structed in same way the buffer is laid out
 // this relies on the memory being laid out in the same way
 // this can potentially cause issues if flags change, compiler changes, hardware, etc.
-struct TXBnFrame {
-
-    // union
-    // {
-    //     // we write the TXBnCTRL register separately, so we need a byte-level view
-    //     // otherwise we just write the full TXBnFrame starting from SIDH to DATA8
-    //     uint8_t byte;
-    //     struct {
-    //         uint8_t TXP0 : 1;
-    //         uint8_t TXP1 : 1;
-    //         uint8_t : 1;
-    //         uint8_t TXREQ : 1;
-    //         uint8_t TXERR : 1;
-    //         uint8_t MLOA : 1;
-    //         uint8_t ABTF : 1;
-    //         uint8_t : 1;
-    //     } bits;
-    // } CTRL;
+// packed attribute is to ensure that compiler keeps 0 extra bits or bytes betwene fields
+// since we are copying directly inoto buffers based on this frame, need to keep it!
+struct __attribute__((packed)) TXBnFrame {
 
     uint8_t SIDH;   // SID[10:3]
 
@@ -58,22 +43,20 @@ struct TXBnFrame {
 
     TXBnFrame() = default;
 
-    TXBnFrame(const CANFRAME frame) : SIDH((frame.prio << 4) | (frame.cmdid & 0xF0)),
-        EID8((frame.hash >> 8) & 0xFF), EID0(frame.hash & 0xFF) {
-
-
-        SIDL.bits.SID_2_0 = (frame.cmdid & 0b00001110) >> 1;
-        SIDL.bits.EXIDE = 1;
-        SIDL.bits.EID_17_16 = ((frame.cmdid & 0b00000001) << 1) | frame.resp;
-
-        DLC.bits.DLC = frame.dlc;
-        DLC.bits.RTR = 0;
-
-        __builtin_memcpy(data, frame.data, frame.dlc);
+    // need these ugly casts because the compiler complains (if we include any 0x0X) it makes it int an int, then complains about narrowing 
+    // don't add explicit here because we want the CANFRAME to be easily convertible to send
+    TXBnFrame(const CANFRAME frame) :
+        SIDH(uint8_t((frame.prio << 4) | (frame.cmdid & 0xF0))),
+        SIDL{ .byte = uint8_t(((frame.cmdid & 0x0E) << 4) | 0x08 | ((frame.cmdid & 0x01) << 1) | (frame.resp & 0x01)) },
+        EID8(uint8_t((frame.hash >> 8) & 0xFF)),
+        EID0(uint8_t(frame.hash & 0xFF)),
+        DLC{ .byte = uint8_t(frame.dlc & 0x0F) }
+    {
+        __builtin_memcpy(data, frame.data, 8);
     }
 };
 
-struct RXBnFRAME {
+struct __attribute__((packed)) RXBnFRAME {
 
     // the ctrl are diff for the two buffers
     // we just need to make sure RXM is set to 0b11 and BUKT is 1
@@ -132,7 +115,7 @@ int mcp2515_fakerecv();
 bool mcp2515_recieve_RXn(bool rx0, CANFRAME& frame);
 
 void mcp2515_send(const TXBnFrame frame);
-void mcp2515_send(const CANFRAME frame, uint32_t delay_us);
+void mcp2515_send(const TXBnFrame frame, uint32_t delay_us);
 void mcp2515_send_pending();
 
 

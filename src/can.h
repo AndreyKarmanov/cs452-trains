@@ -7,6 +7,7 @@
 // 1100 0011 0000 0000
 constexpr uint16_t MRK_HASH = 0xC300;
 
+// this is an intermediate format that matches the MRK diagram / frame on the bus, for easy debugging
 struct CANFRAME {
 
     // bitfields don't do much here, I mostly included these as a reminder for what size these are. 

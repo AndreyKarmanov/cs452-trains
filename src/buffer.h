@@ -48,6 +48,10 @@ public:
         return _size;
     }
 
+    T operator[](size_t i) const {
+        return arr[(head + i) % SIZE];
+    }
+
     class Iterator {
         const Buffer* buf;
         size_t i; // offset from head

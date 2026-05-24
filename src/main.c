@@ -40,7 +40,7 @@ extern "C" int kmain() {
 
 	for (;;) {
 
-		auto cmd = update_console();
+		auto cmd = update_console(state);
 
 		if (cmd == COMMAND_T::COMMAND_QUIT) {
 			uart_puts(CONSOLE, "\033[2J\033[HGoodbye!");
@@ -60,7 +60,7 @@ extern "C" int kmain() {
 			time = new_time;
 			print_time(time);
 		}
-		
+		mcp2515_send_pending();
 		print_state(state);
 	}
 	uart_puts(CONSOLE, "\033[?25h");

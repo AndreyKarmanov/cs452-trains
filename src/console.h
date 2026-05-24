@@ -1,6 +1,7 @@
 #ifndef _console_h_
 #define _console_h_ 1
 
+#include "state.h"
 
 typedef enum COMMAND_T {
 	COMMAND_NONE,
@@ -9,6 +10,6 @@ typedef enum COMMAND_T {
 } COMMAND_T;
 
 void clear_console();
-COMMAND_T update_console();
+COMMAND_T update_console(const State& state);
 
 #endif /* _console_h_ */

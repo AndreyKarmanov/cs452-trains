@@ -3,8 +3,9 @@
 #include "mcp2515.h"
 #include "uart.h"
 
-#define STATE_ROW "5"
-#define STATE_ROW_INT 5
+#define STATE_ROW "6"
+#define STATE_ROW_INT 7
+#define STATUS_ROW (STATE_ROW_INT + 1)
 #define TRAIN_ROW (STATE_ROW_INT + 3)
 #define SENSOR_ROW (TRAIN_ROW + MAX_TRAINS + 2)
 #define SWITCH_ROW (SENSOR_ROW + 3)
@@ -75,10 +76,16 @@ void State::update_from_mrk(const MRK_CMD& cmd) {
         switch (command.type)
         {
         case ControlCommand::CMD_GO:
-            stopped = false;
+            if (stopped) {
+                stopped = false;
+                status_dirty = true;
+            }
             break;
         case ControlCommand::CMD_STOP:
-            stopped = true;
+            if (!stopped) {
+                stopped = true;
+                status_dirty = true;
+            }
             break;
         case ControlCommand::CMD_HALT:
             for (Train& train : trains) {
@@ -112,6 +119,11 @@ void apply_state(const State& state) {
 }
 
 void print_state(State& state, bool force) {
+    if (state.status_dirty || force) {
+        uart_printf(CONSOLE, "\033[%u;2HTrack %s  \n\r", STATUS_ROW, state.stopped ? "Stopped" : "Active");
+        state.status_dirty = false;
+    }
+
     // for each train, print the train
     if (state.trains_dirty || force) {
         uart_printf(CONSOLE, "\033[%u;2HTrain | Dir | Lamp | Speed \n\r", TRAIN_ROW);
@@ -124,7 +136,8 @@ void print_state(State& state, bool force) {
 
     if (state.sensors_dirty || force) {
         uart_printf(CONSOLE, "\033[%u;2HRecent Sensors \n\r\033[K   ", SENSOR_ROW);
-        for (uint16_t s_id : state.sensors) {
+        for (size_t i = state.sensors.size(); i-- > 0; ) {
+            uint16_t s_id = state.sensors[i];
             char bank = 'A' + (s_id / 16);
             int number = (s_id % 16) + 1;
             uart_printf(CONSOLE, "%c%d ", bank, number);
