@@ -2,6 +2,7 @@
 #include "can.h"
 #include "mcp2515.h"
 #include "uart.h"
+#include "time.h"
 
 #define STATE_ROW "6"
 #define STATE_ROW_INT 7
@@ -9,9 +10,18 @@
 #define TRAIN_ROW (STATE_ROW_INT + 3)
 #define SENSOR_ROW (TRAIN_ROW + MAX_TRAINS + 2)
 #define SWITCH_ROW (SENSOR_ROW + 3)
+#define TIMING_ROW (SWITCH_ROW + 8)
 
 void State::update_from_mrk(const MRK_CMD& cmd) {
-    switch (cmd.index())
+    
+    uint8_t cmd_index = cmd.index();
+    if (command_timings_start[cmd_index]) {
+        timings_dirty = true;
+        command_timings[cmd_index] = time_get() - command_timings_start[cmd_index];
+        command_timings_start[cmd_index] = 0;
+    }
+
+    switch (cmd_index)
     {
     case 1: {
         const LightCommand& command = std::get<1>(cmd);
@@ -152,16 +162,27 @@ void print_state(State& state, bool force) {
             const char c = state.switches & (1 << sw_id) ? 'C' : 'S';
 
             if (sw_id < 9) {
-                uart_printf(CONSOLE, "   %u  : %c\n\r", sw_id + 1, c);
+                uart_printf(CONSOLE, "   %u  : %c", sw_id + 1, c);
             } else if (sw_id < 18) {
-                uart_printf(CONSOLE, "   %u : %c\n\r", sw_id + 1, c);
+                uart_printf(CONSOLE, "   %u : %c", sw_id + 1, c);
             } else {
-                uart_printf(CONSOLE, "   %u: %c\n\r", sw_id + 136, c);
+                uart_printf(CONSOLE, "   %u: %c", sw_id + 136, c);
             }
             if (sw_id % 4 == 3) {
                 uart_puts(CONSOLE, "\n\r");
             }
         }
         state.switches_dirty = false;
+    }
+
+    if (state.timings_dirty || force) {
+        uart_printf(CONSOLE, "\033[%u;2HCommand Timings\n\r", TIMING_ROW);
+        const char* cmd_names[] = { "Unknown ", "Light   ", "Speed   ", "Dir     ", "Switch  ", "Sensor  ", "Control " };
+        for (size_t i = 0; i < MRK_CMD_COUNT; ++i) {
+            if (state.command_timings[i] > 0) {
+                uart_printf(CONSOLE, "   %s: %u us (%u ms)\n\r", cmd_names[i], state.command_timings[i], state.command_timings[i] / 1000);
+            }
+        }
+        state.timings_dirty = false;
     }
 }

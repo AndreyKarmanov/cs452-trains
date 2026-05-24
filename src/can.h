@@ -3,6 +3,7 @@
 
 #include <stdint.h>
 #include <variant>
+#include <cstddef>
 
 // 1100 0011 0000 0000
 constexpr uint16_t MRK_HASH = 0xC300;
@@ -188,6 +189,8 @@ struct UnknownCommand
 
 
 using MRK_CMD = std::variant<UnknownCommand, LightCommand, SpeedCommand, DirectionCommand, SwitchCommand, SensorData, ControlCommand>;
+
+constexpr size_t MRK_CMD_COUNT = std::variant_size<MRK_CMD>::value;
 
 
 inline MRK_CMD decode_frame(const CANFRAME& frame) {

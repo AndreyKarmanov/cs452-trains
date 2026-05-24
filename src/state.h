@@ -45,7 +45,10 @@ struct State
     bool switches_dirty : 1 = true;
     bool sensors_dirty : 1 = true;
     bool status_dirty : 1 = true;
+    bool timings_dirty : 1 = true;
 
+    uint32_t command_timings_start[MRK_CMD_COUNT] = { 0 };
+    uint32_t command_timings[MRK_CMD_COUNT] = { };
 
     void update_from_mrk(const MRK_CMD& cmd);
     Train get_loco(uint32_t loco_id) const {

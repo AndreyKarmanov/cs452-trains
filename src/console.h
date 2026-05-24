@@ -10,6 +10,6 @@ typedef enum COMMAND_T {
 } COMMAND_T;
 
 void clear_console();
-COMMAND_T update_console(const State& state);
+COMMAND_T update_console(State& state);
 
 #endif /* _console_h_ */
