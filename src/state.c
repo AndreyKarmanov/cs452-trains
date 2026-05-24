@@ -60,11 +60,13 @@ void State::update_from_mrk(const MRK_CMD& cmd) {
     case 5: {
         const SensorData& command = std::get<5>(cmd);
         if (command.new_state) {
-            sensors_dirty = true;
-            if (sensors.size() == MAX_SENSORS_RECENT) {
-                sensors.pop();
+            if (sensors.size() == 0 || sensors.peek_last() != command.sensor_id) {
+                sensors_dirty = true;
+                if (sensors.size() == MAX_SENSORS_RECENT) {
+                    sensors.pop();
+                }
+                sensors.push(command.sensor_id);
             }
-            sensors.push(command.sensor_id);
         }
         break;
     }

@@ -48,16 +48,10 @@ extern "C" int kmain() {
 		}
 
 		if (mcp2515_recieve_RXn(0, frame)) {
-			uart_puts(CONSOLE, "FRAME (RX0):\n\r");
-			debug_print_can_frame(&frame);
-			debug_print_mrk(decode_frame(frame));
 			state.update_from_mrk(decode_frame(frame));
 		}
 
 		if (mcp2515_recieve_RXn(1, frame)) {
-			uart_puts(CONSOLE, "FRAME (RX1):\n\r");
-			debug_print_can_frame(&frame);
-			debug_print_mrk(decode_frame(frame));
 			state.update_from_mrk(decode_frame(frame));
 		}
 

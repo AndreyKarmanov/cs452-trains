@@ -21,6 +21,11 @@ public:
         return true;
     }
 
+    T peek_last() const {
+        if (_size == 0) return T();
+        return arr[(head + _size - 1) % SIZE];
+    }
+
     bool pop() {
         if (is_empty())
             return false;
@@ -45,17 +50,16 @@ public:
 
     class Iterator {
         const Buffer* buf;
-        size_t index;
-        size_t count;
+        size_t i; // offset from head
     public:
-        Iterator(const Buffer* b, size_t i, size_t c) : buf(b), index(i), count(c) {}
-        bool operator!=(const Iterator& other) const { return count != other.count; }
-        void operator++() { index = (index + 1) % SIZE; ++count; }
-        T operator*() const { return buf->arr[index]; }
+        Iterator(const Buffer* b, size_t i) : buf(b), i(i) {}
+        bool operator!=(const Iterator& other) const { return i != other.i; }
+        Iterator& operator++() { ++i; return *this; }
+        T operator*() const { return buf->arr[(buf->head + i) % SIZE]; }
     };
 
-    Iterator begin() const { return Iterator(this, head, 0); }
-    Iterator end() const { return Iterator(this, (head + _size) % SIZE, _size); }
+    Iterator begin() const { return Iterator(this, 0); }
+    Iterator end() const { return Iterator(this, _size); }
 };
 
 void test_buffer();
