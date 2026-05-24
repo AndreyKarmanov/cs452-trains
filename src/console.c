@@ -63,6 +63,19 @@ static COMMAND_T fire_command(const char* buf, size_t blen) {
         return COMMAND_NONE;
     }
 
+    if (cmd_len == 2 && strncmp(buf + cmd_start, "lr", 2) == 0) {
+        int32_t loco_id = expect_int();
+        int32_t light = expect_int();
+        if (loco_id >= 0 && light >= 0 && expect_end()) {
+            mcp2515_send(LightCommand(loco_id, light).to_frame());
+            uart_printf(CONSOLE, "\033[" CONSOLE_ROW_HIST ";1H\033[K> %s\n\r\033[K  Success: lr %u %u", buf, loco_id, light);
+        } else {
+            uart_printf(CONSOLE, "\033[" CONSOLE_ROW_HIST ";1H\033[K> %s\n\r\033[K  Error: Format is lr <train number> <light state>", buf);
+        }
+        return COMMAND_NONE;
+    }
+
+
     if (cmd_len == 2 && strncmp(buf + cmd_start, "sw", 2) == 0) {
         int32_t sw_id = expect_int();
         // expect 'C' or 'S'
@@ -92,7 +105,7 @@ static COMMAND_T fire_command(const char* buf, size_t blen) {
         return COMMAND_NONE;
     }
 
-    uart_printf(CONSOLE, "\033[" CONSOLE_ROW_HIST ";1H\033[K> %s\n\r\033[K  Error: Unknown command. Available: q, tr, sw, rv", buf);
+    uart_printf(CONSOLE, "\033[" CONSOLE_ROW_HIST ";1H\033[K> %s\n\r\033[K  Error: Unknown command. Available: q, tr, sw, rv, lr", buf);
     return COMMAND_NONE;
 }
 
