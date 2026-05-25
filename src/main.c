@@ -33,7 +33,9 @@ extern "C" int kmain() {
 	CANFRAME frame;
 	uint32_t time = 0;
 	State state;
-	print_state(state, 1);
+	
+	print_state(state, true);
+	apply_state(state);
 	clear_console();
 
 

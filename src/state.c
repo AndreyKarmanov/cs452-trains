@@ -59,13 +59,8 @@ void State::update_from_mrk(const MRK_CMD& cmd) {
     case 4: {
         const SwitchCommand& command = std::get<4>(cmd);
         switches_dirty = true;
-        if (command.sw_id > 0 && command.sw_id <= 5 * 16) {
-            uint16_t shift = command.sw_id - 1 - (command.sw_id > 18 ? 135 : 0);
-            if (command.straight) {
-                switches &= ~(1 << shift);
-            } else {
-                switches |= (1 << shift);
-            }
+        if (State::is_switch_id(command.sw_id)) {
+            set_switch(command.sw_id, command.straight);
         }
     }   break;
     case 5: {
@@ -122,7 +117,7 @@ void apply_state(const State& state) {
     }
 
     for (int sw_id = 0; sw_id < 22; ++sw_id) {
-        mcp2515_send(SwitchCommand((sw_id + (sw_id > 17 ? 135 : 0)), state.switches & (1 << sw_id)).to_frame(), sw_id * 100);
+        mcp2515_send(SwitchCommand(State::switch_id(sw_id), state.is_switch_straight(State::switch_id(sw_id))).to_frame(), sw_id * 100'000);
     }
 
     mcp2515_send(ControlCommand(state.stopped ? ControlCommand::CMD_STOP : ControlCommand::CMD_GO).to_frame());
@@ -159,14 +154,14 @@ void print_state(State& state, bool force) {
     if (state.switches_dirty || force) {
         uart_printf(CONSOLE, "\033[%u;2HSwitches\n\r", SWITCH_ROW);
         for (int sw_id = 0; sw_id < 22; ++sw_id) {
-            const char c = state.switches & (1 << sw_id) ? 'C' : 'S';
+            const char c = state.is_switch_straight(State::switch_id(sw_id)) ? 'S' : 'C';
 
             if (sw_id < 9) {
                 uart_printf(CONSOLE, "   %u  : %c", sw_id + 1, c);
             } else if (sw_id < 18) {
                 uart_printf(CONSOLE, "   %u : %c", sw_id + 1, c);
             } else {
-                uart_printf(CONSOLE, "   %u: %c", sw_id + 136, c);
+                uart_printf(CONSOLE, "   %u: %c", sw_id + 135, c);
             }
             if (sw_id % 4 == 3) {
                 uart_puts(CONSOLE, "\n\r");

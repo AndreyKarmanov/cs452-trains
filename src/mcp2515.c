@@ -177,7 +177,7 @@ struct TXBnPending
 	uint32_t time;
 };
 
-static Buffer<TXBnPending, 8> pending_frames;
+static Buffer<TXBnPending, 32> pending_frames;
 
 void mcp2515_send(const TXBnFrame frame) {
 	int txb = -1;
