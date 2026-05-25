@@ -20,9 +20,6 @@ struct Train
 
 struct State
 {
-    static constexpr uint32_t SWITCH_COUNT = 22;
-    static constexpr uint32_t SWITCH_MASK = (1u << SWITCH_COUNT) - 1u;
-
     static constexpr uint16_t switch_index(uint16_t sw_id) {
         return sw_id > 18 ? sw_id - 135 : sw_id - 1;
     }
@@ -55,7 +52,7 @@ struct State
     // switches[0:17] = 1..18
     // switches[18:21] = 153..156
     // bit set means straight
-    uint32_t switches = SWITCH_MASK;
+    uint32_t switches = 0b11110111110101110010100000000000;
 
     // recent sensors
     Buffer<uint16_t, MAX_SENSORS_RECENT> sensors{};
