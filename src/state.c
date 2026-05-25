@@ -111,9 +111,9 @@ void apply_state(const State& state) {
     mcp2515_send(ControlCommand(ControlCommand::CMD_HALT).to_frame());
 
     for (const Train& train : state.trains) {
-        mcp2515_send(LightCommand(train.loco_id, train.light_on).to_frame());
-        mcp2515_send(SpeedCommand(train.loco_id, train.requested_speed).to_frame());
-        mcp2515_send(DirectionCommand(train.loco_id, train.backward).to_frame());
+        mcp2515_send(LightCommand(train.loco_id, train.light_on).to_frame(), train.loco_id * 1'000);
+        mcp2515_send(SpeedCommand(train.loco_id, train.requested_speed).to_frame(), train.loco_id * 1'000);
+        mcp2515_send(DirectionCommand(train.loco_id, train.backward).to_frame(), train.loco_id * 1'000);
     }
 
     for (int sw_id = 0; sw_id < 22; ++sw_id) {
