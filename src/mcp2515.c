@@ -133,7 +133,7 @@ static void mcp2515_rts(bool txb0 = 0, bool txb1 = 0, bool txb2 = 0) {
 // Reads from a receive buffer. Saves on address byte + Clear instruction
 static void mcp2515_read_RXn(bool rx0, uint8_t values[], const uint8_t n) {
 	spi_begin_transaction();
-	spi_transfer_one(INSTRUCTION_READ_RX | (rx0 << 2));
+	spi_transfer_one(INSTRUCTION_READ_RX | (rx0 ? 0 : 0b00000100));
 
 	for (uint8_t i = 0; i < n; i++) {
 		values[i] = spi_transfer_one(0x00);
