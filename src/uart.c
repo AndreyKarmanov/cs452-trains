@@ -39,7 +39,7 @@ static const uint32_t UART_LCRH_WLEN_LOW = 0x20;
 static const uint32_t UART_LCRH_WLEN_HIGH = 0x40;
 
 static const size_t UART_MAX_LINES = 1;
-static const size_t UART_TX_BUFFER_SIZE = 1024;
+static const size_t UART_TX_BUFFER_SIZE = 4096;
 
 struct UartTxBuffer {
 	char data[UART_TX_BUFFER_SIZE];
@@ -223,4 +223,12 @@ uint32_t uart_tx_dropped(size_t line) {
 		return 0;
 	}
 	return buf->dropped;
+}
+
+void clear_uart_dropped(size_t line) {
+	UartTxBuffer* buf = uart_buffer(line);
+	if (buf) {
+		buf->dropped = 0;
+		buf->size = 0;
+	}
 }

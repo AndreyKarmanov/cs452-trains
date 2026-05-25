@@ -16,5 +16,6 @@ void uart_printf(size_t line, const char *fmt, ...);
 void uart_flush(size_t line, uint32_t budget_us);
 void uart_flush_all(size_t line);
 uint32_t uart_tx_dropped(size_t line);
+void clear_uart_dropped(size_t line);
 
 #endif /* uart.h */

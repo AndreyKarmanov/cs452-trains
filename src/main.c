@@ -36,7 +36,6 @@ extern "C" int kmain() {
 	uart_config_and_enable(CONSOLE);
 
 	uart_puts(CONSOLE, "\033[2J\033[?25l\033[1;1H" __DATE__ " / " __TIME__ " / Andrey Karmanov\n\r");
-	uart_puts(CONSOLE, "\033[3;1HDebug\n\r");
 	CANFRAME frame;
 	uint32_t time = 0;
 	State state;
@@ -56,6 +55,9 @@ extern "C" int kmain() {
 		if (cmd == COMMAND_T::COMMAND_QUIT) {
 			uart_puts(CONSOLE, "\033[2J\033[HGoodbye!");
 			break;
+		} else if (cmd == COMMAND_T::COMMAND_REDRAW || uart_tx_dropped(CONSOLE) > 10'000) {
+			clear_uart_dropped(CONSOLE);
+			clear_console();
 		}
 
 		if (mcp2515_recieve_RXn(0, frame)) {
@@ -73,7 +75,7 @@ extern "C" int kmain() {
 			print_debug(last_loop_time);
 		}
 		mcp2515_send_pending();
-		print_state(state);
+		print_state(state, cmd == COMMAND_T::COMMAND_REDRAW);
 		uart_flush(CONSOLE, UART_FLUSH_BUDGET_US);
 
 		last_loop_time = time_get() - start;

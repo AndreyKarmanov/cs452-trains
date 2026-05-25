@@ -104,7 +104,7 @@ static COMMAND_T fire_command(const char* buf, size_t blen, State& state) {
         int32_t loco_id = expect_int();
         if (loco_id >= 0 && expect_end()) {
             mcp2515_send(SpeedCommand(loco_id, 0).to_frame());
-            mcp2515_send(DirectionCommand(loco_id, false).to_frame(), TIME_1S_US * 10);
+            mcp2515_send(DirectionCommand(loco_id, !state.get_loco(loco_id).backward).to_frame(), TIME_1S_US * 10);
             state.command_timings_start[3] = time_get();
             mcp2515_send(SpeedCommand(loco_id, state.get_loco(loco_id).requested_speed).to_frame(), TIME_1S_US * 11);
 
@@ -146,6 +146,16 @@ static COMMAND_T fire_command(const char* buf, size_t blen, State& state) {
             uart_printf(CONSOLE, "\033[" CONSOLE_ROW_HIST ";1H\033[K> %s\n\r\033[K  Error: Format is reset", buf);
         }
         return COMMAND_NONE;
+    }
+
+
+    if (cmd_len == 6 && strncmp(buf + cmd_start, "redraw", 6) == 0) {
+        if (expect_end()) {
+            uart_printf(CONSOLE, "\033[" CONSOLE_ROW_HIST ";1H\033[K> %s\n\r\033[K  Success: redraw", buf);
+        } else {
+            uart_printf(CONSOLE, "\033[" CONSOLE_ROW_HIST ";1H\033[K> %s\n\r\033[K  Error: Format is redraw", buf);
+        }
+        return COMMAND_REDRAW;
     }
 
     uart_printf(CONSOLE, "\033[" CONSOLE_ROW_HIST ";1H\033[K> %s\n\r\033[K  Error: Unknown command. Available: q, tr, sw, rv, lr", buf);
