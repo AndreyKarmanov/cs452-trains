@@ -1,6 +1,7 @@
 #include <stdarg.h>
 #include <stdint.h>
 #include "uart.h"
+#include "time.h"
 #include "util.h"
 #include "rpi.h"
 
@@ -36,6 +37,47 @@ static const uint32_t UART_LCRH_STP2 = 0x08;
 static const uint32_t UART_LCRH_FEN = 0x10;
 static const uint32_t UART_LCRH_WLEN_LOW = 0x20;
 static const uint32_t UART_LCRH_WLEN_HIGH = 0x40;
+
+static const size_t UART_MAX_LINES = 1;
+static const size_t UART_TX_BUFFER_SIZE = 1024;
+
+struct UartTxBuffer {
+	char data[UART_TX_BUFFER_SIZE];
+	size_t head;
+	size_t size;
+	uint32_t dropped;
+};
+
+static UartTxBuffer tx_buffers[UART_MAX_LINES] = {};
+
+static inline UartTxBuffer* uart_buffer(size_t line) {
+	if (line >= UART_MAX_LINES) {
+		return nullptr;
+	}
+	return &tx_buffers[line];
+}
+
+static inline bool uart_tx_enqueue(UartTxBuffer* buf, char c) {
+	if (buf->size == UART_TX_BUFFER_SIZE) {
+		++buf->dropped;
+		return false;
+	}
+
+	buf->data[(buf->head + buf->size) % UART_TX_BUFFER_SIZE] = c;
+	++buf->size;
+	return true;
+}
+
+static inline bool uart_tx_drain_one(size_t line, UartTxBuffer* buf) {
+	if (buf->size == 0 || (UART_REG(line, UART_FR) & UART_FR_TXFF)) {
+		return false;
+	}
+
+	UART_REG(line, UART_DR) = buf->data[buf->head];
+	buf->head = (buf->head + 1) % UART_TX_BUFFER_SIZE;
+	--buf->size;
+	return true;
+}
 
 // Configure the line properties (e.g, parity, baud rate) of a UART and ensure that it is enabled
 void uart_config_and_enable(size_t line) {
@@ -77,8 +119,20 @@ char uart_getc(size_t line) {
 }
 
 void uart_putc(size_t line, char c) {
-	while (UART_REG(line, UART_FR) & UART_FR_TXFF); // wait for room in buffer
-	UART_REG(line, UART_DR) = c;
+	UartTxBuffer* buf = uart_buffer(line);
+	if (!buf) {
+		return;
+	}
+
+	// Fast path: if queue is empty and HW has room, send directly.
+	if (buf->size == 0 && !(UART_REG(line, UART_FR) & UART_FR_TXFF)) {
+		UART_REG(line, UART_DR) = c;
+		return;
+	}
+
+	// Try draining one pending byte before enqueueing this one.
+	uart_tx_drain_one(line, buf);
+	uart_tx_enqueue(buf, c);
 }
 
 void uart_putl(size_t line, const char* buf, size_t blen) {
@@ -132,4 +186,41 @@ void uart_printf(size_t line, const char* fmt, ...) {
 		}
 	}
 	va_end(va);
+}
+
+void uart_flush(size_t line, uint32_t budget_us) {
+	UartTxBuffer* buf = uart_buffer(line);
+	if (!buf || buf->size == 0) {
+		return;
+	}
+
+	uint32_t start = time_get();
+	while (buf->size > 0) {
+		uart_tx_drain_one(line, buf);
+		if (time_get() - start >= budget_us) {
+			break;
+		}
+	}
+}
+
+void uart_flush_all(size_t line) {
+	UartTxBuffer* buf = uart_buffer(line);
+	if (!buf) {
+		return;
+	}
+
+	while (buf->size > 0) {
+		while (UART_REG(line, UART_FR) & UART_FR_TXFF);
+		uart_tx_drain_one(line, buf);
+	}
+
+	while ((UART_REG(line, UART_FR) & (UART_FR_BUSY | UART_FR_TXFE)) != UART_FR_TXFE);
+}
+
+uint32_t uart_tx_dropped(size_t line) {
+	UartTxBuffer* buf = uart_buffer(line);
+	if (!buf) {
+		return 0;
+	}
+	return buf->dropped;
 }

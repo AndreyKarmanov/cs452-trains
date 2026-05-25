@@ -11,9 +11,9 @@
 #include "time.h"
 #include "state.h"
 
-#define CONSOLE_ROW_START "3"
-#define CONSOLE_ROW_TERM "4"
-#define CONSOLE_ROW_HIST "5"
+#define CONSOLE_ROW_START "4"
+#define CONSOLE_ROW_TERM "5"
+#define CONSOLE_ROW_HIST "6"
 
 void clear_console(void) {
     uart_puts(CONSOLE, "\033[" CONSOLE_ROW_START ";1H\033[KConsole\n\r");

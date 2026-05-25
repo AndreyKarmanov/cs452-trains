@@ -15,6 +15,12 @@
 extern "C" void setup_mmu(); // in mmu.S
 
 #define CLOCK_UPDATE_INTERVAL_US 100000
+#define UART_FLUSH_BUDGET_US 5000
+
+static void print_debug(uint32_t loop_time_us) {
+	uart_printf(CONSOLE, "\033[3;1HLoop: %u us (%u ms)  UART dropped: %u    ",
+		loop_time_us, loop_time_us / 1000, uart_tx_dropped(CONSOLE));
+}
 
 extern "C" int kmain() {
 #if defined(MMU)
@@ -30,6 +36,7 @@ extern "C" int kmain() {
 	uart_config_and_enable(CONSOLE);
 
 	uart_puts(CONSOLE, "\033[2J\033[?25l\033[1;1H" __DATE__ " / " __TIME__ " / Andrey Karmanov\n\r");
+	uart_puts(CONSOLE, "\033[3;1HDebug\n\r");
 	CANFRAME frame;
 	uint32_t time = 0;
 	State state;
@@ -63,14 +70,16 @@ extern "C" int kmain() {
 		if (new_time - time > CLOCK_UPDATE_INTERVAL_US) {
 			time = new_time;
 			print_time(time);
-			uart_printf(CONSOLE, "\033[1;1H" __DATE__ " / " __TIME__ " / Andrey Karmanov / Loop: %u us (%u ms)  ", last_loop_time, last_loop_time / 1000);
+			print_debug(last_loop_time);
 		}
 		mcp2515_send_pending();
 		print_state(state);
+		uart_flush(CONSOLE, UART_FLUSH_BUDGET_US);
 
 		last_loop_time = time_get() - start;
 	}
 	uart_puts(CONSOLE, "\033[?25h");
+	uart_flush_all(CONSOLE);
 
 	return 0;
 }
