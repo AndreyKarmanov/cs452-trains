@@ -90,6 +90,6 @@ struct State
 };
 
 void apply_state(const State& state);
-void print_state(State& state, bool force = 0);
+uint32_t print_state(State& state, bool force = 0);
 
 #endif // _state_h_

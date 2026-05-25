@@ -17,9 +17,9 @@ extern "C" void setup_mmu(); // in mmu.S
 #define CLOCK_UPDATE_INTERVAL_US 100000
 #define UART_FLUSH_BUDGET_US 5000
 
-static void print_debug(uint32_t loop_time_us) {
-	uart_printf(CONSOLE, "\033[3;1HLoop: %u us (%u ms)  UART dropped: %u    ",
-		loop_time_us, loop_time_us / 1000, uart_tx_dropped(CONSOLE));
+static void print_debug(uint32_t loop_time_us, uint32_t draws) {
+	uart_printf(CONSOLE, "\033[3;1HLoop: %u us (%u ms)  Draws: %u  UART dropped: %u    ",
+		loop_time_us, loop_time_us / 1000, draws, uart_tx_dropped(CONSOLE));
 }
 
 extern "C" int kmain() {
@@ -46,7 +46,7 @@ extern "C" int kmain() {
 
 
 	uint32_t last_loop_time = 0;
-
+	uint32_t draws = 0;
 	for (;;) {
 		uint32_t start = time_get();
 
@@ -57,7 +57,6 @@ extern "C" int kmain() {
 			break;
 		} else if (cmd == COMMAND_T::COMMAND_REDRAW || uart_tx_dropped(CONSOLE) > 10'000) {
 			clear_uart_dropped(CONSOLE);
-			clear_console();
 		}
 
 		if (mcp2515_recieve_RXn(0, frame)) {
@@ -69,13 +68,13 @@ extern "C" int kmain() {
 		}
 
 		uint32_t new_time = time_get();
+		draws += print_state(state, cmd == COMMAND_T::COMMAND_REDRAW);
 		if (new_time - time > CLOCK_UPDATE_INTERVAL_US) {
 			time = new_time;
 			print_time(time);
-			print_debug(last_loop_time);
+			print_debug(last_loop_time, draws);
 		}
 		mcp2515_send_pending();
-		print_state(state, cmd == COMMAND_T::COMMAND_REDRAW);
 		uart_flush(CONSOLE, UART_FLUSH_BUDGET_US);
 
 		last_loop_time = time_get() - start;

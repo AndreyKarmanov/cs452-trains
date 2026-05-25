@@ -123,10 +123,13 @@ void apply_state(const State& state) {
     mcp2515_send(ControlCommand(state.stopped ? ControlCommand::CMD_STOP : ControlCommand::CMD_GO).to_frame());
 }
 
-void print_state(State& state, bool force) {
+uint32_t print_state(State& state, bool force) {
+    uint32_t draws = 0;
+
     if (state.status_dirty || force) {
         uart_printf(CONSOLE, "\033[%u;2HTrack %s  \n\r", STATUS_ROW, state.stopped ? "Stopped" : "Active");
         state.status_dirty = false;
+        ++draws;
     }
 
     // for each train, print the train
@@ -137,6 +140,7 @@ void print_state(State& state, bool force) {
                 Train.backward ? "Rev" : "Fwd", Train.light_on ? " On " : " Off", Train.requested_speed);
         }
         state.trains_dirty = false;
+        ++draws;
     }
 
     if (state.sensors_dirty || force) {
@@ -149,6 +153,7 @@ void print_state(State& state, bool force) {
         }
         uart_puts(CONSOLE, "\n\r");
         state.sensors_dirty = false;
+        ++draws;
     }
 
     if (state.switches_dirty || force) {
@@ -168,6 +173,7 @@ void print_state(State& state, bool force) {
             }
         }
         state.switches_dirty = false;
+        ++draws;
     }
 
     if (state.timings_dirty || force) {
@@ -179,5 +185,8 @@ void print_state(State& state, bool force) {
             }
         }
         state.timings_dirty = false;
+        ++draws;
     }
+
+    return draws;
 }
