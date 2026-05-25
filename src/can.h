@@ -65,7 +65,7 @@ struct SpeedCommand {
 
     SpeedCommand(uint32_t loco_id, uint16_t speed) : loco_id(loco_id), speed(speed) {}
 
-    SpeedCommand(const CANFRAME& frame)
+    SpeedCommand(const CANFRAME&  frame)
         : loco_id(frame.decode_data_0_4()), speed((frame.data[4] << 8) | frame.data[5]) {
     }
 
@@ -184,6 +184,7 @@ struct ControlCommand
 struct UnknownCommand
 {
     CANFRAME frame;
+    UnknownCommand() = default;
     UnknownCommand(const CANFRAME& frame) : frame(frame) {};
 };
 

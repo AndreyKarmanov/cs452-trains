@@ -58,8 +58,9 @@ static COMMAND_T fire_command(const char* buf, size_t blen, State& state) {
         int32_t loco_id = expect_int();
         int32_t speed = expect_int();
         if (loco_id >= 0 && speed >= 0 && expect_end()) {
-            mcp2515_send(SpeedCommand(loco_id, speed).to_frame());
             state.command_timings_start[2] = time_get();
+            mcp2515_send(SpeedCommand(loco_id, speed).to_frame());
+            state.timings_dirty = true;
             uart_printf(CONSOLE, "\033[" CONSOLE_ROW_HIST ";1H\033[K> %s\n\r\033[K  Success: tr %u %u", buf, loco_id, speed);
         } else {
             uart_printf(CONSOLE, "\033[" CONSOLE_ROW_HIST ";1H\033[K> %s\n\r\033[K  Error: Format is tr <train number> <train speed>", buf);
@@ -71,8 +72,9 @@ static COMMAND_T fire_command(const char* buf, size_t blen, State& state) {
         int32_t loco_id = expect_int();
         int32_t light = expect_int();
         if (loco_id >= 0 && light >= 0 && expect_end()) {
-            mcp2515_send(LightCommand(loco_id, light).to_frame());
             state.command_timings_start[1] = time_get();
+            mcp2515_send(LightCommand(loco_id, light).to_frame());
+            state.timings_dirty = true;
             uart_printf(CONSOLE, "\033[" CONSOLE_ROW_HIST ";1H\033[K> %s\n\r\033[K  Success: lr %u %u", buf, loco_id, light);
         } else {
             uart_printf(CONSOLE, "\033[" CONSOLE_ROW_HIST ";1H\033[K> %s\n\r\033[K  Error: Format is lr <train number> <light state>", buf);
@@ -90,8 +92,9 @@ static COMMAND_T fire_command(const char* buf, size_t blen, State& state) {
             pos++; // consume 'C' or 'S'
             if ((dir == 'S' || dir == 'C' || dir == 's' || dir == 'c') && expect_end()) {
                 bool is_straight = (dir == 'S' || dir == 's');
-                mcp2515_send(SwitchCommand(sw_id, is_straight).to_frame());
                 state.command_timings_start[4] = time_get();
+                mcp2515_send(SwitchCommand(sw_id, is_straight).to_frame());
+                state.timings_dirty = true;
                 uart_printf(CONSOLE, "\033[" CONSOLE_ROW_HIST ";1H\033[K> %s\n\r\033[K  Success: sw %u %c", buf, sw_id, is_straight ? 'S' : 'C');
                 return COMMAND_NONE;
             }
@@ -104,8 +107,9 @@ static COMMAND_T fire_command(const char* buf, size_t blen, State& state) {
         int32_t loco_id = expect_int();
         if (loco_id >= 0 && expect_end()) {
             mcp2515_send(SpeedCommand(loco_id, 0).to_frame());
-            mcp2515_send(DirectionCommand(loco_id, !state.get_loco(loco_id).backward).to_frame(), TIME_1S_US * 10);
             state.command_timings_start[3] = time_get();
+            mcp2515_send(DirectionCommand(loco_id, !state.get_loco(loco_id).backward).to_frame(), TIME_1S_US * 10);
+            state.timings_dirty = true;
             mcp2515_send(SpeedCommand(loco_id, state.get_loco(loco_id).requested_speed).to_frame(), TIME_1S_US * 11);
 
             uart_printf(CONSOLE, "\033[" CONSOLE_ROW_HIST ";1H\033[K> %s\n\r\033[K  Success: rv %u (stopping)", buf, loco_id);
@@ -118,8 +122,9 @@ static COMMAND_T fire_command(const char* buf, size_t blen, State& state) {
 
     if (cmd_len == 4 && strncmp(buf + cmd_start, "stop", 4) == 0) {
         if (expect_end()) {
-            mcp2515_send(ControlCommand(ControlCommand::CMD_STOP).to_frame());
             state.command_timings_start[6] = time_get();
+            mcp2515_send(ControlCommand(ControlCommand::CMD_STOP).to_frame());
+            state.timings_dirty = true;
             uart_printf(CONSOLE, "\033[" CONSOLE_ROW_HIST ";1H\033[K> %s\n\r\033[K  Success: stop (stopping)", buf);
         } else {
             uart_printf(CONSOLE, "\033[" CONSOLE_ROW_HIST ";1H\033[K> %s\n\r\033[K  Error: Format is stop", buf);
@@ -129,8 +134,9 @@ static COMMAND_T fire_command(const char* buf, size_t blen, State& state) {
 
     if (cmd_len == 2 && strncmp(buf + cmd_start, "go", 2) == 0) {
         if (expect_end()) {
-            mcp2515_send(ControlCommand(ControlCommand::CMD_GO).to_frame());
             state.command_timings_start[6] = time_get();
+            mcp2515_send(ControlCommand(ControlCommand::CMD_GO).to_frame());
+            state.timings_dirty = true;
             uart_printf(CONSOLE, "\033[" CONSOLE_ROW_HIST ";1H\033[K> %s\n\r\033[K  Success: go (starting)", buf);
         } else {
             uart_printf(CONSOLE, "\033[" CONSOLE_ROW_HIST ";1H\033[K> %s\n\r\033[K  Error: Format is go", buf);
