@@ -1,8 +1,8 @@
 FILENAME=iotest
 ifneq (,$(wildcard /u/cs452/public/xdev))
 XDIR:=/u/cs452/public/xdev
-else ifneq (,$(wildcard ../arm-gnu-toolchain-aarch64-none-elf))
-XDIR:=../arm-gnu-toolchain-aarch64-none-elf
+else ifneq (,$(wildcard ../../arm-gnu-toolchain-aarch64-none-elf))
+XDIR:=../../arm-gnu-toolchain-aarch64-none-elf
 else
 $(error No valid XDIR found)
 endif

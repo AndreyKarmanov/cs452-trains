@@ -4,6 +4,7 @@
 
 #include "rpi.h"
 #include "uart.h"
+#include "shell.h"
 
 #define TASK_STACK_SIZE 4096
 #define TASK_DESCRIPTORS 4
@@ -46,6 +47,24 @@ TaskDescriptor task_descriptors[TASK_DESCRIPTORS];
 // Make sure this lives in a separate, non-kernel section
 uint8_t task_stacks[TASK_DESCRIPTORS][TASK_STACK_SIZE] __attribute__((section(".task_stacks")));
 
+int _create(int priority, void (*function)()) {
+	// kernel side handler of the create systemcall
+	// finds an empty task descriptor, fills with appropriate values
+	// and returns the tid of the created task
+	return 0;
+}
+
+int _activate(int tid) {
+	// this will trap to the kernel and the kernel will perform a context switch to the task with the given tid
+	// when the task yields or makes a syscall, it will trap back to the kernel and return a request code that the task is making to the kernel (syscalls)
+	return 0;
+}
+
+int _handle(int tid, int request) {
+	// this will handle the given request code and perform the appropriate action (e.g. for syscalls)
+	return 0;
+}
+
 extern "C" int kmain() {
 #if defined(MMU)
 	setup_mmu();
@@ -58,10 +77,14 @@ extern "C" int kmain() {
 	for (size_t i = 0; i < TASK_DESCRIPTORS; i++) {
 		uart_printf(CONSOLE, "Task %u stack: 0x%x\n\r", i, &task_stacks[i]);
 	}
+	_create(0, shell); // not quite right
 
+	// for now we will have only 1 task
 	for (;;) {
-
+		int request = _activate(0);
+		_handle(0, request);
 	}
+
 	return 0;
 }
 
