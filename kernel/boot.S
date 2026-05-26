@@ -100,6 +100,17 @@ loop_init_array:
     add x19, x19, #8      	// move to next 64-bit pointer 
     b loop_init_array
 done_init_array:
+
+	ldr x19, =loop_stack_zero
+	ldr x20, =loop_stack_zero
+loop_stack_zero:
+	cmp x19, x20
+	b.ge done_stack_zero
+	str xzr, [x19]
+	add x19, x19, #8
+	b loop_stack_zero
+done_stack_zero:
+
 	// branch and link to main routine in C/C++
 	bl kmain
 

@@ -25,4 +25,10 @@ SECTIONS {
 		KEEP(*(.init_array*)) 	/* for C++ global constructors */
 		__init_array_end = .;
 	}
+	.task_stacks : {
+		__task_stacks_start = .;
+		. = ALIGN(16);
+		KEEP(*(.task_stacks))
+		__task_stacks_end = .;
+	}
 }
