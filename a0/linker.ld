@@ -6,7 +6,6 @@ SECTIONS {
 	.text : {               /* rest of code */
 		KEEP(*(.text*))
 	}
-
 	. = 0x200000;           /* start data at this location for MMU setup */
 	.rodata : {
 		KEEP(*(.rodata*))

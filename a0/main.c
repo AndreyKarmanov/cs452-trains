@@ -22,6 +22,25 @@ static void print_debug(uint32_t loop_time_us, uint32_t draws) {
 		loop_time_us, loop_time_us / 1000, draws, uart_tx_dropped(CONSOLE));
 }
 
+typedef struct TaskContext	
+{
+	uint64_t x19;
+	uint64_t x20;
+	uint64_t x21;
+	uint64_t x22;
+	uint64_t x23;
+	uint64_t x24;
+	uint64_t x25;
+	uint64_t x26;
+	uint64_t x27;
+	uint64_t x28;
+	uint64_t x29; // frame pointer
+	uint64_t x30; // link register
+};
+
+TaskContext task_contexts[12];
+uint8_t task_stacks[12][4096] __attribute__((aligned(16)));
+
 extern "C" int kmain() {
 #if defined(MMU)
 	setup_mmu();
