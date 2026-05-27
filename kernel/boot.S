@@ -63,6 +63,49 @@ _start:
 
 	eret // -> el1_entry
 
+// https://developer.arm.com/documentation/102412/0103/Handling-exceptions/Taking-an-exception
+.align 11 // align to 2^11 = 2 KiB
+.global vectors
+vectors:
+	// Exception from the current EL while using SP_EL0
+	// goes  (serror/vserror) / (irq/virq) / (fiq/vfiq) / sync
+	b default_handler
+	.space 124
+	b default_handler
+	.space 124
+	b default_handler
+	.space 124
+	b default_handler
+	.space 124
+	// Exception from the current EL while using SP_ELx
+	b default_handler
+	.space 124
+	b default_handler
+	.space 124
+	b default_handler
+	.space 124
+	b default_handler
+	.space 124
+	//Lower EL AArch64
+	b default_handler_v2
+	.space 124
+	b default_handler
+	.space 124
+	b default_handler
+	.space 124
+	b default_handler
+	.space 124
+	//Lower EL AArch32
+	b default_handler
+	.space 124
+	b default_handler
+	.space 124
+	b default_handler
+	.space 124
+	b default_handler
+	.space 124
+
+
 el1_entry:
 	// configure processor
 	ldr x0, =(SCTLR_RESERVED | SCTLR_WFE_WFI)
@@ -110,6 +153,10 @@ loop_stack_zero:
 	add x19, x19, #8
 	b loop_stack_zero
 done_stack_zero:
+
+	adr x0, vectors
+	msr vbar_el1, x0
+	isb
 
 	// branch and link to main routine in C/C++
 	bl kmain

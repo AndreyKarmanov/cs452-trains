@@ -46,6 +46,14 @@ TaskDescriptor task_descriptors[TASK_DESCRIPTORS];
 // Make sure this lives in a separate, non-kernel section
 uint8_t task_stacks[TASK_DESCRIPTORS][TASK_STACK_SIZE] __attribute__((section(".task_stacks")));
 
+extern "C" void default_handler() {
+	uart_puts(CONSOLE, "DEFAULT VBAR HANDLER HIT\n\r");
+}
+
+extern "C" void default_handler_v2() {
+	uart_puts(CONSOLE, "v2 VBAR HANDLER HIT\n\r");
+}
+
 int _create(int priority, void (*function)()) {
 	// kernel side handler of the create systemcall
 	// finds an empty task descriptor, fills with appropriate values
@@ -70,7 +78,7 @@ int _create(int priority, void (*function)()) {
 
 
 // this is just placeholder, need this to be in the VBAR_ELn
-int _save() {
+extern "C" int _save_state() {
 	TaskDescriptor& td = task_descriptors[active_tid];
 	asm volatile("mrs %0, sp_el0" : "=r"(td.tf.sp_el0));
 	asm volatile("mrs %0, elr_el1" : "=r"(td.tf.elr_el1));
@@ -128,6 +136,10 @@ int _activate(int tid) {
 	TaskDescriptor& td = task_descriptors[tid];
 	td.state = TaskState::RUNNING;
 
+	asm volatile("msr sp_el0, %0" :: "r"(td.tf.sp_el0));
+	asm volatile("msr elr_el1, %0" :: "r"(td.tf.elr_el1));
+	asm volatile("msr spsr_el1, %0" :: "r"(td.tf.spsr_el1));
+
 	// load registers
 	asm volatile(
 		"mov x0, %0\n\t"
@@ -173,9 +185,6 @@ int _activate(int tid) {
 		"r"(td.tf.x[28]), "r"(td.tf.x[29]), "r"(td.tf.x[30])
 		);
 
-	asm volatile("msr sp_el0, %0" :: "r"(td.tf.sp_el0));
-	asm volatile("msr elr_el1, %0" :: "r"(td.tf.elr_el1));
-	asm volatile("msr spsr_el1, %0" :: "r"(td.tf.spsr_el1));
 	asm volatile("eret");
 
 	return 0;

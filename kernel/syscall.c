@@ -15,7 +15,7 @@ int MyParentTid() {
 }
 
 void Yield() {
-
+    asm volatile("svc #0");
 }
 
 void Exit() {
