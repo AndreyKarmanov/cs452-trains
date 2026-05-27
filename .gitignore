@@ -7,3 +7,6 @@ arm-gnu-toolchain-aarch64-none-elf
 # upload script stuff
 upload.sh
 cacert.pem
+
+# custom clangd
+.clangd
