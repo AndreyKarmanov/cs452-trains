@@ -54,6 +54,7 @@ void shell() {
         buf_n = 0;
       }
     }
+    uart.send_io();
   }
   // char buf[BUFFER_SIZE];
   // size_t buf_n = 0;

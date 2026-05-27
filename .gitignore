@@ -4,6 +4,10 @@ arm-gnu-toolchain-aarch64-none-elf
 *.o
 *.d
 
+# images
+*.elf
+*.img
+
 # upload script stuff
 upload.sh
 cacert.pem
