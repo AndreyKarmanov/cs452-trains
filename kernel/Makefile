@@ -34,12 +34,15 @@ SOURCES := $(wildcard *.S) $(wildcard *.c)
 OBJECTS := $(patsubst %.S, %.o, $(patsubst %.c, %.o, $(SOURCES)))
 DEPENDS := $(patsubst %.S, %.d, $(patsubst %.c, %.d, $(SOURCES)))
 
-.PHONY: all clean
+.PHONY: all clean run
 
 all: $(FILENAME).img
 
 clean:
 	rm -f $(OBJECTS) $(DEPENDS) $(FILENAME).elf $(FILENAME).img
+
+run: $(FILENAME).img
+	qemu-system-aarch64 -M raspi4b -cpu cortex-a53 -m 2G -nographic -kernel $(FILENAME).img
 
 $(FILENAME).img: $(FILENAME).elf
 	$(OBJCOPY) -S -O binary $< $@; sync
