@@ -3,6 +3,7 @@
 #include <ctype.h>
 
 #include "uart.h"
+#include "shell.h"
 #include "syscall.h"
 
 #define BUFFER_SIZE 32
@@ -42,10 +43,10 @@ void shell() {
             --buf_n;
         } else if (c == '\r') { // enter
             buf[buf_n] = '\0';
+            uart_puts(CONSOLE, "\n\r");
             fire_command(buf, buf_n);
             uart_puts(CONSOLE, "> ");
             buf_n = 0;
-            break;
         }
     }
 }

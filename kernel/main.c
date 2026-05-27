@@ -38,7 +38,6 @@ struct TaskDescriptor
 	TaskState state;
 	TrapFrame tf;
 	uint8_t* stack_base;
-	size_t stack_size;
 };
 
 // This can live in the data section alongside other kernel data
@@ -51,12 +50,35 @@ int _create(int priority, void (*function)()) {
 	// kernel side handler of the create systemcall
 	// finds an empty task descriptor, fills with appropriate values
 	// and returns the tid of the created task
+	// write via asm - positional argument %0
+	TaskDescriptor& td = task_descriptors[0];
+	task_stacks[0][TASK_STACK_SIZE - 1] = 0;
+	td.tid = 0;
+	td.parent_tid = -1; // no parent
+	td.priority = priority;
+	td.state = TaskState::READY;
+
+	td.stack_base = &task_stacks[0][TASK_STACK_SIZE - 1];
+	td.tf.sp_el0 = (uint64_t)td.stack_base;
+	td.tf.elr_el1 = (uint64_t)function;
+	td.tf.spsr_el1 = 0;
+
+	__builtin_memset(&td.tf.x, 0, sizeof(td.tf.x)); // zero registers
+
 	return 0;
 }
 
 int _activate(int tid) {
 	// this will trap to the kernel and the kernel will perform a context switch to the task with the given tid
 	// when the task yields or makes a syscall, it will trap back to the kernel and return a request code that the task is making to the kernel (syscalls)
+	TaskDescriptor& td = task_descriptors[tid];
+	td.state = TaskState::RUNNING;
+
+	asm volatile("msr sp_el0, %0" :: "r"(td.tf.sp_el0));
+	asm volatile("msr elr_el1, %0" :: "r"(td.tf.elr_el1));
+	asm volatile("msr spsr_el1, %0" :: "r"(td.tf.spsr_el1));
+	asm volatile("eret");
+	
 	return 0;
 }
 
@@ -77,7 +99,7 @@ extern "C" int kmain() {
 	for (size_t i = 0; i < TASK_DESCRIPTORS; i++) {
 		uart_printf(CONSOLE, "Task %u stack: 0x%x\n\r", i, &task_stacks[i]);
 	}
-	_create(0, shell); // not quite right
+	_create(0, shell);
 
 	// for now we will have only 1 task
 	for (;;) {
