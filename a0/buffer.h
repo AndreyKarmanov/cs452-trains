@@ -5,8 +5,7 @@
 #include <stddef.h>
 
 template<typename T, size_t SIZE>
-class Buffer
-{
+class Buffer {
     T arr[SIZE];
     size_t head = 0;
     size_t _size = 0;

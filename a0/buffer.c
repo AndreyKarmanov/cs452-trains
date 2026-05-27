@@ -2,11 +2,10 @@
 
 void test_buffer() {
     Buffer<int, 5> buf;
-    
+
     assert(buf.is_empty(), "Non-empty on start");
 
-    for (size_t i = 0; i < 5; ++i)
-    {
+    for (size_t i = 0; i < 5; ++i) {
         assert(buf.push(i), "Push Failed");
     }
 

@@ -6,12 +6,21 @@
 #include "scheduler.h"
 #include "shell.h"
 #include "task_helpers.h"
+#include "shell.h"
 #include "uart.h"
 
 #define TASK_STACK_SIZE 4096
 #define TASK_DESCRIPTORS 4
 
 extern "C" void setup_mmu();  // in mmu.S
+extern "C" void _restore_user_stack_and_eret(); // in boot.S
+
+struct KernelState {
+  uint64_t sp;
+  uint64_t x[12];  // x19 to x30 are callee-saved registers, so we need to save
+                   // them in the kernel state
+} kernel_state;
+
 
 // This can live in the data section alongside other kernel data
 int active_tid = 0;
@@ -26,10 +35,6 @@ extern "C" void default_handler() {
   uart_puts(CONSOLE, "DEFAULT VBAR HANDLER HIT\n\r");
 }
 
-extern "C" void default_handler_v2() {
-  uart_puts(CONSOLE, "v2 VBAR HANDLER HIT\n\r");
-}
-
 int _create(int priority, void (*function)()) {
   // kernel side handler of the create systemcall
   // finds an empty task descriptor, fills with appropriate values
@@ -42,131 +47,84 @@ int _create(int priority, void (*function)()) {
   td.priority = priority;
   td.state = TaskState::READY;
 
-  td.stack_base = &task_stacks[0][TASK_STACK_SIZE - 1];
-  td.tf.sp_el0 = (uint64_t)td.stack_base;
-  td.tf.elr_el1 = (uint64_t)function;
-  td.tf.spsr_el1 = 0;
+  td.stack_base = &task_stacks[0][TASK_STACK_SIZE];
+  td.sp_el0 = (uint64_t)td.stack_base;
+  td.elr_el1 = (uint64_t)function;
+  td.spsr_el1 = 0;
+  __builtin_memset((void*)td.sp_el0, 0, TASK_STACK_SIZE);
+  td.sp_el0 -= 256; // shift by 256 bytes down, for our fake trap frame
 
-  __builtin_memset(&td.tf.x, 0, sizeof(td.tf.x));  // zero registers
-
-  // schedule the task after creation
-  scheduler.schedule(td.tid, td.priority);
   return 0;
 }
 
-// this is just placeholder, need this to be in the VBAR_ELn
-extern "C" int _save_state() {
+extern "C" int lower_el_64_sync_handler() {
   TaskDescriptor& td = task_descriptors[active_tid];
-  asm volatile("mrs %0, sp_el0" : "=r"(td.tf.sp_el0));
-  asm volatile("mrs %0, elr_el1" : "=r"(td.tf.elr_el1));
-  asm volatile("mrs %0, spsr_el1" : "=r"(td.tf.spsr_el1));
+  asm volatile("mrs %0, sp_el0" : "=r"(td.sp_el0));
+  asm volatile("mrs %0, elr_el1" : "=r"(td.elr_el1));
+  asm volatile("mrs %0, spsr_el1" : "=r"(td.spsr_el1));
 
-  // save x0 to x30
+  // restore kernal state
   asm volatile(
-      "mov %0, x0\n\t"
-      "mov %1, x1\n\t"
-      "mov %2, x2\n\t"
-      "mov %3, x3\n\t"
-      "mov %4, x4\n\t"
-      "mov %5, x5\n\t"
-      "mov %6, x6\n\t"
-      "mov %7, x7\n\t"
-      "mov %8, x8\n\t"
-      "mov %9, x9\n\t"
-      "mov %10, x10\n\t"
-      "mov %11, x11\n\t"
-      "mov %12, x12\n\t"
-      "mov %13, x13\n\t"
-      "mov %14, x14\n\t"
-      : "=r"(td.tf.x[0]), "=r"(td.tf.x[1]), "=r"(td.tf.x[2]), "=r"(td.tf.x[3]),
-        "=r"(td.tf.x[4]), "=r"(td.tf.x[5]), "=r"(td.tf.x[6]), "=r"(td.tf.x[7]),
-        "=r"(td.tf.x[8]), "=r"(td.tf.x[9]), "=r"(td.tf.x[10]),
-        "=r"(td.tf.x[11]), "=r"(td.tf.x[12]), "=r"(td.tf.x[13]),
-        "=r"(td.tf.x[14]));
+      "mov x19, %0\n\t"
+      "mov x20, %1\n\t"
+      "mov x21, %2\n\t"
+      "mov x22, %3\n\t"
+      "mov x23, %4\n\t"
+      "mov x24, %5\n\t"
+      "mov x25, %6\n\t"
+      "mov x26, %7\n\t"
+      "mov x27, %8\n\t"
+      "mov x28, %9\n\t"
+      "mov x29, %10\n\t"
+      "mov x30, %11\n\t"
+      "mov sp, %12\n\t" ::"r"(kernel_state.x[0]),
+      "r"(kernel_state.x[1]), "r"(kernel_state.x[2]), "r"(kernel_state.x[3]),
+      "r"(kernel_state.x[4]), "r"(kernel_state.x[5]), "r"(kernel_state.x[6]),
+      "r"(kernel_state.x[7]), "r"(kernel_state.x[8]), "r"(kernel_state.x[9]),
+      "r"(kernel_state.x[10]), "r"(kernel_state.x[11]), "r"(kernel_state.sp));
 
   asm volatile(
-      "mov %0, x15\n\t"
-      "mov %1, x16\n\t"
-      "mov %2, x17\n\t"
-      "mov %3, x18\n\t"
-      "mov %4, x19\n\t"
-      "mov %5, x20\n\t"
-      "mov %6, x21\n\t"
-      "mov %7, x22\n\t"
-      "mov %8, x23\n\t"
-      "mov %9, x24\n\t"
-      "mov %0, x25\n\t"
-      "mov %1, x26\n\t"
-      "mov %2, x27\n\t"
-      "mov %3, x28\n\t"
-      "mov %4, x29\n\t"
-      "mov %5, x30\n\t"
-      : "=r"(td.tf.x[15]), "=r"(td.tf.x[16]), "=r"(td.tf.x[17]),
-        "=r"(td.tf.x[18]), "=r"(td.tf.x[19]), "=r"(td.tf.x[20]),
-        "=r"(td.tf.x[21]), "=r"(td.tf.x[22]), "=r"(td.tf.x[23]),
-        "=r"(td.tf.x[24]), "=r"(td.tf.x[25]), "=r"(td.tf.x[26]),
-        "=r"(td.tf.x[27]), "=r"(td.tf.x[28]), "=r"(td.tf.x[29]),
-        "=r"(td.tf.x[30]));
-  return 0;
+      "ldr x0, [sp, #0]\n\t"
+      "ret");
+
+  __builtin_unreachable();
 }
 
 int _activate(int tid) {
   // this will trap to the kernel and the kernel will perform a context switch
   // to the task with the given tid when the task yields or makes a syscall, it
   // will trap back to the kernel and return a request code that the task is
-  // making to the kernel (syscalls)
+  // making to the kernel (syscalls) save x19 to x30 in kernel state, sp
+  asm volatile(
+      "mov %0, x19\n\t"
+      "mov %1, x20\n\t"
+      "mov %2, x21\n\t"
+      "mov %3, x22\n\t"
+      "mov %4, x23\n\t"
+      "mov %5, x24\n\t"
+      "mov %6, x25\n\t"
+      "mov %7, x26\n\t"
+      "mov %8, x27\n\t"
+      "mov %9, x28\n\t"
+      "mov %10, x29\n\t"
+      "mov %11, x30\n\t"
+      "mov %12, sp\n\t"
+      : "=r"(kernel_state.x[0]), "=r"(kernel_state.x[1]),
+        "=r"(kernel_state.x[2]), "=r"(kernel_state.x[3]),
+        "=r"(kernel_state.x[4]), "=r"(kernel_state.x[5]),
+        "=r"(kernel_state.x[6]), "=r"(kernel_state.x[7]),
+        "=r"(kernel_state.x[8]), "=r"(kernel_state.x[9]),
+        "=r"(kernel_state.x[10]), "=r"(kernel_state.x[11]),
+        "=r"(kernel_state.sp));
+
   TaskDescriptor& td = task_descriptors[tid];
   td.state = TaskState::RUNNING;
 
-  asm volatile("msr sp_el0, %0" ::"r"(td.tf.sp_el0));
-  asm volatile("msr elr_el1, %0" ::"r"(td.tf.elr_el1));
-  asm volatile("msr spsr_el1, %0" ::"r"(td.tf.spsr_el1));
+  asm volatile("msr sp_el0, %0" ::"r"(td.sp_el0));
+  asm volatile("msr elr_el1, %0" ::"r"(td.elr_el1));
+  asm volatile("msr spsr_el1, %0" ::"r"(td.spsr_el1));
 
-  // load registers
-  asm volatile(
-      "mov x0, %0\n\t"
-      "mov x1, %1\n\t"
-      "mov x2, %2\n\t"
-      "mov x3, %3\n\t"
-      "mov x4, %4\n\t"
-      "mov x5, %5\n\t"
-      "mov x6, %6\n\t"
-      "mov x7, %7\n\t"
-      "mov x8, %8\n\t"
-      "mov x9, %9\n\t"
-      "mov x10, %10\n\t"
-      "mov x11, %11\n\t"
-      "mov x12, %12\n\t"
-      "mov x13, %13\n\t"
-      "mov x14, %14\n\t" ::"r"(td.tf.x[0]),
-      "r"(td.tf.x[1]), "r"(td.tf.x[2]), "r"(td.tf.x[3]), "r"(td.tf.x[4]),
-      "r"(td.tf.x[5]), "r"(td.tf.x[6]), "r"(td.tf.x[7]), "r"(td.tf.x[8]),
-      "r"(td.tf.x[9]), "r"(td.tf.x[10]), "r"(td.tf.x[11]), "r"(td.tf.x[12]),
-      "r"(td.tf.x[13]), "r"(td.tf.x[14]));
-
-  asm volatile(
-      "mov x15, %0\n\t"
-      "mov x16, %1\n\t"
-      "mov x17, %2\n\t"
-      "mov x18, %3\n\t"
-      "mov x19, %4\n\t"
-      "mov x20, %5\n\t"
-      "mov x21, %6\n\t"
-      "mov x22, %7\n\t"
-      "mov x23, %8\n\t"
-      "mov x24, %9\n\t"
-      "mov x25, %10\n\t"
-      "mov x26, %11\n\t"
-      "mov x27, %12\n\t"
-      "mov x28, %13\n\t"
-      "mov x29, %14\n\t"
-      "mov x30, %15\n\t" ::"r"(td.tf.x[15]),
-      "r"(td.tf.x[16]), "r"(td.tf.x[17]), "r"(td.tf.x[18]), "r"(td.tf.x[19]),
-      "r"(td.tf.x[20]), "r"(td.tf.x[21]), "r"(td.tf.x[22]), "r"(td.tf.x[23]),
-      "r"(td.tf.x[24]), "r"(td.tf.x[25]), "r"(td.tf.x[26]), "r"(td.tf.x[27]),
-      "r"(td.tf.x[28]), "r"(td.tf.x[29]), "r"(td.tf.x[30]));
-
-  asm volatile("eret");
+  _restore_user_stack_and_eret();
 
   return 0;
 }
@@ -190,13 +148,12 @@ extern "C" int kmain() {
   for (size_t i = 0; i < TASK_DESCRIPTORS; i++) {
     uart_printf(CONSOLE, "Task %u stack: 0x%x\n\r", i, &task_stacks[i]);
   }
-
-  int task_id = _create(0, shell);
+  _create(0, shell);
 
   // for now we will have only 1 task
   for (;;) {
-    int taskid = scheduler.get_task();
-    int request = _activate(taskid);
+    int request = _activate(0);
+    uart_printf(CONSOLE, "Request code: %d\n\r", request);
     _handle(0, request);
   }
 

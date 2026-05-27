@@ -7,4 +7,4 @@ int MyParentTid();
 void Yield();
 void Exit();
 
-#endif _syscall_h_
+#endif // _syscall_h_
