@@ -21,7 +21,7 @@ void yield() {
   uart_printf(CONSOLE, "Yield: user_reg_30a = %x, user_reg_30b = %x\n\r",
               user_reg_30a, user_reg_30b);
 
-  asm volatile("mov x0, #0\n\t");
+  asm volatile("mov x0, #50\n\t");
   asm volatile("svc #0");
   asm volatile("mov %0, x19" : "=r"(user_reg_30b));
 

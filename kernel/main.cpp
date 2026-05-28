@@ -8,8 +8,7 @@
 #include "task_descriptor.h"
 #include "uart.h"
 
-extern "C" void setup_mmu();                    // in mmu.S
-extern "C" void _restore_user_stack_and_eret(); // in boot.S
+extern "C" void setup_mmu(); // in mmu.S
 
 namespace Kernel {
   struct KernelState {
@@ -17,6 +16,13 @@ namespace Kernel {
     uint64_t x[12]; // x19 to x30 are callee-saved registers, so we need to save
                     // them in the kernel state
   } state;
+
+  struct TrapFrame {
+    uint64_t x[31]; // x0 to x30
+    uint64_t sp;
+    uint64_t elr_el1;
+    uint64_t spsr_el1;
+  };
 
   // This can live in the data section alongside other kernel data
   TaskDescriptor task_descriptors[TASK_DESCRIPTORS];
@@ -29,6 +35,7 @@ namespace Kernel {
       __attribute__((section(".task_stacks")));
 } // namespace Kernel
 
+extern "C" Kernel::TrapFrame *_switch_to_user(uint64_t sp); // in boot.S
 extern "C" void default_handler() {
   uart_puts(CONSOLE, "DEFAULT VBAR HANDLER HIT\n\r");
 }
@@ -37,54 +44,31 @@ int _create(int priority, void (*function)()) {
   // kernel side handler of the create systemcall
   // finds an empty task descriptor, fills with appropriate values
   // and returns the tid of the created task
-  auto &td = Kernel::task_descriptors[0] = {
+  using namespace Kernel;
+  auto &td = task_descriptors[0] = {
       .tid        = 0,
       .parent_tid = -1, // no parent
       .priority   = priority,
       .state      = TaskStatus::READY,
-      .sp_el0     = (uint64_t)&Kernel::task_stacks[0][TASK_STACK_SIZE],
+      .sp_el0     = (uint64_t)&task_stacks[0][TASK_STACK_SIZE],
       .elr_el1    = (uint64_t)function,
       .spsr_el1   = 0,
-      .stack_base = &Kernel::task_stacks[0][TASK_STACK_SIZE],
+      .stack_base = &task_stacks[0][TASK_STACK_SIZE],
   };
 
   __builtin_memset((void *)td.sp_el0, 0, TASK_STACK_SIZE);
-  td.sp_el0 -= 256; // shift by 256 bytes down, for our fake trap frame
+
+  // set the sp_el0, elr_el1 and spsr_el1 regions to right values
+
+  TrapFrame *tf = (TrapFrame *)(td.sp_el0 - sizeof(TrapFrame));
+  tf->sp        = td.sp_el0;
+  tf->elr_el1   = (uint64_t)function;
+  tf->spsr_el1  = 0; // set to 0 for now, can set to different values for
+                     // different tasks if needed
+
+  td.sp_el0 = (uint64_t)tf; // SAVE it back to the task!
 
   return td.tid;
-}
-
-extern "C" int lower_el_64_sync_handler() {
-  TaskDescriptor &td = Kernel::task_descriptors[Kernel::active_tid];
-  asm volatile("mrs %0, sp_el0" : "=r"(td.sp_el0));
-  asm volatile("mrs %0, elr_el1" : "=r"(td.elr_el1));
-  asm volatile("mrs %0, spsr_el1" : "=r"(td.spsr_el1));
-
-  // restore kernal state
-  asm volatile("mov x19, %0\n\t"
-               "mov x20, %1\n\t"
-               "mov x21, %2\n\t"
-               "mov x22, %3\n\t"
-               "mov x23, %4\n\t"
-               "mov x24, %5\n\t"
-               "mov x25, %6\n\t"
-               "mov x26, %7\n\t"
-               "mov x27, %8\n\t"
-               "mov x28, %9\n\t"
-               "mov x29, %10\n\t"
-               "mov x30, %11\n\t"
-               "mov sp, %12\n\t" ::"r"(Kernel::state.x[0]),
-               "r"(Kernel::state.x[1]), "r"(Kernel::state.x[2]),
-               "r"(Kernel::state.x[3]), "r"(Kernel::state.x[4]),
-               "r"(Kernel::state.x[5]), "r"(Kernel::state.x[6]),
-               "r"(Kernel::state.x[7]), "r"(Kernel::state.x[8]),
-               "r"(Kernel::state.x[9]), "r"(Kernel::state.x[10]),
-               "r"(Kernel::state.x[11]), "r"(Kernel::state.sp));
-
-  asm volatile("ldr x0, [sp, #0]\n\t"
-               "ret");
-
-  __builtin_unreachable();
 }
 
 int _activate(int tid) {
@@ -92,37 +76,14 @@ int _activate(int tid) {
   // to the task with the given tid when the task yields or makes a syscall, it
   // will trap back to the kernel and return a request code that the task is
   // making to the kernel (syscalls) save x19 to x30 in kernel state, sp
-  asm volatile("mov %0, x19\n\t"
-               "mov %1, x20\n\t"
-               "mov %2, x21\n\t"
-               "mov %3, x22\n\t"
-               "mov %4, x23\n\t"
-               "mov %5, x24\n\t"
-               "mov %6, x25\n\t"
-               "mov %7, x26\n\t"
-               "mov %8, x27\n\t"
-               "mov %9, x28\n\t"
-               "mov %10, x29\n\t"
-               "mov %11, x30\n\t"
-               "mov %12, sp\n\t"
-               : "=r"(Kernel::state.x[0]), "=r"(Kernel::state.x[1]),
-                 "=r"(Kernel::state.x[2]), "=r"(Kernel::state.x[3]),
-                 "=r"(Kernel::state.x[4]), "=r"(Kernel::state.x[5]),
-                 "=r"(Kernel::state.x[6]), "=r"(Kernel::state.x[7]),
-                 "=r"(Kernel::state.x[8]), "=r"(Kernel::state.x[9]),
-                 "=r"(Kernel::state.x[10]), "=r"(Kernel::state.x[11]),
-                 "=r"(Kernel::state.sp));
 
   TaskDescriptor &td = Kernel::task_descriptors[tid];
   td.state           = TaskStatus::RUNNING;
 
-  asm volatile("msr sp_el0, %0" ::"r"(td.sp_el0));
-  asm volatile("msr elr_el1, %0" ::"r"(td.elr_el1));
-  asm volatile("msr spsr_el1, %0" ::"r"(td.spsr_el1));
+  Kernel::TrapFrame *tf = _switch_to_user(td.sp_el0);
+  td.sp_el0             = (uint64_t)tf;
 
-  _restore_user_stack_and_eret();
-
-  return 0;
+  return tf->x[0];
 }
 
 int _handle(int /*tid*/, int /*request*/) {
