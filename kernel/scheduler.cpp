@@ -1,7 +1,5 @@
 #include "scheduler.h"
 
-#include "debug.h"
-
 void Scheduler::schedule(int tid, int priority) {
   // assert that priority is valid
   assert(priority >= 0 && priority < MAX_PRIORITY, "invalid priority");

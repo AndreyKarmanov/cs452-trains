@@ -1,5 +1,5 @@
-#include <stdint.h>
-#include <string.h>
+#include <cstdint>
+#include <cstring>
 
 #include "rpi.h"
 #include "scheduler.h"
@@ -155,7 +155,7 @@ extern "C" int kmain() {
 }
 
 #if !defined(MMU)
-#include <stddef.h>
+#include <cstddef>
 
 // define our own memset to avoid SIMD instructions emitted from the compiler
 void *memset(void *s, int c, size_t n) {

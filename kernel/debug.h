@@ -1,5 +1,5 @@
 #pragma once
 
-#include <stddef.h>
+#include <cstddef>
 
 bool assert(bool value, const char *msg);

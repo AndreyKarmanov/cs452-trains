@@ -1,8 +1,9 @@
 #ifndef _uart_nb_h_
 #define _uart_nb_h_ 1
 
+#include <cstddef>
+
 #include "buffer.h"
-#include <stddef.h>
 
 #define CONSOLE 0
 

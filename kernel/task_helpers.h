@@ -1,6 +1,6 @@
 #pragma once
 
-#include <stdint.h>
+#include <cstdint>
 
 #define TASK_STACK_SIZE 4096
 #define TASK_DESCRIPTORS 4
