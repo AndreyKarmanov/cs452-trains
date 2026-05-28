@@ -1,5 +1,4 @@
-#ifndef _task_helpers_h
-#define _task_helpers_h
+#pragma once
 
 #include <stdint.h>
 
@@ -19,5 +18,3 @@ struct TaskDescriptor {
 
   uint8_t *stack_base;
 };
-
-#endif
