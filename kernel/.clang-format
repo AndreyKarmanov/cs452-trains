@@ -7,3 +7,4 @@ AlignConsecutiveAssignments:
   AcrossComments: false
   AlignCompound: true
   PadOperators: true
+NamespaceIndentation: All

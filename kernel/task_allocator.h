@@ -1,7 +1,7 @@
 #pragma once
 
 #include "buffer.h"
-#include "task_helpers.h"
+#include "task_descriptor.h"
 
 class TaskAllocator {
 public:

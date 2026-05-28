@@ -2,4 +2,4 @@
 
 #include <cstddef>
 
-bool assert(bool value, const char *msg);
+bool _assert(bool value, const char *msg);

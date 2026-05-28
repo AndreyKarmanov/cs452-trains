@@ -5,27 +5,29 @@
 #include "scheduler.h"
 #include "shell.h"
 #include "task_allocator.h"
-#include "task_helpers.h"
+#include "task_descriptor.h"
 #include "uart.h"
 
 extern "C" void setup_mmu();                    // in mmu.S
 extern "C" void _restore_user_stack_and_eret(); // in boot.S
 
-struct KernelState {
-  uint64_t sp;
-  uint64_t x[12]; // x19 to x30 are callee-saved registers, so we need to save
-                  // them in the kernel state
-} kernel_state;
+namespace Kernel {
+  struct KernelState {
+    uint64_t sp;
+    uint64_t x[12]; // x19 to x30 are callee-saved registers, so we need to save
+                    // them in the kernel state
+  } state;
 
-// This can live in the data section alongside other kernel data
-TaskDescriptor task_descriptors[TASK_DESCRIPTORS];
-TaskAllocator task_allocator(task_descriptors);
-int active_tid = task_allocator.get_new_task();
-Scheduler scheduler;
+  // This can live in the data section alongside other kernel data
+  TaskDescriptor task_descriptors[TASK_DESCRIPTORS];
+  TaskAllocator task_allocator(task_descriptors);
+  int active_tid = task_allocator.get_new_task();
+  Scheduler scheduler;
 
-// Make sure this lives in a separate, non-kernel section
-uint8_t task_stacks[TASK_DESCRIPTORS][TASK_STACK_SIZE]
-    __attribute__((section(".task_stacks")));
+  // Make sure this lives in a separate, non-kernel section
+  uint8_t task_stacks[TASK_DESCRIPTORS][TASK_STACK_SIZE]
+      __attribute__((section(".task_stacks")));
+} // namespace Kernel
 
 extern "C" void default_handler() {
   uart_puts(CONSOLE, "DEFAULT VBAR HANDLER HIT\n\r");
@@ -35,49 +37,49 @@ int _create(int priority, void (*function)()) {
   // kernel side handler of the create systemcall
   // finds an empty task descriptor, fills with appropriate values
   // and returns the tid of the created task
-  // write via asm - positional argument %0
-  TaskDescriptor &td                  = task_descriptors[0];
-  task_stacks[0][TASK_STACK_SIZE - 1] = 0;
-  td.tid                              = 0;
-  td.parent_tid                       = -1; // no parent
-  td.priority                         = priority;
-  td.state                            = TaskState::READY;
+  auto &td = Kernel::task_descriptors[0] = {
+      .tid        = 0,
+      .parent_tid = -1, // no parent
+      .priority   = priority,
+      .state      = TaskStatus::READY,
+      .sp_el0     = (uint64_t)&Kernel::task_stacks[0][TASK_STACK_SIZE],
+      .elr_el1    = (uint64_t)function,
+      .spsr_el1   = 0,
+      .stack_base = &Kernel::task_stacks[0][TASK_STACK_SIZE],
+  };
 
-  td.stack_base = &task_stacks[0][TASK_STACK_SIZE];
-  td.sp_el0     = (uint64_t)td.stack_base;
-  td.elr_el1    = (uint64_t)function;
-  td.spsr_el1   = 0;
   __builtin_memset((void *)td.sp_el0, 0, TASK_STACK_SIZE);
   td.sp_el0 -= 256; // shift by 256 bytes down, for our fake trap frame
 
-  return 0;
+  return td.tid;
 }
 
 extern "C" int lower_el_64_sync_handler() {
-  TaskDescriptor &td = task_descriptors[active_tid];
+  TaskDescriptor &td = Kernel::task_descriptors[Kernel::active_tid];
   asm volatile("mrs %0, sp_el0" : "=r"(td.sp_el0));
   asm volatile("mrs %0, elr_el1" : "=r"(td.elr_el1));
   asm volatile("mrs %0, spsr_el1" : "=r"(td.spsr_el1));
 
   // restore kernal state
-  asm volatile(
-      "mov x19, %0\n\t"
-      "mov x20, %1\n\t"
-      "mov x21, %2\n\t"
-      "mov x22, %3\n\t"
-      "mov x23, %4\n\t"
-      "mov x24, %5\n\t"
-      "mov x25, %6\n\t"
-      "mov x26, %7\n\t"
-      "mov x27, %8\n\t"
-      "mov x28, %9\n\t"
-      "mov x29, %10\n\t"
-      "mov x30, %11\n\t"
-      "mov sp, %12\n\t" ::"r"(kernel_state.x[0]),
-      "r"(kernel_state.x[1]), "r"(kernel_state.x[2]), "r"(kernel_state.x[3]),
-      "r"(kernel_state.x[4]), "r"(kernel_state.x[5]), "r"(kernel_state.x[6]),
-      "r"(kernel_state.x[7]), "r"(kernel_state.x[8]), "r"(kernel_state.x[9]),
-      "r"(kernel_state.x[10]), "r"(kernel_state.x[11]), "r"(kernel_state.sp));
+  asm volatile("mov x19, %0\n\t"
+               "mov x20, %1\n\t"
+               "mov x21, %2\n\t"
+               "mov x22, %3\n\t"
+               "mov x23, %4\n\t"
+               "mov x24, %5\n\t"
+               "mov x25, %6\n\t"
+               "mov x26, %7\n\t"
+               "mov x27, %8\n\t"
+               "mov x28, %9\n\t"
+               "mov x29, %10\n\t"
+               "mov x30, %11\n\t"
+               "mov sp, %12\n\t" ::"r"(Kernel::state.x[0]),
+               "r"(Kernel::state.x[1]), "r"(Kernel::state.x[2]),
+               "r"(Kernel::state.x[3]), "r"(Kernel::state.x[4]),
+               "r"(Kernel::state.x[5]), "r"(Kernel::state.x[6]),
+               "r"(Kernel::state.x[7]), "r"(Kernel::state.x[8]),
+               "r"(Kernel::state.x[9]), "r"(Kernel::state.x[10]),
+               "r"(Kernel::state.x[11]), "r"(Kernel::state.sp));
 
   asm volatile("ldr x0, [sp, #0]\n\t"
                "ret");
@@ -103,16 +105,16 @@ int _activate(int tid) {
                "mov %10, x29\n\t"
                "mov %11, x30\n\t"
                "mov %12, sp\n\t"
-               : "=r"(kernel_state.x[0]), "=r"(kernel_state.x[1]),
-                 "=r"(kernel_state.x[2]), "=r"(kernel_state.x[3]),
-                 "=r"(kernel_state.x[4]), "=r"(kernel_state.x[5]),
-                 "=r"(kernel_state.x[6]), "=r"(kernel_state.x[7]),
-                 "=r"(kernel_state.x[8]), "=r"(kernel_state.x[9]),
-                 "=r"(kernel_state.x[10]), "=r"(kernel_state.x[11]),
-                 "=r"(kernel_state.sp));
+               : "=r"(Kernel::state.x[0]), "=r"(Kernel::state.x[1]),
+                 "=r"(Kernel::state.x[2]), "=r"(Kernel::state.x[3]),
+                 "=r"(Kernel::state.x[4]), "=r"(Kernel::state.x[5]),
+                 "=r"(Kernel::state.x[6]), "=r"(Kernel::state.x[7]),
+                 "=r"(Kernel::state.x[8]), "=r"(Kernel::state.x[9]),
+                 "=r"(Kernel::state.x[10]), "=r"(Kernel::state.x[11]),
+                 "=r"(Kernel::state.sp));
 
-  TaskDescriptor &td = task_descriptors[tid];
-  td.state           = TaskState::RUNNING;
+  TaskDescriptor &td = Kernel::task_descriptors[tid];
+  td.state           = TaskStatus::RUNNING;
 
   asm volatile("msr sp_el0, %0" ::"r"(td.sp_el0));
   asm volatile("msr elr_el1, %0" ::"r"(td.elr_el1));
@@ -140,7 +142,7 @@ extern "C" int kmain() {
                      " / Andrey Karmanov / Anthony Ho\n\r");
 
   for (size_t i = 0; i < TASK_DESCRIPTORS; i++) {
-    uart_printf(CONSOLE, "Task %u stack: 0x%x\n\r", i, &task_stacks[i]);
+    uart_printf(CONSOLE, "Task %u stack: 0x%x\n\r", i, &Kernel::task_stacks[i]);
   }
   _create(0, shell);
 
