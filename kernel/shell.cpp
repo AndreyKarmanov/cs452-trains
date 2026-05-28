@@ -23,7 +23,7 @@ void fire_command(const char *buf, size_t blen, UARTNB &uart) {
     Yield();
     uart.puts("Yielded\n\r");
   } else if (strncmp(buf, "c", 1) == 0) {
-    int tid = Create(0, shell);
+    int tid = create(0, shell);
     uart.printf("Created task with tid %d\n\r", tid);
   } else {
     uart.puts("Unknown command. Available: q (quit), p (parent tid), "
