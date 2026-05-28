@@ -129,3 +129,6 @@ Standard uses `115200 Hz`, 0 parity, 1 stop bit. We use UART0, at offset `0x2010
 #### SPI (Serial Peripheral Interface)
 
 SPI is another mechanism similar to GPIO. Internal interface between the CPU and the CAN bus device. Defined in chapter 9 of broadcom manual. We use SPI0 at offset `0x204000`. Crank a lever to exchange bytes between eachother. Have to crank the lever multiple times to see out.
+
+
+<!-- ../../qemu/build/qemu-system-aarch64 -M raspi4b -cpu cortex-a53 -m 2G -serial stdio -display none -kernel iotest.img -->
