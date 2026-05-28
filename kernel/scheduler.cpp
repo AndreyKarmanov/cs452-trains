@@ -12,9 +12,11 @@ void Scheduler::schedule(int tid, int priority) {
 int Scheduler::get_task() {
   for (int i = 0; i < MAX_PRIORITY; i++) {
     if (!schedules[i].is_empty()) {
-      int res = schedules[i].peek();
+      auto res = schedules[i].peek();
+      if (!res.has_value())
+        return -1;
       schedules[i].pop();
-      return res;
+      return res.value();
     }
   }
   return -1;

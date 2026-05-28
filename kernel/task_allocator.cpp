@@ -8,12 +8,12 @@ TaskAllocator::TaskAllocator(TaskDescriptor *task_descriptors)
 }
 
 int TaskAllocator::get_new_task() {
-  if (free_tasks.is_empty()) { // unable to allocate new tasks
+  auto tid = free_tasks.peek();
+  if (tid == std::nullopt) {
     return -1;
   }
-  int tid = free_tasks.peek();
   free_tasks.pop();
-  return tid;
+  return tid.value();
 }
 
 int TaskAllocator::release_task(int tid) {

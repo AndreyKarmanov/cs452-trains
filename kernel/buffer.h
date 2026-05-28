@@ -1,11 +1,13 @@
 #pragma once
 
+#include <array>
 #include <cstddef>
+#include <optional>
 
 #include "debug.h"
 
 template <typename T, size_t SIZE> class Buffer {
-  T arr[SIZE];
+  std::array<T, SIZE> arr;
   size_t head  = 0;
   size_t _size = 0;
 
@@ -20,9 +22,9 @@ public:
     return true;
   }
 
-  T peek_last() const {
+  std::optional<T> peek_last() const {
     if (_size == 0)
-      return T();
+      return std::nullopt;
     return arr[(head + _size - 1) % SIZE];
   }
 
@@ -36,13 +38,21 @@ public:
     return true;
   }
 
-  T peek() const { return arr[head]; }
+  std::optional<T> peek() const {
+    if (is_empty())
+      return std::nullopt;
+    return arr[head];
+  }
 
   inline bool is_empty() const { return _size == 0; }
 
   inline size_t size() const { return _size; }
 
-  T operator[](size_t i) const { return arr[(head + i) % SIZE]; }
+  std::optional<T> operator[](size_t i) const {
+    if (i >= _size)
+      return std::nullopt;
+    return arr[(head + i) % SIZE];
+  }
 
   class Iterator {
     const Buffer *buf;
@@ -60,5 +70,3 @@ public:
   Iterator begin() const { return Iterator(this, 0); }
   Iterator end() const { return Iterator(this, _size); }
 };
-
-void test_buffer();

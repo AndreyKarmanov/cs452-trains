@@ -142,7 +142,10 @@ void UARTNB::send_io() {
   }
 
   if (!(UART_REG(line, UART_FR) & UART_FR_TXFF)) {
-    UART_REG(line, UART_DR) = tx_buffer.peek();
-    tx_buffer.pop();
+    auto c = tx_buffer.peek();
+    if (c.has_value()) {
+      UART_REG(line, UART_DR) = c.value();
+      tx_buffer.pop();
+    }
   }
 }
