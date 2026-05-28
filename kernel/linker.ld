@@ -21,9 +21,17 @@ SECTIONS {
 		__bss_end = .;
 	}
 	.init_array : {
-		__init_array_start = .;
-		KEEP(*(.init_array*)) 	/* for C++ global constructors */
-		__init_array_end = .;
+		PROVIDE(__init_array_start = .);
+		KEEP (*(SORT(.init_array.*)))
+		KEEP (*(.init_array))
+		PROVIDE(__init_array_end = .);
+	}
+
+	.fini_array : {
+		PROVIDE(__fini_array_start = .);
+		KEEP (*(SORT(.fini_array.*)))
+		KEEP (*(.fini_array))
+		PROVIDE(__fini_array_end = .);
 	}
 	.task_stacks : {
 		__task_stacks_start = .;

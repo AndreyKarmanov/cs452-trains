@@ -5,26 +5,23 @@
 #include "rpi.h"
 #include "scheduler.h"
 #include "shell.h"
+#include "task_allocator.h"
 #include "task_helpers.h"
-#include "shell.h"
 #include "uart.h"
 
-#define TASK_STACK_SIZE 4096
-#define TASK_DESCRIPTORS 4
-
-extern "C" void setup_mmu();  // in mmu.S
+extern "C" void setup_mmu();                    // in mmu.S
 extern "C" void _restore_user_stack_and_eret(); // in boot.S
 
 struct KernelState {
   uint64_t sp;
-  uint64_t x[12];  // x19 to x30 are callee-saved registers, so we need to save
-                   // them in the kernel state
+  uint64_t x[12]; // x19 to x30 are callee-saved registers, so we need to save
+                  // them in the kernel state
 } kernel_state;
 
-
 // This can live in the data section alongside other kernel data
-int active_tid = 0;
 TaskDescriptor task_descriptors[TASK_DESCRIPTORS];
+TaskAllocator task_allocator(task_descriptors);
+int active_tid = task_allocator.get_new_task();
 Scheduler scheduler;
 
 // Make sure this lives in a separate, non-kernel section
@@ -40,25 +37,25 @@ int _create(int priority, void (*function)()) {
   // finds an empty task descriptor, fills with appropriate values
   // and returns the tid of the created task
   // write via asm - positional argument %0
-  TaskDescriptor& td = task_descriptors[0];
+  TaskDescriptor &td                  = task_descriptors[0];
   task_stacks[0][TASK_STACK_SIZE - 1] = 0;
-  td.tid = 0;
-  td.parent_tid = -1;  // no parent
-  td.priority = priority;
-  td.state = TaskState::READY;
+  td.tid                              = 0;
+  td.parent_tid                       = -1; // no parent
+  td.priority                         = priority;
+  td.state                            = TaskState::READY;
 
   td.stack_base = &task_stacks[0][TASK_STACK_SIZE];
-  td.sp_el0 = (uint64_t)td.stack_base;
-  td.elr_el1 = (uint64_t)function;
-  td.spsr_el1 = 0;
-  __builtin_memset((void*)td.sp_el0, 0, TASK_STACK_SIZE);
+  td.sp_el0     = (uint64_t)td.stack_base;
+  td.elr_el1    = (uint64_t)function;
+  td.spsr_el1   = 0;
+  __builtin_memset((void *)td.sp_el0, 0, TASK_STACK_SIZE);
   td.sp_el0 -= 256; // shift by 256 bytes down, for our fake trap frame
 
   return 0;
 }
 
 extern "C" int lower_el_64_sync_handler() {
-  TaskDescriptor& td = task_descriptors[active_tid];
+  TaskDescriptor &td = task_descriptors[active_tid];
   asm volatile("mrs %0, sp_el0" : "=r"(td.sp_el0));
   asm volatile("mrs %0, elr_el1" : "=r"(td.elr_el1));
   asm volatile("mrs %0, spsr_el1" : "=r"(td.spsr_el1));
@@ -83,9 +80,8 @@ extern "C" int lower_el_64_sync_handler() {
       "r"(kernel_state.x[7]), "r"(kernel_state.x[8]), "r"(kernel_state.x[9]),
       "r"(kernel_state.x[10]), "r"(kernel_state.x[11]), "r"(kernel_state.sp));
 
-  asm volatile(
-      "ldr x0, [sp, #0]\n\t"
-      "ret");
+  asm volatile("ldr x0, [sp, #0]\n\t"
+               "ret");
 
   __builtin_unreachable();
 }
@@ -95,30 +91,29 @@ int _activate(int tid) {
   // to the task with the given tid when the task yields or makes a syscall, it
   // will trap back to the kernel and return a request code that the task is
   // making to the kernel (syscalls) save x19 to x30 in kernel state, sp
-  asm volatile(
-      "mov %0, x19\n\t"
-      "mov %1, x20\n\t"
-      "mov %2, x21\n\t"
-      "mov %3, x22\n\t"
-      "mov %4, x23\n\t"
-      "mov %5, x24\n\t"
-      "mov %6, x25\n\t"
-      "mov %7, x26\n\t"
-      "mov %8, x27\n\t"
-      "mov %9, x28\n\t"
-      "mov %10, x29\n\t"
-      "mov %11, x30\n\t"
-      "mov %12, sp\n\t"
-      : "=r"(kernel_state.x[0]), "=r"(kernel_state.x[1]),
-        "=r"(kernel_state.x[2]), "=r"(kernel_state.x[3]),
-        "=r"(kernel_state.x[4]), "=r"(kernel_state.x[5]),
-        "=r"(kernel_state.x[6]), "=r"(kernel_state.x[7]),
-        "=r"(kernel_state.x[8]), "=r"(kernel_state.x[9]),
-        "=r"(kernel_state.x[10]), "=r"(kernel_state.x[11]),
-        "=r"(kernel_state.sp));
+  asm volatile("mov %0, x19\n\t"
+               "mov %1, x20\n\t"
+               "mov %2, x21\n\t"
+               "mov %3, x22\n\t"
+               "mov %4, x23\n\t"
+               "mov %5, x24\n\t"
+               "mov %6, x25\n\t"
+               "mov %7, x26\n\t"
+               "mov %8, x27\n\t"
+               "mov %9, x28\n\t"
+               "mov %10, x29\n\t"
+               "mov %11, x30\n\t"
+               "mov %12, sp\n\t"
+               : "=r"(kernel_state.x[0]), "=r"(kernel_state.x[1]),
+                 "=r"(kernel_state.x[2]), "=r"(kernel_state.x[3]),
+                 "=r"(kernel_state.x[4]), "=r"(kernel_state.x[5]),
+                 "=r"(kernel_state.x[6]), "=r"(kernel_state.x[7]),
+                 "=r"(kernel_state.x[8]), "=r"(kernel_state.x[9]),
+                 "=r"(kernel_state.x[10]), "=r"(kernel_state.x[11]),
+                 "=r"(kernel_state.sp));
 
-  TaskDescriptor& td = task_descriptors[tid];
-  td.state = TaskState::RUNNING;
+  TaskDescriptor &td = task_descriptors[tid];
+  td.state           = TaskState::RUNNING;
 
   asm volatile("msr sp_el0, %0" ::"r"(td.sp_el0));
   asm volatile("msr elr_el1, %0" ::"r"(td.elr_el1));
@@ -164,16 +159,18 @@ extern "C" int kmain() {
 #include <stddef.h>
 
 // define our own memset to avoid SIMD instructions emitted from the compiler
-void* memset(void* s, int c, size_t n) {
-  for (char* it = (char*)s; n > 0; --n) *it++ = c;
+void *memset(void *s, int c, size_t n) {
+  for (char *it = (char *)s; n > 0; --n)
+    *it++ = c;
   return s;
 }
 
 // define our own memcpy to avoid SIMD instructions emitted from the compiler
-void* memcpy(void* dest, const void* src, size_t n) {
-  char* sit = (char*)src;
-  char* cdest = (char*)dest;
-  for (size_t i = 0; i < n; ++i) *cdest++ = *sit++;
+void *memcpy(void *dest, const void *src, size_t n) {
+  char *sit   = (char *)src;
+  char *cdest = (char *)dest;
+  for (size_t i = 0; i < n; ++i)
+    *cdest++ = *sit++;
   return dest;
 }
 #endif

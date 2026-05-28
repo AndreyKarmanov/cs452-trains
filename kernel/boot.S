@@ -173,47 +173,15 @@ el1_entry:
 	ldr x2, =_start
 	mov sp, x2
 
-	// zero out bss
-	ldr x19, =__bss_start
-	ldr x20, =__bss_end
-loop_bss_zero:
-    cmp x19, x20          	// compare current with end
-    b.ge done_bss_zero		// if current >= end, we're done
-	str xzr, [x19]
-	add x19, x19, #8
-	b loop_bss_zero
-done_bss_zero:
-
-	// call each function in init array
-	// we use x19-x28 for callee-saved registers, aka we don't have to worry about clobbering by convention (followed in c/cpp)
-	// note: if I write hand-assembly in future, need to make sure i'm not clobbering these!
-	ldr x19, =__init_array_start
-	ldr x20, =__init_array_end
-loop_init_array:
-    cmp x19, x20          	// compare current with end
-    b.ge done_init_array	// if current >= end, we're done
-    ldr x2, [x19]        	// load function pointer at [x19]
-    blr x2              	// call the function
-    add x19, x19, #8      	// move to next 64-bit pointer 
-    b loop_init_array
-done_init_array:
-
-	ldr x19, =loop_stack_zero
-	ldr x20, =loop_stack_zero
-loop_stack_zero:
-	cmp x19, x20
-	b.ge done_stack_zero
-	str xzr, [x19]
-	add x19, x19, #8
-	b loop_stack_zero
-done_stack_zero:
-
 	adr x0, vectors
 	msr vbar_el1, x0
 	isb
 
 	// branch and link to main routine in C/C++
+	bl bss_zero
+	bl _init	
 	bl kmain
+	bl _fini
 
 .global _reboot
 _reboot:
