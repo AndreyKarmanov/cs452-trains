@@ -2,7 +2,7 @@
 #include "uart.h"
 #include <stdint.h>
 
-int Create(int priority, void (*function)()) {
+int Create(int /*priority*/, void (* /*function*/)()) {
     // this Create will trap to the kernel
     // and the kernel will return the tid of the created task
     return 0;

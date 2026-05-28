@@ -14,3 +14,5 @@ cacert.pem
 
 # custom clangd
 .clangd
+**/.cache/*
+

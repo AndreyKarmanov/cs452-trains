@@ -11,7 +11,7 @@ void test_buffer() {
 
   assert(buf.size() == 5, "size not consistent");
 
-  for (size_t i = 0; i < 5; ++i) {
+  for (int i = 0; i < 5; ++i) {
     assert(buf.peek() == i, "elem not correct");
     assert(buf.pop(), "elem failed to pop");
   }

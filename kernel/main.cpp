@@ -1,4 +1,3 @@
-#include <ctype.h>
 #include <stdint.h>
 #include <string.h>
 
@@ -124,7 +123,7 @@ int _activate(int tid) {
   return 0;
 }
 
-int _handle(int tid, int request) {
+int _handle(int /*tid*/, int /*request*/) {
   // this will handle the given request code and perform the appropriate action
   // (e.g. for syscalls) ESR_EL1 will have exception code, holds n form svc N
   return 0;
