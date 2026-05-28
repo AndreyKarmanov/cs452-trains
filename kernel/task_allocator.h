@@ -1,8 +1,8 @@
 #pragma once
 
-#include "buffer.h"
-#include "task_descriptor.h"
 #include <optional>
+
+#include "buffer.h"
 
 template <size_t MAX_TASKS> class TaskStackAllocator {
   Buffer<int, MAX_TASKS> free_tasks;

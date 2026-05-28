@@ -39,8 +39,7 @@ extern "C" void default_handler() {
   uart_puts(CONSOLE, "DEFAULT VBAR HANDLER HIT\n\r");
 }
 
-// Allocates a new task, initalizes descriptor and stack, returns -1 if no free
-// task descriptors
+// Allocates a new task, initalizes descriptor and stack
 int _create(int priority, void (*function)()) {
   using namespace Kernel;
 
