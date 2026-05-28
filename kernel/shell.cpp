@@ -12,15 +12,15 @@ void fire_command(const char *buf, size_t blen, UARTNB &uart) {
   if (blen == 0)
     return;
   if (strncmp(buf, "q", 1) == 0) {
-    Exit();
+    exit();
   } else if (strncmp(buf, "p", 1) == 0) {
-    int parent_tid = MyParentTid();
+    int parent_tid = my_parent_tid();
     uart.printf("My parent tid is %d\n\r", parent_tid);
   } else if (strncmp(buf, "m", 1) == 0) {
-    int my_tid = MyTid();
-    uart.printf("My tid is %d\n\r", my_tid);
+    int tid = my_tid();
+    uart.printf("My tid is %d\n\r", tid);
   } else if (strncmp(buf, "y", 1) == 0) {
-    Yield();
+    yield();
     uart.puts("Yielded\n\r");
   } else if (strncmp(buf, "c", 1) == 0) {
     int tid = create(0, shell);
@@ -56,25 +56,4 @@ void shell() {
     }
     uart.send_io();
   }
-  // char buf[BUFFER_SIZE];
-  // size_t buf_n = 0;
-  // uart_puts(CONSOLE, "COMMANDS: q (quit) p (parent tid) m (my tid) y (yield)
-  // c "
-  //                    "(create)\n\r> ");
-  // while (1) {
-  //   char c = uart_getc(CONSOLE);
-  //   if (isprint(c) && buf_n < BUFFER_SIZE - 1) {
-  //     buf[buf_n++] = c;
-  //     uart_putc(CONSOLE, c);
-  //   } else if ((c == 0x08 || c == 0x7f) && buf_n > 0) { // backspace
-  //     uart_puts(CONSOLE, "\b \b"); // move back, print space, move back again
-  //     --buf_n;
-  //   } else if (c == '\r') { // enter
-  //     buf[buf_n] = '\0';
-  //     uart_puts(CONSOLE, "\n\r");
-  //     fire_command(buf, buf_n);
-  //     uart_puts(CONSOLE, "> ");
-  //     buf_n = 0;
-  //   }
-  // }
 }
