@@ -1,5 +1,4 @@
-#ifndef _task_allocator_h_
-#define _task_allocator_h_
+#pragma once
 
 #include "buffer.h"
 #include "task_helpers.h"
@@ -15,5 +14,3 @@ public:
 private:
   TaskDescriptor *task_descriptors;
 };
-
-#endif
