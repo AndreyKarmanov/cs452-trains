@@ -1,5 +1,7 @@
 #pragma once
 
+#include <optional>
+
 #include "buffer.h"
 #include "debug.h"
 
@@ -13,17 +15,17 @@ public:
     schedules[priority].push(tid);
   };
 
-  int get_task() {
+  std::optional<int> get_task() {
     for (int i = 0; i < MAX_PRIORITY; i++) {
       if (!schedules[i].is_empty()) {
         auto res = schedules[i].peek();
         if (!res.has_value())
-          return -1;
+          return std::nullopt;
         schedules[i].pop();
         return res.value();
       }
     }
-    return -1;
+    return std::nullopt;
   };
 
 private:

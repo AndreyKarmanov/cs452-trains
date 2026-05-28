@@ -91,9 +91,10 @@ int _activate(int tid) {
   return tf->x[0];
 }
 
-int _handle(int /*tid*/, int /*request*/) {
+int _handle(int tid, int request) {
   // this will handle the given request code and perform the appropriate action
   // (e.g. for syscalls) ESR_EL1 will have exception code, holds n form svc N
+  uart_printf(CONSOLE, "%d requested %d\n\r", tid, request);
   return 0;
 }
 
@@ -111,12 +112,17 @@ extern "C" int kmain() {
     uart_printf(CONSOLE, "Task %u stack: 0x%x\n\r", i, &Kernel::task_stacks[i]);
   }
 
-  _create(0, shell);
+  Kernel::scheduler.schedule(_create(0, shell), 0);
 
   for (;;) {
-    int request = _activate(0);
-    uart_printf(CONSOLE, "Request code: %d\n\r", request);
-    _handle(0, request);
+    auto tid = Kernel::scheduler.get_task();
+    if (!tid.has_value()) {
+      continue; // no ready tasks, spin
+    }
+    auto active_tid = tid.value();
+
+    int request = _activate(active_tid);
+    _handle(active_tid, request);
   }
 
   return 0;
