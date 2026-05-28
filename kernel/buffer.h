@@ -12,7 +12,11 @@ template <typename T, size_t SIZE> class Buffer {
   size_t _size = 0;
 
 public:
-  bool push(T elem) {
+  // constexpr allows us to create default buffers at compile time
+  // e.g. we can do
+  // `constexpr make_buffer() { for (...) buf.push(T{}); return buf; }`
+  // and it will have no runtime cost
+  constexpr bool push(T elem) {
     if (_size == SIZE)
       return false;
 
@@ -22,13 +26,13 @@ public:
     return true;
   }
 
-  std::optional<T> peek_last() const {
+  constexpr std::optional<T> peek_last() const {
     if (_size == 0)
       return std::nullopt;
     return arr[(head + _size - 1) % SIZE];
   }
 
-  bool pop() {
+  constexpr bool pop() {
     if (is_empty())
       return false;
 
@@ -38,17 +42,17 @@ public:
     return true;
   }
 
-  std::optional<T> peek() const {
+  constexpr std::optional<T> peek() const {
     if (is_empty())
       return std::nullopt;
     return arr[head];
   }
 
-  inline bool is_empty() const { return _size == 0; }
+  constexpr inline bool is_empty() const { return _size == 0; }
 
-  inline size_t size() const { return _size; }
+  constexpr inline size_t size() const { return _size; }
 
-  std::optional<T> operator[](size_t i) const {
+  constexpr std::optional<T> operator[](size_t i) const {
     if (i >= _size)
       return std::nullopt;
     return arr[(head + i) % SIZE];
