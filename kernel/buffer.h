@@ -4,8 +4,6 @@
 #include <cstddef>
 #include <optional>
 
-#include "debug.h"
-
 template <typename T, size_t SIZE> class Buffer {
   std::array<T, SIZE> arr;
   size_t head  = 0;
