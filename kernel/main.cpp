@@ -1,5 +1,6 @@
 #include <cstdint>
 #include <cstring>
+#include <optional>
 
 #include "rpi.h"
 #include "scheduler.h"
@@ -10,13 +11,11 @@
 
 extern "C" void setup_mmu(); // in mmu.S
 
-namespace Kernel {
-  struct KernelState {
-    uint64_t sp;
-    uint64_t x[12]; // x19 to x30 are callee-saved registers, so we need to save
-                    // them in the kernel state
-  } state;
+#define PRIORITY_LEVELS 3
+#define MAX_TASKS 4
+#define TASK_STACK_SIZE 4096
 
+namespace Kernel {
   struct TrapFrame {
     uint64_t x[31]; // x0 to x30
     uint64_t sp;
@@ -24,14 +23,14 @@ namespace Kernel {
     uint64_t spsr_el1;
   };
 
-  // This can live in the data section alongside other kernel data
-  TaskDescriptor task_descriptors[TASK_DESCRIPTORS];
-  TaskAllocator task_allocator(task_descriptors);
-  int active_tid = task_allocator.get_new_task();
-  Scheduler scheduler;
+  TaskDescriptor task_descriptors[MAX_TASKS];
+  TaskStackAllocator<MAX_TASKS> task_allocator;
+  Scheduler<MAX_TASKS, PRIORITY_LEVELS> scheduler;
+
+  int active_tid = -1;
 
   // Make sure this lives in a separate, non-kernel section
-  uint8_t task_stacks[TASK_DESCRIPTORS][TASK_STACK_SIZE]
+  uint8_t task_stacks[MAX_TASKS][TASK_STACK_SIZE]
       __attribute__((section(".task_stacks")));
 } // namespace Kernel
 
@@ -40,49 +39,55 @@ extern "C" void default_handler() {
   uart_puts(CONSOLE, "DEFAULT VBAR HANDLER HIT\n\r");
 }
 
+// Allocates a new task, initalizes descriptor and stack, returns -1 if no free
+// task descriptors
 int _create(int priority, void (*function)()) {
-  // kernel side handler of the create systemcall
-  // finds an empty task descriptor, fills with appropriate values
-  // and returns the tid of the created task
   using namespace Kernel;
-  auto &td = task_descriptors[0] = {
-      .tid        = 0,
-      .parent_tid = -1, // no parent
+
+  if (0 > priority || priority >= PRIORITY_LEVELS) {
+    return -1; // invalid priority
+  }
+
+  auto tid_opt = task_allocator.get_new_task();
+  if (tid_opt == std::nullopt) {
+    return -2; // no free task descriptors
+  }
+  auto tid = tid_opt.value();
+
+  auto &td = task_descriptors[tid] = {
+      .tid        = tid,
+      .parent_tid = -1,
       .priority   = priority,
       .state      = TaskStatus::READY,
-      .sp_el0     = (uint64_t)&task_stacks[0][TASK_STACK_SIZE],
-      .elr_el1    = (uint64_t)function,
-      .spsr_el1   = 0,
-      .stack_base = &task_stacks[0][TASK_STACK_SIZE],
+      .sp_el0     = (uint64_t)&task_stacks[tid][TASK_STACK_SIZE],
   };
 
+  // clear stack memory (not required but helpful)
   __builtin_memset((void *)td.sp_el0, 0, TASK_STACK_SIZE);
 
-  // set the sp_el0, elr_el1 and spsr_el1 regions to right values
-
+  // build & push inital trapframe
   TrapFrame *tf = (TrapFrame *)(td.sp_el0 - sizeof(TrapFrame));
   tf->sp        = td.sp_el0;
   tf->elr_el1   = (uint64_t)function;
-  tf->spsr_el1  = 0; // set to 0 for now, can set to different values for
-                     // different tasks if needed
+  tf->spsr_el1  = 0;
 
-  td.sp_el0 = (uint64_t)tf; // SAVE it back to the task!
+  // set stack pointer to top of trapframe
+  td.sp_el0 = (uint64_t)tf;
 
   return td.tid;
 }
 
 int _activate(int tid) {
-  // this will trap to the kernel and the kernel will perform a context switch
-  // to the task with the given tid when the task yields or makes a syscall, it
-  // will trap back to the kernel and return a request code that the task is
-  // making to the kernel (syscalls) save x19 to x30 in kernel state, sp
-
   TaskDescriptor &td = Kernel::task_descriptors[tid];
   td.state           = TaskStatus::RUNNING;
 
+  // switch to user mode
+  // this will return when task makes a syscall
   Kernel::TrapFrame *tf = _switch_to_user(td.sp_el0);
   td.sp_el0             = (uint64_t)tf;
 
+  // this is for us to decide how to encode the syscall
+  // for now we are just reading x0
   return tf->x[0];
 }
 
@@ -102,12 +107,12 @@ extern "C" int kmain() {
   uart_puts(CONSOLE, "\033[2J\033[?25l\033[1;1H" __DATE__ " / " __TIME__
                      " / Andrey Karmanov / Anthony Ho\n\r");
 
-  for (size_t i = 0; i < TASK_DESCRIPTORS; i++) {
+  for (size_t i = 0; i < MAX_TASKS; i++) {
     uart_printf(CONSOLE, "Task %u stack: 0x%x\n\r", i, &Kernel::task_stacks[i]);
   }
+
   _create(0, shell);
 
-  // for now we will have only 1 task
   for (;;) {
     int request = _activate(0);
     uart_printf(CONSOLE, "Request code: %d\n\r", request);
