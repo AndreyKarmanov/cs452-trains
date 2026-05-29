@@ -8,6 +8,7 @@
 #include "syscall.h"
 #include "task_allocator.h"
 #include "task_descriptor.h"
+#include "test.h"
 #include "uart.h"
 
 extern "C" void setup_mmu(); // in mmu.S
@@ -160,8 +161,10 @@ extern "C" int kmain() {
 
   using namespace Kernel;
 
-  int shell_tid =
-      _create(3, shell); // shell is at priority 3 so it's non blocking
+  // int shell_tid =
+  //     _create(3, shell); // shell is at priority 3 so it's non blocking
+
+  int test_k1_tid = _create(2, test_k1);
 
   for (;;) {
     auto tid = scheduler.get_task();
