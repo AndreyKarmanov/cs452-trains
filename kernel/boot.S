@@ -113,9 +113,10 @@ _save_user_stack:
 	// make space for fake trap frame on EL0 stack
 	// c++ loads structs at increasing address spaces
 	// so we store registers in increasing order
-	sub sp, sp, #272 
-
+	sub sp, sp, #272 	// size of trapframe, do sizeof(TrapFrame)
+	
 	// save user state to EL0 stack
+	// only store these when doing an interrupt, for now just syscall
 	stp x0, x1, [sp, #0]
 	stp x2, x3, [sp, #16]
 	stp x4, x5, [sp, #32]
@@ -132,12 +133,15 @@ _save_user_stack:
 	stp x26, x27, [sp, #208]
 	stp x28, x29, [sp, #224]
 
-	mov x0, sp
-	mrs x1, elr_el1
-	mrs x2, spsr_el1
+	mrs x0, esr_el1 // stores the svc immediate
+	mrs x1, elr_el1 // stores return jump addr
+	mrs x2, spsr_el1 // store pstate
 
 	stp x30, x0, [sp, #240]
 	stp x1, x2, [sp, #256]
+
+	// return TrapFrame* by saving into x0
+	mov x0, sp 
 
 	// switch back to EL1 stack
 	msr spsel, #1

@@ -5,6 +5,7 @@
 #include "rpi.h"
 #include "scheduler.h"
 #include "shell.h"
+#include "syscall.h"
 #include "task_allocator.h"
 #include "task_descriptor.h"
 #include "uart.h"
@@ -18,7 +19,7 @@ extern "C" void setup_mmu(); // in mmu.S
 namespace Kernel {
   struct TrapFrame {
     uint64_t x[31]; // x0 to x30
-    uint64_t sp;
+    uint64_t esr_el1;
     uint64_t elr_el1;
     uint64_t spsr_el1;
   };
@@ -66,7 +67,6 @@ int _create(int priority, void (*function)()) {
 
   // build & push inital trapframe
   TrapFrame *tf = (TrapFrame *)(td.sp_el0 - sizeof(TrapFrame));
-  tf->sp        = td.sp_el0;
   tf->elr_el1   = (uint64_t)function;
   tf->spsr_el1  = 0;
 
@@ -76,7 +76,7 @@ int _create(int priority, void (*function)()) {
   return td.tid;
 }
 
-int _activate(int tid) {
+Syscall activate(int tid) {
   TaskDescriptor &td = Kernel::task_descriptors[tid];
   td.state           = TaskStatus::RUNNING;
 
@@ -85,16 +85,51 @@ int _activate(int tid) {
   Kernel::TrapFrame *tf = _switch_to_user(td.sp_el0);
   td.sp_el0             = (uint64_t)tf;
 
+  // https://developer.arm.com/documentation/ddi0595/2020-12/AArch64-Registers/ESR-EL1--Exception-Syndrome-Register--EL1-
+  Syscall svc_imm = static_cast<Syscall>(tf->esr_el1 & 0xFFFF);
+
   // this is for us to decide how to encode the syscall
   // for now we are just reading x0
-  return tf->x[0];
+  return svc_imm;
 }
 
-int _handle(int tid, int request) {
+void handle(int tid, Syscall request) {
   // this will handle the given request code and perform the appropriate action
   // (e.g. for syscalls) ESR_EL1 will have exception code, holds n form svc N
-  uart_printf(CONSOLE, "%d requested %d\n\r", tid, request);
-  return 0;
+
+  TaskDescriptor &td    = Kernel::task_descriptors[tid];
+  Kernel::TrapFrame *tf = (Kernel::TrapFrame *)td.sp_el0;
+
+  switch (request) {
+  case Syscall::CREATE: {
+    tf->x[0] = _create(tf->x[0], (void (*)())tf->x[1]);
+    Kernel::scheduler.schedule(tid, td.priority);
+    break;
+  }
+  case Syscall::MY_TID: {
+    tf->x[0] = tid;
+    Kernel::scheduler.schedule(tid, td.priority);
+    break;
+  }
+  case Syscall::MY_PARENT_TID: {
+    tf->x[0] = td.parent_tid;
+    Kernel::scheduler.schedule(tid, td.priority);
+    break;
+  }
+  case Syscall::YIELD: {
+    td.state = TaskStatus::READY;
+    Kernel::scheduler.schedule(tid, td.priority);
+    break;
+  }
+  case Syscall::EXIT: {
+    td.state = TaskStatus::TERMINATED;
+    break;
+  }
+  }
+
+  uart_printf(CONSOLE, "\n\r%d requested %d\n\r", tid,
+              static_cast<int>(request));
+  return;
 }
 
 extern "C" int kmain() {
@@ -111,17 +146,18 @@ extern "C" int kmain() {
     uart_printf(CONSOLE, "Task %u stack: 0x%x\n\r", i, &Kernel::task_stacks[i]);
   }
 
-  Kernel::scheduler.schedule(_create(0, shell), 0);
+  using namespace Kernel;
+
+  scheduler.schedule(_create(0, shell), 0);
 
   for (;;) {
-    auto tid = Kernel::scheduler.get_task();
+    auto tid = scheduler.get_task();
     if (!tid.has_value()) {
       continue; // no ready tasks, spin
     }
     auto active_tid = tid.value();
-
-    int request = _activate(active_tid);
-    _handle(active_tid, request);
+    auto request    = activate(active_tid);
+    handle(active_tid, request);
   }
 
   return 0;
