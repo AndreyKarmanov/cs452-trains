@@ -147,26 +147,26 @@ _save_user_stack:
 	msr spsel, #1
 
 	// load kernel state from el1 stack
-	ldp x18, x19, [sp, #-160]
-	ldp x20, x21, [sp, #-176]
-	ldp x22, x23, [sp, #-192]
-	ldp x24, x25, [sp, #-208]
-	ldp x26, x27, [sp, #-224]
-	ldp x28, x29, [sp, #-240]
-	ldr x30, [sp, #-256]
+	ldp x18, x19, [sp, #-16]
+	ldp x20, x21, [sp, #-32]
+	ldp x22, x23, [sp, #-48]
+	ldp x24, x25, [sp, #-64]
+	ldp x26, x27, [sp, #-80]
+	ldp x28, x29, [sp, #-96]
+	ldr x30, [sp, #-112]
 
 	ret
 
 .global _switch_to_user
 _switch_to_user:
 	// save kernel state
-	stp x18, x19, [sp, #-160]
-	stp x20, x21, [sp, #-176]
-	stp x22, x23, [sp, #-192]
-	stp x24, x25, [sp, #-208]
-	stp x26, x27, [sp, #-224]
-	stp x28, x29, [sp, #-240]
-	str x30, [sp, #-256]
+	stp x18, x19, [sp, #-16]
+	stp x20, x21, [sp, #-32]
+	stp x22, x23, [sp, #-48]
+	stp x24, x25, [sp, #-64]
+	stp x26, x27, [sp, #-80]
+	stp x28, x29, [sp, #-96]
+	str x30, [sp, #-112]
 
 	// load user stack pointer into SP_EL0 from passed arg
 	msr sp_el0, x0
@@ -175,7 +175,7 @@ _switch_to_user:
 	msr spsel, #0
 
 	// restore user state from EL0 stack
-	ldp x30, x0, [sp, #240] 
+	ldp x30, x0, [sp, #240] // load x30 and esr_el1
 	ldp x1, x2, [sp, #256] // load elr_el1 and spsr_el1 from stack
 
 	msr elr_el1, x1
@@ -217,7 +217,8 @@ el1_entry:
 	msr cpacr_el1, x1
 
 	// initialize SP (initial stack below text here)
-	ldr x2, =_start
+	// kernel stack is from 0x80000 to 0, so we start sp there. 
+	ldr x2, = _start
 	mov sp, x2
 
 	adr x0, vectors

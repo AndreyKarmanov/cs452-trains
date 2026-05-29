@@ -12,8 +12,8 @@
 
 extern "C" void setup_mmu(); // in mmu.S
 
-#define PRIORITY_LEVELS 3
-#define MAX_TASKS 4
+#define PRIORITY_LEVELS 4
+#define MAX_TASKS 16
 #define TASK_STACK_SIZE 4096
 
 namespace Kernel {
@@ -54,25 +54,26 @@ int _create(int priority, void (*function)()) {
   }
   auto tid = tid_opt.value();
 
-  auto &td = task_descriptors[tid] = {
-      .tid        = tid,
-      .parent_tid = -1,
-      .priority   = priority,
-      .state      = TaskStatus::READY,
-      .sp_el0     = (uint64_t)&task_stacks[tid][TASK_STACK_SIZE],
-  };
+  // define task stack (grows downwards)
+  uint64_t task_stack_base = (uint64_t)&task_stacks[tid][TASK_STACK_SIZE];
+  uint64_t task_stack_end  = task_stack_base - TASK_STACK_SIZE;
 
   // clear stack memory (not required but helpful)
-  __builtin_memset((void *)td.sp_el0, 0, TASK_STACK_SIZE);
+  __builtin_memset((void *)(task_stack_end), 0, TASK_STACK_SIZE);
 
   // build & push inital trapframe
-  TrapFrame *tf = (TrapFrame *)(td.sp_el0 - sizeof(TrapFrame));
+  TrapFrame *tf = (TrapFrame *)(task_stack_base - sizeof(TrapFrame));
   tf->elr_el1   = (uint64_t)function;
   tf->spsr_el1  = 0;
 
-  // set stack pointer to top of trapframe
-  td.sp_el0 = (uint64_t)tf;
+  auto &td = task_descriptors[tid] = {.tid        = tid,
+                                      .parent_tid = -1,
+                                      .priority   = priority,
+                                      .state      = TaskStatus::READY,
+                                      .sp_el0     = (uint64_t)tf};
 
+  // Schedule the task
+  Kernel::scheduler.schedule(td);
   return td.tid;
 }
 
@@ -102,33 +103,44 @@ void handle(int tid, Syscall request) {
 
   switch (request) {
   case Syscall::CREATE: {
-    tf->x[0] = _create(tf->x[0], (void (*)())tf->x[1]);
-    Kernel::scheduler.schedule(tid, td.priority);
+    int new_tid = _create(tf->x[0], (void (*)())tf->x[1]);
+    tf->x[0]    = new_tid; // return new tid
+
+    // set child parent tid
+    TaskDescriptor &new_td = Kernel::task_descriptors[new_tid];
+    new_td.parent_tid      = tid;
+
+    // schedule parent and child
+    Kernel::scheduler.schedule(td);
     break;
   }
   case Syscall::MY_TID: {
     tf->x[0] = tid;
-    Kernel::scheduler.schedule(tid, td.priority);
+    Kernel::scheduler.schedule(td);
     break;
   }
   case Syscall::MY_PARENT_TID: {
     tf->x[0] = td.parent_tid;
-    Kernel::scheduler.schedule(tid, td.priority);
+    Kernel::scheduler.schedule(td);
     break;
   }
   case Syscall::YIELD: {
     td.state = TaskStatus::READY;
-    Kernel::scheduler.schedule(tid, td.priority);
+    Kernel::scheduler.schedule(td);
     break;
   }
   case Syscall::EXIT: {
     td.state = TaskStatus::TERMINATED;
+    Kernel::task_allocator.free_task(tid);
     break;
   }
   }
 
-  uart_printf(CONSOLE, "\n\r%d requested %d\n\r", tid,
-              static_cast<int>(request));
+  // // Don't log yield as there are lots.
+  // if (request != Syscall::YIELD) {
+  //   uart_printf(CONSOLE, "\n\r%d requested %d\n\r", tid,
+  //               static_cast<int>(request));
+  // }
   return;
 }
 
@@ -148,7 +160,8 @@ extern "C" int kmain() {
 
   using namespace Kernel;
 
-  scheduler.schedule(_create(0, shell), 0);
+  int shell_tid =
+      _create(3, shell); // shell is at priority 3 so it's non blocking
 
   for (;;) {
     auto tid = scheduler.get_task();
