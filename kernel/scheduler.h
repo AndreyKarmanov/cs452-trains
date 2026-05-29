@@ -17,7 +17,7 @@ public:
   };
 
   std::optional<int> get_task() {
-    for (int i = 0; i < MAX_PRIORITY; i++) {
+    for (int i = MAX_PRIORITY - 1; i >= 0; i--) {
       if (!schedules[i].is_empty()) {
         auto res = schedules[i].peek();
         schedules[i].pop();

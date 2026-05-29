@@ -164,7 +164,7 @@ extern "C" int kmain() {
   // int shell_tid =
   //     _create(3, shell); // shell is at priority 3 so it's non blocking
 
-  int test_k1_tid = _create(2, test_k1);
+  int test_k1_tid = _create(1, test_k1);
 
   for (;;) {
     auto tid = scheduler.get_task();
