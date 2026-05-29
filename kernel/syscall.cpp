@@ -3,8 +3,9 @@
 int create(int /*priority*/, void (* /*function*/)()) {
   // this Create will trap to the kernel
   // and the kernel will return the tid of the created task
-  asm volatile("svc %0" : : "i"(Syscall::CREATE));
-  return 0;
+  register int r0 asm("x0");
+  asm volatile("svc %1" : "=r"(r0) : "i"(Syscall::CREATE) : "memory");
+  return r0;
 }
 
 int my_tid() {
@@ -22,17 +23,23 @@ int my_tid() {
   : inputs
   : clobbered values (e.g. registers or memory)
   )
+
+  the below line is saying:
+  execute svc SYSCALL::MY_TID
+  and there will be a new value in r0
+  and btw, all RAM might be changed
+  (i.e. maybe uart came in while this was executed)
   */
-  asm volatile("svc %0" : "=r"(r0) : "i"(Syscall::MY_TID));
+  asm volatile("svc %1" : "=r"(r0) : "i"(Syscall::MY_TID) : "memory");
   return r0;
 }
 
 int my_parent_tid() {
-  asm volatile("svc %0" : : "i"(Syscall::MY_PARENT_TID));
   register int r0 asm("x0");
+  asm volatile("svc %1" : "=r"(r0) : "i"(Syscall::MY_PARENT_TID) : "memory");
   return r0;
 }
 
-void yield() { asm volatile("svc %0" : : "i"(Syscall::YIELD)); }
+void yield() { asm volatile("svc %0" : : "i"(Syscall::YIELD) : "memory"); }
 
-void exit() { asm volatile("svc %0" : : "i"(Syscall::EXIT)); }
+void exit() { asm volatile("svc %0" : : "i"(Syscall::EXIT) : "memory"); }
