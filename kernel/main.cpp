@@ -111,7 +111,7 @@ void handle(int tid, Syscall request) {
     TaskDescriptor &new_td = Kernel::task_descriptors[new_tid];
     new_td.parent_tid      = tid;
 
-    // schedule parent and child
+    // schedule parent
     Kernel::scheduler.schedule(td);
     break;
   }
