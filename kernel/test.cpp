@@ -4,13 +4,13 @@
 
 void test_k1() {
   uart_puts(CONSOLE, "\n\rTesting K1\n\r");
-  create(0, test_k1_child);
+  create(1, test_k1_child);
   uart_puts(CONSOLE, "Created child 1\n\r");
-  create(0, test_k1_child);
+  create(1, test_k1_child);
   uart_puts(CONSOLE, "Created child 2\n\r");
-  create(2, test_k1_child);
+  create(3, test_k1_child);
   uart_puts(CONSOLE, "Created child 3\n\r");
-  create(2, test_k1_child);
+  create(3, test_k1_child);
   uart_puts(CONSOLE, "Created child 4\n\r");
 
   // end
