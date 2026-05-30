@@ -33,7 +33,7 @@ SECTIONS {
 		KEEP (*(.fini_array))
 		PROVIDE(__fini_array_end = .);
 	}
-	.task_stacks : {
+	.task_stacks (NOLOAD) : {
 		__task_stacks_start = .;
 		. = ALIGN(16);
 		KEEP(*(.task_stacks))

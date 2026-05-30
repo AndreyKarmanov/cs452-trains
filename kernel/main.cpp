@@ -135,12 +135,6 @@ void handle(int tid, Syscall request) {
       break;
     }
   }
-
-  // // Don't log yield as there are lots.
-  // if (request != Syscall::YIELD) {
-  //   uart_printf(CONSOLE, "\n\r%d requested %d\n\r", tid,
-  //               static_cast<int>(request));
-  // }
   return;
 }
 
