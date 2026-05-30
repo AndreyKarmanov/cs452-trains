@@ -11,32 +11,32 @@
 #include "test.h"
 #include "uart.h"
 
-extern "C" void setup_mmu(); // in mmu.S
+extern "C" void setup_mmu();  // in mmu.S
 
 #define PRIORITY_LEVELS 4
 #define MAX_TASKS 16
 #define TASK_STACK_SIZE 4096
 
 namespace Kernel {
-  struct TrapFrame {
-    uint64_t x[31]; // x0 to x30
-    uint64_t esr_el1;
-    uint64_t elr_el1;
-    uint64_t spsr_el1;
-  };
+struct TrapFrame {
+  uint64_t x[31];  // x0 to x30
+  uint64_t esr_el1;
+  uint64_t elr_el1;
+  uint64_t spsr_el1;
+};
 
-  TaskDescriptor task_descriptors[MAX_TASKS];
-  TaskStackAllocator<MAX_TASKS> task_allocator;
-  Scheduler<MAX_TASKS, PRIORITY_LEVELS> scheduler;
+TaskDescriptor task_descriptors[MAX_TASKS];
+TaskStackAllocator<MAX_TASKS> task_allocator;
+Scheduler<MAX_TASKS, PRIORITY_LEVELS> scheduler;
 
-  int active_tid = -1;
+int active_tid = -1;
 
-  // Make sure this lives in a separate, non-kernel section
-  uint8_t task_stacks[MAX_TASKS][TASK_STACK_SIZE]
-      __attribute__((section(".task_stacks")));
-} // namespace Kernel
+// Make sure this lives in a separate, non-kernel section
+uint8_t task_stacks[MAX_TASKS][TASK_STACK_SIZE]
+    __attribute__((section(".task_stacks")));
+}  // namespace Kernel
 
-extern "C" Kernel::TrapFrame *_switch_to_user(uint64_t sp); // in boot.S
+extern "C" Kernel::TrapFrame* _switch_to_user(uint64_t sp);  // in boot.S
 extern "C" void default_handler() {
   uart_puts(CONSOLE, "DEFAULT VBAR HANDLER HIT\n\r");
 }
@@ -46,46 +46,45 @@ int _create(int priority, void (*function)()) {
   using namespace Kernel;
 
   if (0 > priority || priority >= PRIORITY_LEVELS) {
-    return -1; // invalid priority
+    return -1;  // invalid priority
   }
 
   auto tid_opt = task_allocator.get_new_task();
   if (tid_opt == std::nullopt) {
-    return -2; // no free task descriptors
+    return -2;  // no free task descriptors
   }
   auto tid = tid_opt.value();
 
   // define task stack (grows downwards)
   uint64_t task_stack_base = (uint64_t)&task_stacks[tid][TASK_STACK_SIZE];
-  uint64_t task_stack_end  = task_stack_base - TASK_STACK_SIZE;
+  uint64_t task_stack_end = task_stack_base - TASK_STACK_SIZE;
 
   // clear stack memory (not required but helpful)
-  __builtin_memset((void *)(task_stack_end), 0, TASK_STACK_SIZE);
+  __builtin_memset((void*)(task_stack_end), 0, TASK_STACK_SIZE);
 
   // build & push inital trapframe
-  TrapFrame *tf = (TrapFrame *)(task_stack_base - sizeof(TrapFrame));
-  tf->elr_el1   = (uint64_t)function;
-  tf->spsr_el1  = 0;
+  TrapFrame* tf = (TrapFrame*)(task_stack_base - sizeof(TrapFrame));
+  tf->elr_el1 = (uint64_t)function;
+  tf->spsr_el1 = 0;
 
-  auto &td = task_descriptors[tid] = {.tid        = tid,
+  auto& td = task_descriptors[tid] = {.tid = tid,
                                       .parent_tid = -1,
-                                      .priority   = priority,
-                                      .state      = TaskStatus::READY,
-                                      .sp_el0     = (uint64_t)tf};
+                                      .priority = priority,
+                                      .state = TaskStatus::READY,
+                                      .sp_el0 = (uint64_t)tf};
 
-  // Schedule the task
   Kernel::scheduler.schedule(td);
   return td.tid;
 }
 
 Syscall activate(int tid) {
-  TaskDescriptor &td = Kernel::task_descriptors[tid];
-  td.state           = TaskStatus::RUNNING;
+  TaskDescriptor& td = Kernel::task_descriptors[tid];
+  td.state = TaskStatus::RUNNING;
 
   // switch to user mode
   // this will return when task makes a syscall
-  Kernel::TrapFrame *tf = _switch_to_user(td.sp_el0);
-  td.sp_el0             = (uint64_t)tf;
+  Kernel::TrapFrame* tf = _switch_to_user(td.sp_el0);
+  td.sp_el0 = (uint64_t)tf;
 
   // https://developer.arm.com/documentation/ddi0595/2020-12/AArch64-Registers/ESR-EL1--Exception-Syndrome-Register--EL1-
   Syscall svc_imm = static_cast<Syscall>(tf->esr_el1 & 0xFFFF);
@@ -99,42 +98,42 @@ void handle(int tid, Syscall request) {
   // this will handle the given request code and perform the appropriate action
   // (e.g. for syscalls) ESR_EL1 will have exception code, holds n form svc N
 
-  TaskDescriptor &td    = Kernel::task_descriptors[tid];
-  Kernel::TrapFrame *tf = (Kernel::TrapFrame *)td.sp_el0;
+  TaskDescriptor& td = Kernel::task_descriptors[tid];
+  Kernel::TrapFrame* tf = (Kernel::TrapFrame*)td.sp_el0;
 
   switch (request) {
-  case Syscall::CREATE: {
-    int new_tid = _create(tf->x[0], (void (*)())tf->x[1]);
-    tf->x[0]    = new_tid; // return new tid
+    case Syscall::CREATE: {
+      int new_tid = _create(tf->x[0], (void (*)())tf->x[1]);
+      tf->x[0] = new_tid;  // return new tid
 
-    // set child parent tid
-    TaskDescriptor &new_td = Kernel::task_descriptors[new_tid];
-    new_td.parent_tid      = tid;
+      // set child parent tid
+      TaskDescriptor& new_td = Kernel::task_descriptors[new_tid];
+      new_td.parent_tid = tid;
 
-    // schedule parent
-    Kernel::scheduler.schedule(td);
-    break;
-  }
-  case Syscall::MY_TID: {
-    tf->x[0] = tid;
-    Kernel::scheduler.schedule(td);
-    break;
-  }
-  case Syscall::MY_PARENT_TID: {
-    tf->x[0] = td.parent_tid;
-    Kernel::scheduler.schedule(td);
-    break;
-  }
-  case Syscall::YIELD: {
-    td.state = TaskStatus::READY;
-    Kernel::scheduler.schedule(td);
-    break;
-  }
-  case Syscall::EXIT: {
-    td.state = TaskStatus::TERMINATED;
-    Kernel::task_allocator.free_task(tid);
-    break;
-  }
+      // schedule parent
+      Kernel::scheduler.schedule(td);
+      break;
+    }
+    case Syscall::MY_TID: {
+      tf->x[0] = tid;
+      Kernel::scheduler.schedule(td);
+      break;
+    }
+    case Syscall::MY_PARENT_TID: {
+      tf->x[0] = td.parent_tid;
+      Kernel::scheduler.schedule(td);
+      break;
+    }
+    case Syscall::YIELD: {
+      td.state = TaskStatus::READY;
+      Kernel::scheduler.schedule(td);
+      break;
+    }
+    case Syscall::EXIT: {
+      td.state = TaskStatus::TERMINATED;
+      Kernel::task_allocator.free_task(tid);
+      break;
+    }
   }
 
   // // Don't log yield as there are lots.
@@ -161,18 +160,17 @@ extern "C" int kmain() {
 
   using namespace Kernel;
 
-  int shell_tid =
-      _create(0, shell); // shell is at priority 3 so it's non blocking
+  // int shell_tid = _create(0, shell);
 
-  // int test_k1_tid = _create(2, test_k1);
+  int test_k1_tid = _create(2, test_k1);
 
   for (;;) {
     auto tid = scheduler.get_task();
     if (!tid.has_value()) {
-      continue; // no ready tasks, spin
+      continue;  // no ready tasks, spin
     }
     auto active_tid = tid.value();
-    auto request    = activate(active_tid);
+    auto request = activate(active_tid);
     handle(active_tid, request);
   }
 
@@ -183,18 +181,16 @@ extern "C" int kmain() {
 #include <cstddef>
 
 // define our own memset to avoid SIMD instructions emitted from the compiler
-void *memset(void *s, int c, size_t n) {
-  for (char *it = (char *)s; n > 0; --n)
-    *it++ = c;
+void* memset(void* s, int c, size_t n) {
+  for (char* it = (char*)s; n > 0; --n) *it++ = c;
   return s;
 }
 
 // define our own memcpy to avoid SIMD instructions emitted from the compiler
-void *memcpy(void *dest, const void *src, size_t n) {
-  char *sit   = (char *)src;
-  char *cdest = (char *)dest;
-  for (size_t i = 0; i < n; ++i)
-    *cdest++ = *sit++;
+void* memcpy(void* dest, const void* src, size_t n) {
+  char* sit = (char*)src;
+  char* cdest = (char*)dest;
+  for (size_t i = 0; i < n; ++i) *cdest++ = *sit++;
   return dest;
 }
 #endif
