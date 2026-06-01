@@ -4,7 +4,7 @@ int create(int priority, void (*function)()) {
   // this Create will trap to the kernel
   // and the kernel will return the tid of the created task
   // explicitly store in these registers
-  register int r0 asm("x0") = priority;
+  register int r0 asm("x0")       = priority;
   register void (*r1)() asm("x1") = function;
   asm volatile("svc %1" : "=r"(r0) : "i"(Syscall::CREATE) : "memory");
   return r0;
@@ -48,12 +48,12 @@ void yield() { asm volatile("svc %0" : : "i"(Syscall::YIELD) : "memory"); }
 
 void exit() { asm volatile("svc %0" : : "i"(Syscall::EXIT) : "memory"); }
 
-int send(int tid, const char* msg, int msg_len, char* reply, int reply_len) {
-  register int r0 asm("x0") = tid;
-  register const char* r1 asm("x1") = msg;
-  register int r2 asm("x2") = msg_len;
-  register char* r3 asm("x3") = reply;
-  register int r4 asm("x4") = reply_len;
+int send(int tid, const char *msg, int msg_len, char *reply, int reply_len) {
+  register int r0 asm("x0")         = tid;
+  register const char *r1 asm("x1") = msg;
+  register int r2 asm("x2")         = msg_len;
+  register char *r3 asm("x3")       = reply;
+  register int r4 asm("x4")         = reply_len;
 
   asm volatile("svc %6"
                : "=r"(r0)
@@ -62,10 +62,10 @@ int send(int tid, const char* msg, int msg_len, char* reply, int reply_len) {
   return r0;
 };
 
-int receive(int *tid, char* msg, int msg_len) {
-  register int* r0_in asm("x0") = tid;
-  register char* r1 asm("x1") = msg;
-  register int r2 asm("x2") = msg_len;
+int receive(int *tid, char *msg, int msg_len) {
+  register int *r0_in asm("x0") = tid;
+  register char *r1 asm("x1")   = msg;
+  register int r2 asm("x2")     = msg_len;
   register int r0_out asm("x0");
 
   asm volatile("svc %4"
@@ -75,10 +75,10 @@ int receive(int *tid, char* msg, int msg_len) {
   return r0_out;
 };
 
-int reply(int tid, const char* reply, int reply_len) {
-  register int r0 asm("x0") = tid;
-  register const char* r1 asm("x1") = reply;
-  register int r2 asm("x2") = reply_len;
+int reply(int tid, const char *reply, int reply_len) {
+  register int r0 asm("x0")         = tid;
+  register const char *r1 asm("x1") = reply;
+  register int r2 asm("x2")         = reply_len;
 
   asm volatile("svc %4"
                : "=r"(r0)

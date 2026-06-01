@@ -31,8 +31,6 @@ namespace Kernel {
   Allocator<int, MAX_TASKS> task_allocator;
   Scheduler<MAX_TASKS, PRIORITY_LEVELS> scheduler;
 
-  int active_tid = -1;
-
   // Make sure this lives in a separate, non-kernel section
   uint8_t task_stacks[MAX_TASKS][TASK_STACK_SIZE]
       __attribute__((section(".task_stacks")));
@@ -143,6 +141,19 @@ void handle(int tid, Syscall request) {
     }
 
     auto &to_td = task_descriptors[to_tid];
+
+    if (to_td.state == TaskStatus::TERMINATED) {
+      tf->x[0] = -1; // task doesn't exist
+      scheduler.schedule(td);
+      break;
+    }
+
+    if (to_tid == tid) {
+      tf->x[0] = -2; // can't send to self
+      scheduler.schedule(td);
+      break;
+    }
+
     if (to_td.state == TaskStatus::W4_SEND) {
       auto to_tf = (TrapFrame *)to_td.sp_el0;
 
@@ -159,7 +170,7 @@ void handle(int tid, Syscall request) {
       char *rcv_buf   = (char *)to_tf->x[1];
       __builtin_memcpy(rcv_buf, msg, len);
 
-      // skip the W4_RECIEVE state, someone was already waiting
+      // skip the W4_RECEIVE state, someone was already waiting
       td.state    = TaskStatus::W4_REPLY;
       to_td.state = TaskStatus::READY;
       scheduler.schedule(to_td);
@@ -202,16 +213,28 @@ void handle(int tid, Syscall request) {
     break;
   }
   case Syscall::REPLY: {
-    int to_tid        = tf->x[0];
+    int to_tid = tf->x[0];
+
+    if (to_tid < 0 || to_tid >= MAX_TASKS) {
+      tf->x[0] = -1; // invalid tid
+      scheduler.schedule(td);
+      break;
+    }
+
+    auto &to_td = task_descriptors[to_tid];
+    if (to_td.state != TaskStatus::W4_REPLY) {
+      tf->x[0] = -2; // task not waiting for reply
+      scheduler.schedule(td);
+      break;
+    }
+
+    auto to_tf        = (TrapFrame *)to_td.sp_el0;
     const char *reply = (const char *)tf->x[1];
     int reply_len     = tf->x[2];
 
-    auto &to_td = task_descriptors[to_tid];
-    auto to_tf  = (TrapFrame *)to_td.sp_el0;
-
     char *rcv_reply = (char *)to_tf->x[3];
     int rcv_len     = to_tf->x[4];
-    int len = to_tf->x[0] = std::min(reply_len, rcv_len);
+    int len = to_tf->x[0] = tf->x[0] = std::min(reply_len, rcv_len);
     __builtin_memcpy(rcv_reply, reply, len);
 
     _assert(to_td.state == TaskStatus::W4_REPLY,
