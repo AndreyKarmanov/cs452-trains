@@ -49,6 +49,11 @@ void yield() { asm volatile("svc %0" : : "i"(Syscall::YIELD) : "memory"); }
 
 void exit() { asm volatile("svc %0" : : "i"(Syscall::EXIT) : "memory"); }
 
+int send(int tid, const Message msg, Message &reply_msg) {
+  return send(tid, (const char *)&msg, sizeof(msg), (char *)&reply_msg,
+              sizeof(reply_msg));
+}
+
 int send(int tid, const char *msg, int msg_len, char *reply, int reply_len) {
   register int r0 asm("x0")         = tid;
   register const char *r1 asm("x1") = msg;
@@ -61,7 +66,11 @@ int send(int tid, const char *msg, int msg_len, char *reply, int reply_len) {
                : "r"(r0), "r"(r1), "r"(r2), "r"(r3), "r"(r4), "i"(Syscall::SEND)
                : "memory");
   return r0;
-};
+}
+
+int receive(int *tid, Message &msg) {
+  return receive(tid, (char *)&msg, sizeof(msg));
+}
 
 int receive(int *tid, char *msg, int msg_len) {
   register int *r0_in asm("x0") = tid;
@@ -74,7 +83,7 @@ int receive(int *tid, char *msg, int msg_len) {
                : "r"(r0_in), "r"(r1), "r"(r2), "i"(Syscall::RECEIVE)
                : "memory");
   return r0_out;
-};
+}
 
 int reply(int tid, const char *reply, int reply_len) {
   register int r0 asm("x0")         = tid;
@@ -86,9 +95,8 @@ int reply(int tid, const char *reply, int reply_len) {
                : "r"(r0), "r"(r1), "r"(r2), "i"(Syscall::REPLY)
                : "memory");
   return r0;
-};
+}
 
 int reply_with_error(int tid) {
-  Message msg{.type = MessageType::ERROR};
-  return reply(tid, (const char *)&msg, sizeof(msg));
-};
+  return reply(tid, {.type = MessageType::ERROR});
+}
