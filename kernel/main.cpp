@@ -1,10 +1,10 @@
 #include <optional>
 
+#include "first_user_task.h"
 #include "internal_syscall.h"
 #include "kernel_state.h"
 #include "rpi.h"
 #include "scheduler.h"
-#include "test.h"
 #include "uart.h"
 
 extern "C" void setup_mmu(); // in mmu.S
@@ -20,9 +20,7 @@ extern "C" int kmain() {
                      " / Andrey Karmanov / Anthony Ho\n\r");
 
   using namespace Kernel;
-
-  _create(2, name_server);
-  _create(2, test_name_server);
+  _create(1, first_user_task);
 
   for (;;) {
     auto tid = scheduler.get_task();
