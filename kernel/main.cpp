@@ -1,4 +1,3 @@
-#include <cstring>
 #include <optional>
 
 #include "internal_syscall.h"
@@ -21,13 +20,9 @@ extern "C" int kmain() {
                      " / Andrey Karmanov / Anthony Ho\n\r");
 
   using namespace Kernel;
-  for (size_t i = 0; i < MAX_TASKS; i++) {
-    uart_printf(CONSOLE, "Task %u stack: 0x%x\n\r", i, &task_stacks[i]);
-  }
 
-  // [[gnu::unused]] int name_server_tid      = _create(2, name_server);
-  // [[gnu::unused]] int test_name_server_tid = _create(2, test_name_server);
-  _create(2, test_k1);
+  _create(2, name_server);
+  _create(2, test_name_server);
 
   for (;;) {
     auto tid = scheduler.get_task();
