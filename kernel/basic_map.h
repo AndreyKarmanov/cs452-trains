@@ -31,4 +31,9 @@ public:
     }
     return std::nullopt;
   }
+
+  constexpr bool contains(const K &key) const { return get(key).has_value(); }
+
+  // TODO: implement this stub
+  constexpr bool remove(const K &key) { return false; }
 };

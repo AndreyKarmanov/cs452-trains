@@ -4,6 +4,8 @@
 #include <cstddef>
 #include <optional>
 
+// TODO: make this an owning buffer?
+// or do something that makes this a bit more versatile
 template <typename T, size_t SIZE> class Buffer {
   std::array<T, SIZE> arr;
   size_t head  = 0;

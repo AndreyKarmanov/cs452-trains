@@ -45,7 +45,7 @@ namespace NS {
 namespace RPS {
   struct SetupMessage {};
   struct PlayMessage {
-    enum class Choice { Rock, Paper, Scissors } choice;
+    enum class Choice { ROCK, PAPER, SCISSORS } choice;
   };
   struct QuitMessage {};
 
@@ -53,9 +53,8 @@ namespace RPS {
     int partner_tid;
   };
   struct PlayResultMessage {
-    int winner_tid;
+    enum class Result { WIN, LOSE, TIE } result;
   };
-  struct PlayerQuitMessage {};
   struct QuitAckMessage {};
 } // namespace RPS
 
@@ -76,7 +75,6 @@ struct Message {
     RPS::QuitMessage rps_quit;
     RPS::PlayReadyMessage rps_play_ready;
     RPS::PlayResultMessage rps_play_result;
-    RPS::PlayerQuitMessage rps_player_quit;
     RPS::QuitAckMessage rps_quit_ack;
 
   } payload; // The Payload
