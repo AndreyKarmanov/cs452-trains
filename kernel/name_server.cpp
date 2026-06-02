@@ -22,26 +22,31 @@ void NameServer::run() {
   int len = receive(&sender_tid, (char *)&msg, sizeof(msg));
 
   if (len < (int)sizeof(Message)) {
-    int error = -1;
-    reply(sender_tid, (const char *)&error, sizeof(error));
+    reply_with_error(sender_tid);
     return;
   }
 
   switch (msg.type) {
   case MessageType::NAME_SERVER_REGISTER_AS: {
-    int status = RegisterAs(msg.payload.register_message.name, sender_tid);
-    reply(sender_tid, (const char *)&status, sizeof(status));
+    Message reply_msg{
+        reply_msg.type = MessageType::NAME_SERVER_REGISTER_REPLY,
+    };
+    reply_msg.payload.ns_register_reply.status =
+        RegisterAs(msg.payload.ns_register.name, sender_tid);
+    reply(sender_tid, (const char *)&reply_msg, sizeof(reply_msg));
     break;
   }
   case MessageType::NAME_SERVER_WHO_IS: {
-    auto tid   = WhoIs(msg.payload.who_is_message.name);
-    int result = tid.has_value() ? tid.value() : -1;
-    reply(sender_tid, (const char *)&result, sizeof(result));
+    auto tid = WhoIs(msg.payload.ns_who_is.name).value_or(-1);
+    Message reply_msg{
+        reply_msg.type = MessageType::NAME_SERVER_WHO_IS_REPLY,
+    };
+    reply_msg.payload.ns_who_is_reply.status = tid;
+    reply(sender_tid, (const char *)&reply_msg, sizeof(reply_msg));
     break;
   }
   default:
-    int error = -1;
-    reply(sender_tid, (const char *)&error, sizeof(error));
+    reply_with_error(sender_tid);
     break;
   }
 }
@@ -55,29 +60,30 @@ void name_server_task() {
 }
 
 int RegisterAs(const char *name) {
-  Message msg{};
-  msg.type = MessageType::NAME_SERVER_REGISTER_AS;
-  std::strncpy(msg.payload.register_message.name, name, MAX_NAME_LENGTH);
+  Message msg{.type = MessageType::NAME_SERVER_REGISTER_AS};
   _assert(std::strlen(name) < MAX_NAME_LENGTH, "Name is too long");
-  int status = -1;
-  int len    = send(TID, (const char *)&msg, sizeof(msg), (char *)&status,
-                    sizeof(status));
-  if (len < (int)sizeof(status)) {
+  std::strncpy(msg.payload.ns_register.name, name, MAX_NAME_LENGTH);
+  Message reply{};
+  int len =
+      send(TID, (const char *)&msg, sizeof(msg), (char *)&reply, sizeof(reply));
+  if (len < static_cast<int>(sizeof(reply)) ||
+      msg.type != MessageType::NAME_SERVER_REGISTER_REPLY) {
     return -1;
   }
-  return status;
+  return reply.payload.ns_register_reply.status;
 }
 
 int WhoIs(const char *name) {
-  Message msg{};
-  msg.type = MessageType::NAME_SERVER_WHO_IS;
-  std::strncpy(msg.payload.who_is_message.name, name, MAX_NAME_LENGTH);
+  Message msg{.type = MessageType::NAME_SERVER_WHO_IS};
   _assert(std::strlen(name) < MAX_NAME_LENGTH, "Name is too long");
-  int tid = -1;
+  std::strncpy(msg.payload.ns_who_is.name, name, MAX_NAME_LENGTH);
+  Message reply{};
+
   int len =
-      send(TID, (const char *)&msg, sizeof(msg), (char *)&tid, sizeof(tid));
-  if (len < (int)sizeof(tid)) {
+      send(TID, (const char *)&msg, sizeof(msg), (char *)&reply, sizeof(reply));
+  if (len < static_cast<int>(sizeof(reply)) ||
+      reply.type != MessageType::NAME_SERVER_WHO_IS_REPLY) {
     return -1;
   }
-  return tid;
+  return reply.payload.ns_who_is_reply.status;
 }

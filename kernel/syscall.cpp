@@ -1,4 +1,5 @@
 #include "syscall.h"
+#include "message.h"
 
 int create(int priority, void (*function)()) {
   // this Create will trap to the kernel
@@ -85,4 +86,9 @@ int reply(int tid, const char *reply, int reply_len) {
                : "r"(r0), "r"(r1), "r"(r2), "i"(Syscall::REPLY)
                : "memory");
   return r0;
+};
+
+int reply_with_error(int tid) {
+  Message msg{.type = MessageType::ERROR};
+  return reply(tid, (const char *)&msg, sizeof(msg));
 };

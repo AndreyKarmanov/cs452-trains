@@ -14,7 +14,7 @@ struct NameKey {
   }
 };
 
-constexpr static int TID = 0;
+constexpr static int TID = 1;
 
 class NameServer {
 private:
