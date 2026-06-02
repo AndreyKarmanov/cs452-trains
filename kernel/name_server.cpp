@@ -20,7 +20,12 @@ void NameServer::run() {
   int sender_tid;
   Message msg{};
   int len = receive(&sender_tid, (char *)&msg, sizeof(msg));
-  // handle too long len here?
+
+  if (len < (int)sizeof(Message)) {
+    int error = -1;
+    reply(sender_tid, (const char *)&error, sizeof(error));
+    return;
+  }
 
   switch (msg.type) {
   case MessageType::NAME_SERVER_REGISTER_AS: {
@@ -35,6 +40,8 @@ void NameServer::run() {
     break;
   }
   default:
+    int error = -1;
+    reply(sender_tid, (const char *)&error, sizeof(error));
     break;
   }
 }

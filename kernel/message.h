@@ -1,7 +1,8 @@
 #pragma once
 #include "name_server.h"
 
-enum class MessageType { NAME_SERVER_REGISTER_AS = 0, NAME_SERVER_WHO_IS = 1 };
+// make these non-zero to catch uninitialized usage
+enum class MessageType { NAME_SERVER_REGISTER_AS = 2, NAME_SERVER_WHO_IS = 4 };
 
 struct NameServerRegisterMessage {
   char name[MAX_NAME_LENGTH];

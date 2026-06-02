@@ -5,7 +5,7 @@
 
 #include "basic_map.h"
 
-constexpr size_t MAX_NAME_LENGTH = 32;
+#define MAX_NAME_LENGTH 32
 
 struct NameKey {
   char data[MAX_NAME_LENGTH];
@@ -18,7 +18,7 @@ constexpr static int TID = 0;
 
 class NameServer {
 private:
-  constexpr static size_t MAX_NAMES = 16;
+  constexpr static size_t MAX_NAMES = 32;
   BasicMap<NameKey, int, MAX_NAMES> name_to_tid;
 
 public:
