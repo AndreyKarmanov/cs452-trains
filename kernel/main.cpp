@@ -267,7 +267,10 @@ extern "C" int kmain() {
 
   // int shell_tid = _create(0, shell);
 
-  int test_k1_tid = _create(2, test_k1);
+  // int test_k1_tid = _create(2, test_k1);
+
+  int name_server_tid      = _create(2, name_server);
+  int test_name_server_tid = _create(2, test_name_server);
 
   for (;;) {
     auto tid = scheduler.get_task();
