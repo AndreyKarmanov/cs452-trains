@@ -23,36 +23,41 @@ enum class MessageType {
   RPS_QUIT_ACK    = 12  // server confirms player quit
 };
 
-struct NameServerRegisterMessage {
-  char name[MAX_NAME_LENGTH];
-};
+namespace NS {
+  struct RegisterMessage {
+    char name[MAX_NAME_LENGTH];
+  };
 
-struct NameServerWhoIsMessage {
-  char name[MAX_NAME_LENGTH];
-};
+  struct WhoIsMessage {
+    char name[MAX_NAME_LENGTH];
+  };
 
-struct NameServerRegisterReplyMessage {
-  int status;
-};
+  struct RegisterReplyMessage {
+    int status;
+  };
 
-struct NameServerWhoIsReplyMessage {
-  int status;
-};
+  struct WhoIsReplyMessage {
+    int status;
+  };
 
-struct RPSSetupMessage {};
-struct RPSPlayMessage {
-  enum class Choice { Rock, Paper, Scissors } choice;
-};
-struct RPSQuitMessage {};
+} // namespace NS
 
-struct RPSPlayReadyMessage {
-  int partner_tid;
-};
-struct RPSPlayResultMessage {
-  int winner_tid;
-};
-struct RPSPlayerQuitMessage {};
-struct RPSQuitAckMessage {};
+namespace RPS {
+  struct SetupMessage {};
+  struct PlayMessage {
+    enum class Choice { Rock, Paper, Scissors } choice;
+  };
+  struct QuitMessage {};
+
+  struct PlayReadyMessage {
+    int partner_tid;
+  };
+  struct PlayResultMessage {
+    int winner_tid;
+  };
+  struct PlayerQuitMessage {};
+  struct QuitAckMessage {};
+} // namespace RPS
 
 // todo: This will grow to be the size of the largest in union
 // in future, when this has much more data, we want a smaller approach for hot
@@ -61,18 +66,18 @@ struct Message {
   MessageType type; // The Header: Always tells the receiver what this is
 
   union {
-    NameServerRegisterMessage ns_register;
-    NameServerWhoIsMessage ns_who_is;
-    NameServerRegisterReplyMessage ns_register_reply;
-    NameServerWhoIsReplyMessage ns_who_is_reply;
+    NS::RegisterMessage ns_register;
+    NS::WhoIsMessage ns_who_is;
+    NS::RegisterReplyMessage ns_register_reply;
+    NS::WhoIsReplyMessage ns_who_is_reply;
 
-    RPSSetupMessage rps_setup;
-    RPSPlayMessage rps_play;
-    RPSQuitMessage rps_quit;
-    RPSPlayReadyMessage rps_play_ready;
-    RPSPlayResultMessage rps_play_result;
-    RPSPlayerQuitMessage rps_player_quit;
-    RPSQuitAckMessage rps_quit_ack;
+    RPS::SetupMessage rps_setup;
+    RPS::PlayMessage rps_play;
+    RPS::QuitMessage rps_quit;
+    RPS::PlayReadyMessage rps_play_ready;
+    RPS::PlayResultMessage rps_play_result;
+    RPS::PlayerQuitMessage rps_player_quit;
+    RPS::QuitAckMessage rps_quit_ack;
 
   } payload; // The Payload
 };

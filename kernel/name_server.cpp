@@ -63,27 +63,27 @@ int RegisterAs(const char *name) {
   Message msg{.type = MessageType::NAME_SERVER_REGISTER_AS};
   _assert(std::strlen(name) < MAX_NAME_LENGTH, "Name is too long");
   std::strncpy(msg.payload.ns_register.name, name, MAX_NAME_LENGTH);
-  Message reply{};
-  int len =
-      send(TID, (const char *)&msg, sizeof(msg), (char *)&reply, sizeof(reply));
-  if (len < static_cast<int>(sizeof(reply)) ||
-      msg.type != MessageType::NAME_SERVER_REGISTER_REPLY) {
+  Message reply_msg{};
+  int len = send(TID, (const char *)&msg, sizeof(msg), (char *)&reply_msg,
+                 sizeof(reply_msg));
+  if (len < static_cast<int>(sizeof(reply_msg)) ||
+      reply_msg.type != MessageType::NAME_SERVER_REGISTER_REPLY) {
     return -1;
   }
-  return reply.payload.ns_register_reply.status;
+  return reply_msg.payload.ns_register_reply.status;
 }
 
 int WhoIs(const char *name) {
   Message msg{.type = MessageType::NAME_SERVER_WHO_IS};
   _assert(std::strlen(name) < MAX_NAME_LENGTH, "Name is too long");
   std::strncpy(msg.payload.ns_who_is.name, name, MAX_NAME_LENGTH);
-  Message reply{};
+  Message reply_msg{};
 
-  int len =
-      send(TID, (const char *)&msg, sizeof(msg), (char *)&reply, sizeof(reply));
-  if (len < static_cast<int>(sizeof(reply)) ||
-      reply.type != MessageType::NAME_SERVER_WHO_IS_REPLY) {
+  int len = send(TID, (const char *)&msg, sizeof(msg), (char *)&reply_msg,
+                 sizeof(reply_msg));
+  if (len < static_cast<int>(sizeof(reply_msg)) ||
+      reply_msg.type != MessageType::NAME_SERVER_WHO_IS_REPLY) {
     return -1;
   }
-  return reply.payload.ns_who_is_reply.status;
+  return reply_msg.payload.ns_who_is_reply.status;
 }
