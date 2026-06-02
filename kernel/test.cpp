@@ -42,11 +42,3 @@ void test_name_server() {
   uart_printf(CONSOLE, "WhoIs Missing: %d (expect -1)\n\r", tid);
   exit();
 }
-
-void name_server() {
-  NameServer server;
-  for (;;) {
-    server.run();
-    yield();
-  }
-}

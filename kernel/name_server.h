@@ -30,5 +30,6 @@ public:
   std::optional<int> WhoIs(const char *name);
 };
 
+void name_server_task();
 int RegisterAs(const char *name);
 int WhoIs(const char *name);

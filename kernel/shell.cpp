@@ -24,7 +24,7 @@ void fire_command(const char *buf, size_t blen, UARTNB &uart) {
     yield();
     uart.puts("Yielded\n\r");
   } else if (strncmp(buf, "c", 1) == 0) {
-    int tid = create(3, shell);
+    int tid = create(3, shell_task);
     uart.printf("Created new shell %u", tid);
   } else if (strncmp(buf, "t k1", 4) == 0) {
     int tid = create(2, test_k1);
@@ -35,7 +35,7 @@ void fire_command(const char *buf, size_t blen, UARTNB &uart) {
   }
 }
 
-void shell() {
+void shell_task() {
   char buf[BUFFER_SIZE];
   size_t buf_n = 0;
   UARTNB uart(CONSOLE);

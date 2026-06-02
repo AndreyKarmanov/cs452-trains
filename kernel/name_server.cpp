@@ -46,6 +46,14 @@ void NameServer::run() {
   }
 }
 
+void name_server_task() {
+  NameServer server;
+  for (;;) {
+    server.run();
+    yield();
+  }
+}
+
 int RegisterAs(const char *name) {
   Message msg{};
   msg.type = MessageType::NAME_SERVER_REGISTER_AS;
