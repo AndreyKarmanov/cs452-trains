@@ -25,7 +25,7 @@ public:
   }
 
   constexpr bool free(T item) {
-    if (item < 0 || item >= SIZE) {
+    if (item < 0 || static_cast<size_t>(item) >= SIZE) {
       return false; // invalid item
     }
     return free_items.push(item);

@@ -23,12 +23,12 @@ void NameServer::run() {
   // handle too long len here?
 
   switch (msg.type) {
-  case NAME_SERVER_REGISTER_AS: {
+  case MessageType::NAME_SERVER_REGISTER_AS: {
     int status = RegisterAs(msg.payload.register_message.name, sender_tid);
     reply(sender_tid, (const char *)&status, sizeof(status));
     break;
   }
-  case NAME_SERVER_WHO_IS: {
+  case MessageType::NAME_SERVER_WHO_IS: {
     auto tid   = WhoIs(msg.payload.who_is_message.name);
     int result = tid.has_value() ? tid.value() : -1;
     reply(sender_tid, (const char *)&result, sizeof(result));
@@ -41,7 +41,7 @@ void NameServer::run() {
 
 int RegisterAs(const char *name) {
   Message msg{};
-  msg.type = NAME_SERVER_REGISTER_AS;
+  msg.type = MessageType::NAME_SERVER_REGISTER_AS;
   std::strncpy(msg.payload.register_message.name, name, MAX_NAME_LENGTH);
   _assert(std::strlen(name) < MAX_NAME_LENGTH, "Name is too long");
   int status = -1;
@@ -55,7 +55,7 @@ int RegisterAs(const char *name) {
 
 int WhoIs(const char *name) {
   Message msg{};
-  msg.type = NAME_SERVER_WHO_IS;
+  msg.type = MessageType::NAME_SERVER_WHO_IS;
   std::strncpy(msg.payload.who_is_message.name, name, MAX_NAME_LENGTH);
   _assert(std::strlen(name) < MAX_NAME_LENGTH, "Name is too long");
   int tid = -1;

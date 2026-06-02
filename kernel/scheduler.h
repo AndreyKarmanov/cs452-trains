@@ -10,7 +10,8 @@ template <size_t MAX_TASKS, size_t MAX_PRIORITY> class Scheduler {
 public:
   void schedule(TaskDescriptor &td) {
     // assert that priority is valid
-    _assert(td.priority >= 0 && td.priority < MAX_PRIORITY, "invalid priority");
+    _assert(td.priority >= 0 && static_cast<size_t>(td.priority) < MAX_PRIORITY,
+            "invalid priority");
 
     // schedule the task
     schedules[td.priority].push(td.tid);

@@ -1,24 +1,21 @@
 #pragma once
 #include "name_server.h"
 
-typedef enum {
-  NAME_SERVER_REGISTER_AS = 0,
-  NAME_SERVER_WHO_IS      = 1
-} MessageType;
+enum class MessageType { NAME_SERVER_REGISTER_AS = 0, NAME_SERVER_WHO_IS = 1 };
 
-typedef struct {
+struct NameServerRegisterMessage {
   char name[MAX_NAME_LENGTH];
-} NameServerRegisterMessage;
+};
 
-typedef struct {
+struct NameServerWhoIsMessage {
   char name[MAX_NAME_LENGTH];
-} NameServerWhoIsMessage;
+};
 
-typedef struct {
+struct Message {
   MessageType type; // The Header: Always tells the receiver what this is
 
   union {
     NameServerRegisterMessage register_message;
     NameServerWhoIsMessage who_is_message;
   } payload; // The Payload
-} Message;
+};

@@ -1,9 +1,9 @@
 #pragma once
 
 #include <cstring>
+#include <optional>
 
 #include "basic_map.h"
-#include <optional>
 
 constexpr size_t MAX_NAME_LENGTH = 32;
 

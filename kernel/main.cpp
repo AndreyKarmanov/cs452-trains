@@ -7,7 +7,6 @@
 #include "debug.h"
 #include "rpi.h"
 #include "scheduler.h"
-#include "shell.h"
 #include "syscall.h"
 #include "task_descriptor.h"
 #include "test.h"
@@ -259,18 +258,13 @@ extern "C" int kmain() {
   uart_puts(CONSOLE, "\033[2J\033[?25l\033[1;1H" __DATE__ " / " __TIME__
                      " / Andrey Karmanov / Anthony Ho\n\r");
 
+  using namespace Kernel;
   for (size_t i = 0; i < MAX_TASKS; i++) {
-    uart_printf(CONSOLE, "Task %u stack: 0x%x\n\r", i, &Kernel::task_stacks[i]);
+    uart_printf(CONSOLE, "Task %u stack: 0x%x\n\r", i, &task_stacks[i]);
   }
 
-  using namespace Kernel;
-
-  // int shell_tid = _create(0, shell);
-
-  // int test_k1_tid = _create(2, test_k1);
-
-  int name_server_tid      = _create(2, name_server);
-  int test_name_server_tid = _create(2, test_name_server);
+  [[gnu::unused]] int name_server_tid      = _create(2, name_server);
+  [[gnu::unused]] int test_name_server_tid = _create(2, test_name_server);
 
   for (;;) {
     auto tid = scheduler.get_task();

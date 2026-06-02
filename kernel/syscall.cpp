@@ -4,8 +4,8 @@ int create(int priority, void (*function)()) {
   // this Create will trap to the kernel
   // and the kernel will return the tid of the created task
   // explicitly store in these registers
-  register int r0 asm("x0")       = priority;
-  register void (*r1)() asm("x1") = function;
+  register int r0 asm("x0")                       = priority;
+  [[gnu::unused]] register void (*r1)() asm("x1") = function;
   asm volatile("svc %1" : "=r"(r0) : "i"(Syscall::CREATE) : "memory");
   return r0;
 }

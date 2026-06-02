@@ -2,6 +2,7 @@
 
 #include <array>
 #include <optional>
+#include <utility>
 
 template <typename K, typename V, size_t SIZE> class BasicMap {
   std::array<std::pair<K, V>, SIZE> arr;
@@ -9,7 +10,7 @@ template <typename K, typename V, size_t SIZE> class BasicMap {
 
 public:
   constexpr bool set(const K &key, const V &value) {
-    for (int i = 0; i < _size; ++i) {
+    for (size_t i = 0; i < _size; ++i) {
       if (arr[i].first == key) {
         arr[i].second = value;
         return true;
@@ -24,7 +25,7 @@ public:
   }
 
   constexpr std::optional<V> get(const K &key) const {
-    for (int i = 0; i < _size; ++i) {
+    for (size_t i = 0; i < _size; ++i) {
       if (arr[i].first == key)
         return arr[i].second;
     }
