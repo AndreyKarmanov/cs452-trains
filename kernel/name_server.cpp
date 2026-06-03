@@ -28,9 +28,8 @@ void NameServer::run() {
 
   switch (msg.type) {
   case MessageType::NAME_SERVER_REGISTER_AS: {
-    Message reply_msg{
-        reply_msg.type = MessageType::NAME_SERVER_REGISTER_REPLY,
-    };
+    Message reply_msg{};
+    reply_msg.type = MessageType::NAME_SERVER_REGISTER_REPLY;
     reply_msg.payload.ns_register_reply.status =
         RegisterAs(msg.payload.ns_register.name, sender_tid);
     reply(sender_tid, reply_msg);
@@ -38,9 +37,8 @@ void NameServer::run() {
   }
   case MessageType::NAME_SERVER_WHO_IS: {
     auto tid = WhoIs(msg.payload.ns_who_is.name).value_or(-1);
-    Message reply_msg{
-        reply_msg.type = MessageType::NAME_SERVER_WHO_IS_REPLY,
-    };
+    Message reply_msg{};
+    reply_msg.type = MessageType::NAME_SERVER_WHO_IS_REPLY;
     reply_msg.payload.ns_who_is_reply.status = tid;
     reply(sender_tid, reply_msg);
     break;
@@ -60,7 +58,8 @@ void name_server_task() {
 }
 
 int RegisterAs(const char *name) {
-  Message msg{.type = MessageType::NAME_SERVER_REGISTER_AS};
+  Message msg{};
+  msg.type = MessageType::NAME_SERVER_REGISTER_AS;
   _assert(std::strlen(name) < MAX_NAME_LENGTH, "Name is too long");
   std::strncpy(msg.payload.ns_register.name, name, MAX_NAME_LENGTH);
   Message reply_msg{};
@@ -73,7 +72,8 @@ int RegisterAs(const char *name) {
 }
 
 int WhoIs(const char *name) {
-  Message msg{.type = MessageType::NAME_SERVER_WHO_IS};
+  Message msg{};
+  msg.type = MessageType::NAME_SERVER_WHO_IS;
   _assert(std::strlen(name) < MAX_NAME_LENGTH, "Name is too long");
   std::strncpy(msg.payload.ns_who_is.name, name, MAX_NAME_LENGTH);
   Message reply_msg{};

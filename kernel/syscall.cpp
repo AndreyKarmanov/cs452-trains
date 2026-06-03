@@ -102,5 +102,7 @@ int reply(int tid, const char *reply, int reply_len) {
 }
 
 int reply_with_error(int tid) {
-  return reply(tid, {.type = MessageType::ERROR});
+  Message msg{};
+  msg.type = MessageType::ERROR;
+  return reply(tid, msg);
 }

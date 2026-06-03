@@ -35,8 +35,13 @@ void RPSServer::run() {
       waiting.reset();
 
       // tell them they are both ready to play
-      reply(p1, {.type = MessageType::RPS_PLAY_READY});
-      reply(p2, {.type = MessageType::RPS_PLAY_READY});
+      Message p1_ready{};
+      p1_ready.type = MessageType::RPS_PLAY_READY;
+      reply(p1, p1_ready);
+
+      Message p2_ready{};
+      p2_ready.type = MessageType::RPS_PLAY_READY;
+      reply(p2, p2_ready);
     }
     break;
   }
@@ -71,10 +76,12 @@ void RPSServer::run() {
         p2_result = Result::WIN;
       }
 
-      Message p1_msg{.type = MessageType::RPS_PLAY_RESULT};
+      Message p1_msg{};
+      p1_msg.type                           = MessageType::RPS_PLAY_RESULT;
       p1_msg.payload.rps_play_result.result = p1_result;
 
-      Message p2_msg{.type = MessageType::RPS_PLAY_RESULT};
+      Message p2_msg{};
+      p2_msg.type                           = MessageType::RPS_PLAY_RESULT;
       p2_msg.payload.rps_play_result.result = p2_result;
 
       reply(p1, p1_msg);
@@ -92,14 +99,18 @@ void RPSServer::run() {
       // remove sender from games
       partners.remove(sender_tid);
       choices.remove(sender_tid);
-      reply(sender_tid, {.type = MessageType::RPS_QUIT_ACK});
+      Message quit_ack{};
+      quit_ack.type = MessageType::RPS_QUIT_ACK;
+      reply(sender_tid, quit_ack);
 
       // remove partner from games
       // reply to them if they've already played
       partners.remove(partner_tid);
       if (choices.contains(partner_tid)) {
         choices.remove(partner_tid);
-        reply(partner_tid, {.type = MessageType::RPS_PLAYER_QUIT});
+        Message player_quit{};
+        player_quit.type = MessageType::RPS_PLAYER_QUIT;
+        reply(partner_tid, player_quit);
       }
     }
     break;
