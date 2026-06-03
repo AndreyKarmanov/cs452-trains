@@ -4,8 +4,8 @@
 
 #include "buffer.h"
 
-template <typename T, size_t SIZE> class Allocator {
-  Buffer<T, SIZE> free_items;
+template <size_t SIZE> class Allocator {
+  Buffer<int, SIZE> free_items;
 
 public:
   // constexpr so we don't have to initalize at runtime
@@ -17,7 +17,7 @@ public:
     }
   }
 
-  constexpr std::optional<T> allocate() {
+  constexpr std::optional<int> allocate() {
     auto item = free_items.peek();
     if (!item.has_value()) {
       return std::nullopt;
@@ -26,7 +26,7 @@ public:
     return item.value();
   }
 
-  constexpr bool free(T item) {
+  constexpr bool free(int item) {
     if (item < 0 || static_cast<size_t>(item) >= SIZE) {
       return false; // invalid item
     }

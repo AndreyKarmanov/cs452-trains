@@ -49,9 +49,7 @@ namespace RPS {
   };
   struct QuitMessage {};
 
-  struct PlayReadyMessage {
-    int partner_tid;
-  };
+  struct PlayReadyMessage {};
   struct PlayResultMessage {
     enum class Result { WIN, LOSE, TIE } result;
   };

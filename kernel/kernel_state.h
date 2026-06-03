@@ -20,7 +20,7 @@ namespace Kernel {
   // inline variable here says "this is a global"
   // even if you include multiple times, just use this one
   inline TaskDescriptor task_descriptors[MAX_TASKS];
-  inline Allocator<int, MAX_TASKS> task_allocator;
+  inline Allocator<MAX_TASKS> task_allocator;
   inline Scheduler<MAX_TASKS, PRIORITY_LEVELS> scheduler;
 
   // Make sure this lives in a separate, non-kernel section
