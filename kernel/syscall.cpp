@@ -85,6 +85,10 @@ int receive(int *tid, char *msg, int msg_len) {
   return r0_out;
 }
 
+int reply(int tid, Message msg) {
+  return reply(tid, (const char *)&msg, sizeof(msg));
+};
+
 int reply(int tid, const char *reply, int reply_len) {
   register int r0 asm("x0")         = tid;
   register const char *r1 asm("x1") = reply;
