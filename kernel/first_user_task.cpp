@@ -196,5 +196,5 @@ void first_user_task() {
   uart_printf(CONSOLE, "Created timer task\n");
 
   // Shell
-  create(3, shell_task);
+  // create(3, shell_task);
 }
