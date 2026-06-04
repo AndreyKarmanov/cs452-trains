@@ -15,4 +15,5 @@ void first_user_task() {
   // }
 
   create(2, test_timer_task);
+  create(3, shell_task);
 }

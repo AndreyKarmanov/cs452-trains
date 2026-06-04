@@ -1,4 +1,4 @@
 #pragma once
 
-void instruction_cache_set(bool enabled);
-void data_cache_set(bool enabled);
+bool instruction_cache_set(bool enabled);
+bool data_cache_set(bool enabled);

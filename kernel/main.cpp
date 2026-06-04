@@ -1,11 +1,16 @@
 #include <optional>
 
+#include "cache.h"
 #include "first_user_task.h"
 #include "internal_syscall.h"
 #include "kernel_state.h"
 #include "rpi.h"
 #include "scheduler.h"
 #include "uart.h"
+
+
+#define DATA_CACHE true
+#define INSTRUCTION_CACHE true
 
 extern "C" void setup_mmu(); // in mmu.S
 
@@ -16,6 +21,8 @@ extern "C" int kmain() {
   gpio_init();
   uart_config_and_enable(CONSOLE);
 
+  data_cache_set(DATA_CACHE);
+  instruction_cache_set(INSTRUCTION_CACHE);
   uart_puts(CONSOLE, "\033[2J\033[?25l\033[1;1H" __DATE__ " / " __TIME__
                      " / Andrey Karmanov / Anthony Ho\n\r");
 
@@ -25,6 +32,10 @@ extern "C" int kmain() {
   for (;;) {
     auto tid = scheduler.get_task();
     if (!tid.has_value()) {
+      if (task_allocator.allocated_count() == 0) {
+        uart_puts(CONSOLE, "No tasks left, halting.\n\r");
+        break;
+      }
       continue; // no ready tasks, spin
     }
     auto active_tid = tid.value();

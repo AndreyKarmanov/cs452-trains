@@ -48,6 +48,17 @@ Implement a big polling loop that essentially just reads memory in a loop and up
 - initalizing variables to 0
     - .bss section must be zero'd out (worth aligning to 8 byte boundaries  with `ALIGN(8)` to make it easy)
 
+tips & tricks: 
+- think of how the memory is laid out in the mcp2515, can easily structure code to simplify reading and writing
+- also make sure to read the mcp2515 documentation clearly, there are instructions that can simplify your work significantly (and they are likely not provided for you in iotest)
+
+## K1: Context switching, syscalls
+- again, think of how the memory is laid out. trapframes can be easily accessed with the right datastructure to remove any need for inline ASM 
+
+## K2: Send, Receive, Reply, Nameserver, Caching
+- Caching 
+    - 
+
 # Lectures
 
 ## Lec1: Intro

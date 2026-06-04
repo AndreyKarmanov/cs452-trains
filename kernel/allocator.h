@@ -9,8 +9,6 @@ template <size_t SIZE> class Allocator {
 
 public:
   // constexpr so we don't have to initalize at runtime
-  // TODO: this default initalizer always pushes ints...
-  // this implies that the type T must have T(int i) constructor
   constexpr Allocator() {
     for (size_t i = 0; i < SIZE; i++) {
       free_items.push(i);
@@ -32,4 +30,6 @@ public:
     }
     return free_items.push(item);
   }
+
+  constexpr size_t allocated_count() const { return SIZE - free_items.size(); }
 };
