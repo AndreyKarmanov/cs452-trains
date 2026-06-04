@@ -32,7 +32,7 @@ std::optional<Message> RPSClient::signup() {
 }
 
 std::optional<Message> RPSClient::play(RPS::PlayMessage::Choice choice) {
-  uart_printf(CONSOLE, "RPS client %d: play %s (send)\r\n", my_tid(),
+  uart_printf(CONSOLE, "RPS client %d: play %s\r\n", my_tid(),
               RPS::choice_str(choice));
   Message msg{};
   msg.type                    = MessageType::RPS_PLAY;
@@ -49,7 +49,7 @@ std::optional<Message> RPSClient::play(RPS::PlayMessage::Choice choice) {
 }
 
 std::optional<Message> RPSClient::quit() {
-  uart_printf(CONSOLE, "RPS client %d: quit (send)\r\n", my_tid());
+  uart_printf(CONSOLE, "RPS client %d: quit\r\n", my_tid());
   Message msg{};
   msg.type = MessageType::RPS_QUIT;
   Message reply_msg{};

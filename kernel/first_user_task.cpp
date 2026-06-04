@@ -120,9 +120,6 @@ void basic_scissors() {
   RPSClient client;
   auto ready  = client.signup();
   auto result = client.play(RPS::PlayMessage::Choice::SCISSORS);
-  _assert(result->payload.rps_play_result.result ==
-              RPS::PlayResultMessage::Result::WIN,
-          "expected win");
   client.quit();
   exit();
 }
@@ -131,9 +128,14 @@ void basic_paper() {
   RPSClient client;
   auto ready  = client.signup();
   auto result = client.play(RPS::PlayMessage::Choice::PAPER);
-  _assert(result->payload.rps_play_result.result ==
-              RPS::PlayResultMessage::Result::LOSE,
-          "expected lose");
+  client.quit();
+  exit();
+}
+
+void basic_rock() {
+  RPSClient client;
+  auto ready  = client.signup();
+  auto result = client.play(RPS::PlayMessage::Choice::ROCK);
   client.quit();
   exit();
 }
@@ -145,6 +147,18 @@ void test_rps_4() {
     create(2, basic_paper);
     yield();
   }
+  exit();
+}
+
+void test_rps_5() {
+  create(1, basic_rock);
+  create(1, basic_paper);
+  create(1, basic_scissors);
+  create(1, basic_rock);
+  create(1, basic_paper);
+  create(1, basic_scissors);
+  create(1, basic_paper);
+  create(1, basic_paper);
   exit();
 }
 
@@ -180,6 +194,14 @@ void rps_client_task() {
   uart_printf(CONSOLE, "==============================================\n\n");
   create(1, test_rps_4);
 
+  // test 5
+  uart_printf(CONSOLE,
+              "\n\r==============================================\n\r");
+  uart_printf(CONSOLE, "Running RPS Test 5 (concurrent games)\n");
+  uart_printf(CONSOLE, "==============================================\n\n");
+  create(2, test_rps_5);
+
+  uart_printf(CONSOLE, "\n\n All tests completed! \n\r");
   exit();
 }
 
@@ -188,7 +210,7 @@ void first_user_task() {
   uart_printf(CONSOLE, "Created name server\n");
 
   // RPS
-  create(3, rps_server_task);
+  create(2, rps_server_task);
   uart_printf(CONSOLE, "Created RPS server\n");
   create(0, rps_client_task);
 
