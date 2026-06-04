@@ -8,10 +8,13 @@
 #include "scheduler.h"
 #include "uart.h"
 
+#ifndef DATA_CACHE
+#define DATA_CACHE 1
+#endif
 
-#define DATA_CACHE true
-#define INSTRUCTION_CACHE true
-
+#ifndef INSTRUCTION_CACHE
+#define INSTRUCTION_CACHE 1
+#endif
 extern "C" void setup_mmu(); // in mmu.S
 
 extern "C" int kmain() {
@@ -25,6 +28,9 @@ extern "C" int kmain() {
   instruction_cache_set(INSTRUCTION_CACHE);
   uart_puts(CONSOLE, "\033[2J\033[?25l\033[1;1H" __DATE__ " / " __TIME__
                      " / Andrey Karmanov / Anthony Ho\n\r");
+  uart_printf(CONSOLE,
+            "Kernel initialized DATA_CACHE: %u INSTRUCTION_CACHE: %u\n\r",
+            DATA_CACHE, INSTRUCTION_CACHE);
 
   using namespace Kernel;
   _create(1, first_user_task);
