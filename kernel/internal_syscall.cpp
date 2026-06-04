@@ -9,7 +9,25 @@
 #include "uart.h"
 
 extern "C" void default_handler(int n) {
-  uart_printf(CONSOLE, "DEFAULT VBAR HANDLER %u HIT\n\r", n);
+  uint64_t esr_el1;
+  uint64_t far_el1;
+  uint64_t elr_el1;
+  uint64_t spsr_el1;
+
+  asm volatile("mrs %0, esr_el1" : "=r"(esr_el1));
+  asm volatile("mrs %0, far_el1" : "=r"(far_el1));
+  asm volatile("mrs %0, elr_el1" : "=r"(elr_el1));
+  asm volatile("mrs %0, spsr_el1" : "=r"(spsr_el1));
+
+  uart_printf(CONSOLE,
+              "DEFAULT VBAR HANDLER %u HIT ESR=%x FAR=%x ELR=%x SPSR=%x\n\r", n,
+              (unsigned int)esr_el1, (unsigned int)far_el1,
+              (unsigned int)elr_el1, (unsigned int)spsr_el1);
+}
+
+extern "C" void task_entry_wrapper(void (*function)()) {
+  function();
+  exit();
 }
 
 // Allocates a new task, initalizes descriptor and stack
@@ -36,7 +54,8 @@ int _create(int priority, void (*function)()) {
 
   // build & push inital trapframe
   TrapFrame *tf = (TrapFrame *)(task_stack_base - sizeof(TrapFrame));
-  tf->elr_el1   = (uint64_t)function;
+  tf->elr_el1   = (uint64_t)task_entry_wrapper;
+  tf->x[0]      = (uint64_t)function;
   tf->spsr_el1  = 0;
 
   auto &td = task_descriptors[tid] = {.tid        = tid,

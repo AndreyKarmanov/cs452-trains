@@ -3,7 +3,6 @@
 #include "name_server.h"
 #include "rps_client.h"
 #include "rps_server.h"
-#include "shell.h"
 #include "syscall.h"
 #include "test.h"
 #include "uart.h"
@@ -180,6 +179,8 @@ void rps_client_task() {
   uart_printf(CONSOLE, "Running RPS Test 4 (lots of games)\n");
   uart_printf(CONSOLE, "==============================================\n\n");
   create(1, test_rps_4);
+
+  exit();
 }
 
 void first_user_task() {
@@ -197,4 +198,6 @@ void first_user_task() {
 
   // Shell
   // create(3, shell_task);
+
+  exit();
 }
