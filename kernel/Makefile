@@ -14,6 +14,8 @@ OBJDUMP:=$(XBINDIR)/$(TRIPLE)-objdump
 
 MMU?=on
 OPT?=-O3
+DATA_CACHE?=true
+INSTRUCTION_CACHE?=true
 
 # COMPILE OPTIONS
 ifeq ($(MMU),on)
@@ -22,7 +24,7 @@ else
 MMUFLAGS:=-mstrict-align -mgeneral-regs-only
 endif
 WARNINGS:=-Wall -Wextra -Wpedantic -Wno-unused-const-variable
-CXXFLAGS:=-g -pipe -static -march=armv8-a -mcpu=cortex-a72 -std=gnu++20 $(OPT) $(MMUFLAGS) $(WARNINGS)
+CXXFLAGS:=-g -pipe -static -march=armv8-a -mcpu=cortex-a72 -std=gnu++20 -DDATA_CACHE=$(DATA_CACHE) -DINSTRUCTION_CACHE=$(INSTRUCTION_CACHE) $(OPT) $(MMUFLAGS) $(WARNINGS)
 
 # -Wl,option tells gcc to pass 'option' to the linker with commas replaced by spaces
 # doing this rather than calling the linker directly simplifies the compilation procedure

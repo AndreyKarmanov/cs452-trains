@@ -62,7 +62,6 @@ void test_timer_a_task() {
     other = WhoIs("test_timer_b_task");
   }
 
-  uart_puts(CONSOLE, "test timer A task start\n\r");
   uart_puts(CONSOLE, "A sending\n\r");
 
   char msg_buf_4[4];
@@ -72,7 +71,8 @@ void test_timer_a_task() {
     send(other, msg_buf_4, sizeof(msg_buf_4), reply_buf_4, sizeof(reply_buf_4));
   }
   auto delta = (time_get() - start) / (N_ITERATIONS / 10);
-  uart_printf(CONSOLE, "4 Byte Messages: %u.%uus\n\r", delta / 10, delta % 10);
+  uart_puts(CONSOLE, "4 byte / 64 byte / 256 byte (us)\n\r");
+  uart_printf(CONSOLE, "%u.%uus ", delta / 10, delta % 10);
 
   char msg_buf_64[64];
   char reply_buf_64[64];
@@ -82,7 +82,7 @@ void test_timer_a_task() {
          sizeof(reply_buf_64));
   }
   delta = (time_get() - start) / (N_ITERATIONS / 10);
-  uart_printf(CONSOLE, "64 Byte Messages: %u.%uus\n\r", delta / 10, delta % 10);
+  uart_printf(CONSOLE, "%u.%uus ", delta / 10, delta % 10);
 
   char msg_buf_256[256];
   char reply_buf_256[256];
@@ -92,8 +92,7 @@ void test_timer_a_task() {
          sizeof(reply_buf_256));
   }
   delta = (time_get() - start) / (N_ITERATIONS / 10);
-  uart_printf(CONSOLE, "256 Byte Messages: %u.%uus\n\r", delta / 10,
-              delta % 10);
+  uart_printf(CONSOLE, "%u.%uus\n\r", delta / 10, delta % 10);
 
   uart_puts(CONSOLE, "A recieving\n\r");
 
@@ -105,7 +104,8 @@ void test_timer_a_task() {
     reply(other, reply_msg_buf_4, sizeof(reply_msg_buf_4));
   }
   delta = (time_get() - start) / (N_ITERATIONS / 10);
-  uart_printf(CONSOLE, "4 Byte Messages: %u.%uus\n\r", delta / 10, delta % 10);
+  uart_puts(CONSOLE, "4 byte / 64 byte / 256 byte (us)\n\r");
+  uart_printf(CONSOLE, "%u.%uus ", delta / 10, delta % 10);
 
   char rcv_buf_64[64]{1};
   char reply_msg_buf_64[64]{1};
@@ -115,7 +115,7 @@ void test_timer_a_task() {
     reply(other, reply_msg_buf_64, sizeof(reply_msg_buf_64));
   }
   delta = (time_get() - start) / (N_ITERATIONS / 10);
-  uart_printf(CONSOLE, "64 Byte Messages: %u.%uus\n\r", delta / 10, delta % 10);
+  uart_printf(CONSOLE, "%u.%uus ", delta / 10, delta % 10);
 
   char rcv_buf_256[256];
   char reply_msg_buf_256[256];
@@ -125,8 +125,7 @@ void test_timer_a_task() {
     reply(other, reply_msg_buf_256, sizeof(reply_msg_buf_256));
   }
   delta = (time_get() - start) / (N_ITERATIONS / 10);
-  uart_printf(CONSOLE, "256 Byte Messages: %u.%uus\n\r", delta / 10,
-              delta % 10);
+  uart_printf(CONSOLE, "%u.%uus \n\r", delta / 10, delta % 10);
 
   exit();
 }
@@ -138,7 +137,6 @@ void test_timer_b_task() {
     other = WhoIs("test_timer_a_task");
   }
 
-  uart_puts(CONSOLE, "test timer B task start\n\r");
   uart_puts(CONSOLE, "B recieving\n\r");
 
   char rcv_buf_4[4];
