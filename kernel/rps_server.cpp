@@ -5,6 +5,7 @@
 #include "message.h"
 #include "rps_server.h"
 #include "syscall.h"
+#include "uart.h"
 
 void RPSServer::run() {
   int sender_tid;
@@ -52,6 +53,11 @@ void RPSServer::run() {
       // reset waitng
       waiting.reset();
 
+      uart_printf(
+          CONSOLE,
+          "RPS server: Game started between player %d and player %d\r\n", p1,
+          p2);
+
       // tell them they are both ready to play
       Message p1_ready{};
       p1_ready.type = MessageType::RPS_PLAY_READY;
@@ -71,6 +77,25 @@ void RPSServer::run() {
     }
     auto game = &games[game_index.value()];
 
+    bool is_player1   = game->player1_tid == sender_tid;
+    int partner_index = is_player1 ? 1 : 0;
+    int partner_tid =
+        game->player1_tid == sender_tid ? game->player2_tid : game->player1_tid;
+
+    if (game->game_state == Game::GameState::PartnerHasQuit) {
+      game_index_allocator.free(game_index.value());
+      player_to_game_ptr[game_index.value()][is_player1 ? 0 : 1] = -1;
+      uart_printf(CONSOLE,
+                  "RPS server: Game ended between player %d and player %d\r\n",
+                  sender_tid, partner_tid);
+      Message msg{};
+      msg.type = MessageType::RPS_PLAY_RESULT;
+      msg.payload.rps_play_result.result =
+          RPS::PlayResultMessage::Result::PLAYER_QUIT;
+      reply(sender_tid, msg);
+      break;
+    }
+
     using Choice = RPS::PlayMessage::Choice;
     auto choice  = msg.payload.rps_play.choice;
     if (choice != Choice::ROCK && choice != Choice::PAPER &&
@@ -78,8 +103,6 @@ void RPSServer::run() {
       reply_with_error(sender_tid);
       break;
     }
-
-    bool is_player1 = game->player1_tid == sender_tid;
 
     if (is_player1) {
       if (game->game_state == Game::GameState::WaitingForBothPlayers) {
@@ -138,10 +161,14 @@ void RPSServer::run() {
       p2_msg.type                           = MessageType::RPS_PLAY_RESULT;
       p2_msg.payload.rps_play_result.result = p2_result;
 
-      // deallocate before reply syscall
-      player_to_game_ptr[game->game_index][0] = -1;
-      player_to_game_ptr[game->game_index][1] = -1;
-      game_index_allocator.free(game->game_index);
+      // print game result
+      uart_printf(CONSOLE,
+                  "RPS server: Game result: player %d %s, player %d %s\r\n",
+                  game->player1_tid, RPS::result_str(p1_result),
+                  game->player2_tid, RPS::result_str(p2_result));
+
+      // reset game state for next game
+      game->game_state = Game::GameState::WaitingForBothPlayers;
 
       // reply to both players
       reply(game->player1_tid, p1_msg);
@@ -152,27 +179,70 @@ void RPSServer::run() {
   case MessageType::RPS_QUIT: {
     auto game_index = find_game_index_for_player(sender_tid);
     if (!game_index.has_value()) {
-      // if in waiting queue, remove from queue.
-      if (waiting.has_value() && waiting.value() == sender_tid) {
-        waiting.reset();
-        reply(sender_tid, {.type = MessageType::RPS_QUIT_ACK});
-      } else {
-        reply_with_error(sender_tid);
-      }
+      reply_with_error(sender_tid);
+      break;
     } else {
       auto game              = &games[game_index.value()];
       bool sender_is_player1 = game->player1_tid == sender_tid;
       auto partner_tid =
           sender_is_player1 ? game->player2_tid : game->player1_tid;
 
-      // deallocate before reply syscall
-      player_to_game_ptr[game->game_index][0] = -1;
-      player_to_game_ptr[game->game_index][1] = -1;
-      game_index_allocator.free(game_index.value());
+      // diff cases:
+      bool quit_user        = false;
+      bool deallocate_game  = false;
+      bool reply_to_partner = false;
+      switch (game->game_state) {
+      case Game::GameState::WaitingForBothPlayers:
+        // we only quit user because we don't know partner response yet.
+        // partner could be play or quit at this point.
+        quit_user = true;
+        break;
+      case Game::GameState::WaitingForPlayer1:
+        if (sender_is_player1) {
+          deallocate_game  = true;
+          reply_to_partner = true;
+        }
+        break;
+        // impossible for sender to be player 2 and to be waiting for player 1
+        // as they should be blocked after playing.
+      case Game::GameState::WaitingForPlayer2:
+        if (!sender_is_player1) {
+          deallocate_game  = true;
+          reply_to_partner = true;
+        }
+        break;
+        // impossible for sender to be player 1 and to be waiting for player 2
+        // as they should be blocked after playing.
+      case Game::GameState::PartnerHasQuit:
+        // no need to reply to partner as they have already quit.
+        deallocate_game = true;
+        break;
+      default:
+        reply_with_error(sender_tid);
+        break;
+      }
 
-      // reply to both players
+      if (quit_user) {
+        // deallocate corresponding player in player_to_game_ptr
+        // this makes current game un-indexable using user that quit.
+        player_to_game_ptr[game->game_index][sender_is_player1 ? 0 : 1] = -1;
+        game->game_state = Game::GameState::PartnerHasQuit;
+      }
+
+      if (deallocate_game) {
+        player_to_game_ptr[game->game_index][0] = -1;
+        player_to_game_ptr[game->game_index][1] = -1;
+        game_index_allocator.free(game->game_index);
+        uart_printf(
+            CONSOLE,
+            "RPS server: Game ended between player %d and player %d\r\n",
+            sender_tid, partner_tid);
+      }
+
+      if (reply_to_partner) {
+        reply(partner_tid, {.type = MessageType::RPS_PLAYER_QUIT});
+      }
       reply(sender_tid, {.type = MessageType::RPS_QUIT_ACK});
-      reply(partner_tid, {.type = MessageType::RPS_PLAYER_QUIT});
     }
     break;
   }
@@ -183,7 +253,7 @@ void RPSServer::run() {
 };
 
 std::optional<int> RPSServer::find_game_index_for_player(int tid) {
-  for (size_t i = 0; i < MAX_GAMES; ++i) {
+  for (size_t i = 0; i < RPS_SERVER_MAX_GAMES; ++i) {
     if (player_to_game_ptr[i][0] == tid) {
       return i;
     }

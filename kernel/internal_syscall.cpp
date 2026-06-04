@@ -21,6 +21,7 @@ int _create(int priority, void (*function)()) {
   }
 
   auto tid_opt = task_allocator.allocate();
+  _assert(tid_opt != std::nullopt, "No free task descriptors");
   if (tid_opt == std::nullopt) {
     return -2; // no free task descriptors
   }

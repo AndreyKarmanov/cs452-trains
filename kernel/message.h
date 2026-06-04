@@ -47,12 +47,40 @@ namespace RPS {
   struct PlayMessage {
     enum class Choice { ROCK, PAPER, SCISSORS } choice;
   };
+
+  inline const char *choice_str(PlayMessage::Choice choice) {
+    switch (choice) {
+    case PlayMessage::Choice::ROCK:
+      return "rock";
+    case PlayMessage::Choice::PAPER:
+      return "paper";
+    case PlayMessage::Choice::SCISSORS:
+      return "scissors";
+    }
+    return "?";
+  }
+
   struct QuitMessage {};
 
   struct PlayReadyMessage {};
   struct PlayResultMessage {
-    enum class Result { WIN, LOSE, TIE } result;
+    enum class Result { WIN, LOSE, TIE, PLAYER_QUIT } result;
   };
+
+  inline const char *result_str(PlayResultMessage::Result result) {
+    switch (result) {
+    case PlayResultMessage::Result::WIN:
+      return "win";
+    case PlayResultMessage::Result::LOSE:
+      return "lose";
+    case PlayResultMessage::Result::TIE:
+      return "tie";
+    case PlayResultMessage::Result::PLAYER_QUIT:
+      return "partner quit";
+    }
+    return "?";
+  }
+
   struct QuitAckMessage {};
 } // namespace RPS
 
@@ -60,7 +88,7 @@ namespace RPS {
 // in future, when this has much more data, we want a smaller approach for hot
 // message types
 struct Message {
-  MessageType type; // The Header: Always tells the receiver what this is
+  MessageType type;
 
   union {
     NS::RegisterMessage ns_register;
@@ -75,5 +103,5 @@ struct Message {
     RPS::PlayResultMessage rps_play_result;
     RPS::QuitAckMessage rps_quit_ack;
 
-  } payload; // The Payload
+  } payload;
 };

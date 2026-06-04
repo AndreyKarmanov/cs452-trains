@@ -5,13 +5,17 @@
 #include "allocator.h"
 #include "message.h"
 
+constexpr static char RPS_SERVER_NAME[]      = "RPS_SERVER";
+constexpr static size_t RPS_SERVER_MAX_GAMES = 32;
+
 class RPSServer {
   struct Game {
     enum class GameState {
       WaitingForBothPlayers,
       WaitingForPlayer1,
       WaitingForPlayer2,
-      Finished
+      Finished,
+      PartnerHasQuit,
     } game_state;
     int player1_tid;
     int player2_tid;
@@ -20,19 +24,21 @@ class RPSServer {
     int game_index;
   };
 
-  static constexpr size_t MAX_GAMES = 32;
-  std::optional<int> waiting        = std::nullopt;
+  std::optional<int> waiting = std::nullopt;
 
-  Game games[MAX_GAMES];
-  Allocator<MAX_GAMES> game_index_allocator;
-  // BasicMap<int, Game *, MAX_GAMES * 2> player_to_game_ptr_map;
-  int player_to_game_ptr[MAX_GAMES][2];
+  Game games[RPS_SERVER_MAX_GAMES];
+  Allocator<RPS_SERVER_MAX_GAMES> game_index_allocator;
+  int player_to_game_ptr[RPS_SERVER_MAX_GAMES][2];
 
   std::optional<int> find_game_index_for_player(int tid);
 
 public:
   RPSServer() {
-    for (size_t i = 0; i < MAX_GAMES; ++i) {
+    // register with name server
+    RegisterAs(RPS_SERVER_NAME);
+
+    // initialize players to game ptrs to -1 (no players)
+    for (size_t i = 0; i < RPS_SERVER_MAX_GAMES; ++i) {
       player_to_game_ptr[i][0] = -1;
       player_to_game_ptr[i][1] = -1;
     }
