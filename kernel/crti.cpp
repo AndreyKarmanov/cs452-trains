@@ -24,7 +24,5 @@ extern "C" void _fini(void) {
 }
 
 extern "C" void bss_zero(void) {
-  char *const last = __bss_end;
-  for (char *p = __bss_start; p != last; ++p)
-    *p = '\0';
+  __builtin_memset(__bss_start, 0, __bss_end - __bss_start);
 }
