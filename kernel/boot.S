@@ -69,41 +69,56 @@ _start:
 vectors:
 	// Exception from the current EL while using SP_EL0
 	// goes  sync / (fiq/vfiq) / (irq/virq) / (serror/vserror)
+	mov x0, #1
 	b default_handler
-	.space 124
+	.space 120
+	mov x0, #2
 	b default_handler
-	.space 124
+	.space 120
+	mov x0, #3
 	b default_handler
-	.space 124
+	.space 120
+	mov x0, #4
 	b default_handler
-	.space 124
+	.space 120
 	// Exception from the current EL while using SP_ELx
+	mov x0, #5
 	b default_handler
-	.space 124
+	.space 120
+	mov x0, #6
 	b default_handler
-	.space 124
+	.space 120
+	mov x0, #7
 	b default_handler
-	.space 124
+	.space 120
+	mov x0, #8
 	b default_handler
-	.space 124
+	.space 120
 	//Lower EL AArch64
 	b _save_user_stack
 	.space 124
+	mov x0, #9
 	b default_handler
-	.space 124
+	.space 120
+	mov x0, #10
 	b default_handler
-	.space 124
+	.space 120
+	mov x0, #11
 	b default_handler
-	.space 124
+	.space 120
 	//Lower EL AArch32
+	mov x0, #12
 	b default_handler
-	.space 124
+	.space 120
+	mov x0, #13
 	b default_handler
-	.space 124
+	.space 120
+	mov x0, #14
 	b default_handler
-	.space 124
+	.space 120
+	mov x0, #15
 	b default_handler
-	.space 124
+	.space 120
 
 _save_user_stack:
 

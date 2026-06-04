@@ -8,8 +8,8 @@
 #include "task_descriptor.h"
 #include "uart.h"
 
-extern "C" void default_handler() {
-  uart_puts(CONSOLE, "DEFAULT VBAR HANDLER HIT\n\r");
+extern "C" void default_handler(int n) {
+  uart_printf(CONSOLE, "DEFAULT VBAR HANDLER %u HIT\n\r", n);
 }
 
 // Allocates a new task, initalizes descriptor and stack
