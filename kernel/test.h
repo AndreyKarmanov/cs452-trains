@@ -6,5 +6,5 @@ void name_server();
 void test_name_server();
 
 void test_timer_task();
-void test_timer_a_task();
-void test_timer_b_task();
+
+void test_rps_task();

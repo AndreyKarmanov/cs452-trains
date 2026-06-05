@@ -29,8 +29,8 @@ extern "C" int kmain() {
   uart_puts(CONSOLE, "\033[2J\033[?25l\033[1;1H" __DATE__ " / " __TIME__
                      " / Andrey Karmanov / Anthony Ho\n\r");
   uart_printf(CONSOLE,
-            "Kernel initialized DATA_CACHE: %u INSTRUCTION_CACHE: %u\n\r",
-            DATA_CACHE, INSTRUCTION_CACHE);
+              "Kernel initialized DATA_CACHE: %u INSTRUCTION_CACHE: %u\n\r",
+              DATA_CACHE, INSTRUCTION_CACHE);
 
   using namespace Kernel;
   _create(1, first_user_task);
@@ -38,7 +38,7 @@ extern "C" int kmain() {
   for (;;) {
     auto tid = scheduler.get_task();
     if (!tid.has_value()) {
-      if (task_allocator.allocated_count() == 0) {
+      if (task_allocator.allocated_count() == 1) { // only name server task left
         uart_puts(CONSOLE, "No tasks left, halting.\n\r");
         break;
       }
