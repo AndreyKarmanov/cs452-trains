@@ -2,6 +2,7 @@
 #include <cstring>
 #include <ctype.h>
 
+#include "map.h"
 #include "shell.h"
 #include "syscall.h"
 #include "test.h"
@@ -29,6 +30,8 @@ void fire_command(const char *buf, size_t blen, UARTNB &uart) {
   } else if (strncmp(buf, "t k1", 4) == 0) {
     int tid = create(2, test_k1);
     uart.printf("Created tid %u", tid);
+  } else if (strncmp(buf, "t map", 5) == 0) {
+    test_map();
   } else {
     uart.puts("Unknown command. Available: q (quit), p (parent tid), "
               "m (my tid), y (yield), c (create)\n\r");
