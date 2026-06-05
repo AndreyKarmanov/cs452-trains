@@ -28,4 +28,3 @@ make OPT="-O0" DATA_CACHE="false" INSTRUCTION_CACHE="true" PERF_TEST="true"
 make OPT="-O0" DATA_CACHE="true" INSTRUCTION_CACHE="false" PERF_TEST="true"
 
 make OPT="-O0" DATA_CACHE="true" INSTRUCTION_CACHE="true" PERF_TEST="true"
-
