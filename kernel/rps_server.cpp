@@ -84,7 +84,7 @@ void RPSServer::run() {
 
     if (game->game_state == Game::GameState::PartnerHasQuit) {
       game_index_allocator.free(game_index.value());
-      player_to_game_ptr[game_index.value()][partner_index] = -1;
+      player_to_game_ptr[game_index.value()][1 - partner_index] = -1;
       uart_printf(CONSOLE,
                   "RPS server: Game ended between player %d and player %d\r\n",
                   sender_tid, partner_tid);
