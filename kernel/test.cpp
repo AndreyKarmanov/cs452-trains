@@ -50,9 +50,6 @@ void test_name_server() {
 void test_timer_a_task() {
   RegisterAs("test_timer_a_task");
   int other = WhoIs("test_timer_b_task");
-  while (other == -1) {
-    other = WhoIs("test_timer_b_task");
-  }
 
   uart_puts(CONSOLE, "A sending\n\r");
 
@@ -123,9 +120,6 @@ void test_timer_a_task() {
 void test_timer_b_task() {
   RegisterAs("test_timer_b_task");
   int other = WhoIs("test_timer_a_task");
-  while (other == -1) {
-    other = WhoIs("test_timer_a_task");
-  }
 
   uart_puts(CONSOLE, "B recieving\n\r");
 

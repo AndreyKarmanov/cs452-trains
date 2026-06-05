@@ -16,6 +16,14 @@ template <size_t SIZE> struct StaticString {
     data[len] = '\0';
   }
 
+  StaticString(const char *str, size_t length) {
+    len = length < SIZE - 1 ? length : SIZE - 1;
+    for (size_t i = 0; i < len; ++i) {
+      data[i] = str[i];
+    }
+    data[len] = '\0';
+  }
+
   constexpr bool operator==(const StaticString &other) const {
     if (len != other.len)
       return false;

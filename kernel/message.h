@@ -1,9 +1,10 @@
 #pragma once
-#include "name_server.h"
+
+#define NS_MAX_NAME_LENGTH 32
 
 enum class MessageType {
   // error is 0, so uninitalized is an error
-  ERROR = 0,
+  ERROR     = 0,
   TASK_EXIT = 1,
 
   // name server
@@ -26,15 +27,15 @@ enum class MessageType {
 
 namespace NS {
   struct RegisterMessage {
-    char name[MAX_NAME_LENGTH];
+    char name[NS_MAX_NAME_LENGTH];
   };
 
   struct WhoIsMessage {
-    char name[MAX_NAME_LENGTH];
+    char name[NS_MAX_NAME_LENGTH];
   };
 
   struct RegisterReplyMessage {
-    int status;
+    enum class Status { SUCCESS = 0, FAILURE = -1, NAME_TOO_LONG = -2 } status;
   };
 
   struct WhoIsReplyMessage {
