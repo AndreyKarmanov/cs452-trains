@@ -16,11 +16,10 @@ public:
   }
 
   constexpr std::optional<int> allocate() {
-    auto item = free_items.peek();
+    auto item = free_items.pop();
     if (!item.has_value()) {
       return std::nullopt;
     }
-    free_items.pop();
     return item.value();
   }
 

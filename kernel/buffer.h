@@ -30,14 +30,15 @@ public:
     return arr[(head + _size - 1) % SIZE];
   }
 
-  constexpr bool pop() {
+  constexpr std::optional<T> pop() {
     if (is_empty())
-      return false;
+      return std::nullopt;
+    auto elem = arr[head];
 
     head = (head + 1) % SIZE;
     --_size;
 
-    return true;
+    return elem;
   }
 
   constexpr std::optional<T> peek() const {

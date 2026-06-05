@@ -123,9 +123,9 @@ void handle(int tid, Syscall request) {
     task_allocator.free(tid);
 
     // wake sender queue to alert of task exist
-    while (!td.sender_queue.is_empty()) {
-      auto to_tid = td.sender_queue.peek().value();
-      td.sender_queue.pop();
+    auto to_tid_opt = td.sender_queue.pop();
+    while (to_tid_opt.has_value()) {
+      auto to_tid = to_tid_opt.value();
       auto &to_td = task_descriptors[to_tid];
       auto to_tf  = (TrapFrame *)to_td.sp_el0;
 
@@ -138,6 +138,7 @@ void handle(int tid, Syscall request) {
       __builtin_memcpy(rcv_reply, &msg, rcv_len);
       to_td.state = TaskStatus::READY;
       scheduler.schedule(to_td);
+      to_tid_opt = td.sender_queue.pop();
     }
 
     break;
@@ -193,9 +194,9 @@ void handle(int tid, Syscall request) {
     break;
   }
   case Syscall::RECEIVE: {
-    if (!td.sender_queue.is_empty()) {
-      int from_tid = td.sender_queue.peek().value();
-      td.sender_queue.pop();
+    auto from_tid_opt = td.sender_queue.pop();
+    if (from_tid_opt.has_value()) {
+      int from_tid = from_tid_opt.value();
 
       auto &to_td  = task_descriptors[from_tid];
       auto from_tf = (TrapFrame *)to_td.sp_el0;
