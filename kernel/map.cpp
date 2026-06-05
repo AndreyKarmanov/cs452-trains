@@ -2,9 +2,14 @@
 #include "debug.h"
 #include "static_string.h"
 
+struct ZeroHasher {
+  constexpr size_t operator()(const StaticString<16> &) const { return 0; }
+};
+
 void test_map() {
   StaticString<16> key1("hello");
   StaticString<16> key2("world");
+  StaticString<16> key3("there");
 
   Map<StaticString<16>, int, 16> map;
 
@@ -28,4 +33,20 @@ void test_map() {
           "Expected key 'world' to still be present with value 84");
 
   _assert(map.size() == 1, "Expected map size to be 1 after removal");
+
+  Map<StaticString<16>, int, 16, ZeroHasher> colliding_map;
+  colliding_map.set(key1, 1);
+  colliding_map.set(key2, 2);
+  colliding_map.set(key3, 3);
+
+  colliding_map.remove(key2);
+
+  _assert(colliding_map.get(key1).has_value() &&
+              colliding_map.get(key1).value() == 1,
+          "Expected first colliding key to remain reachable after deletion");
+  _assert(colliding_map.get(key3).has_value() &&
+              colliding_map.get(key3).value() == 3,
+          "Expected later colliding key to remain reachable after deletion");
+  _assert(!colliding_map.get(key2).has_value(),
+          "Expected removed colliding key to be absent");
 }
