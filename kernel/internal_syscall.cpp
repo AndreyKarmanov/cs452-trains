@@ -3,6 +3,7 @@
 
 #include "internal_syscall.h"
 #include "kernel_state.h"
+#include "message.h"
 #include "scheduler.h"
 #include "syscall.h"
 #include "task_descriptor.h"
@@ -65,7 +66,7 @@ int _create(int priority, void (*function)()) {
                                       .sp_el0     = (uint64_t)tf};
 
   Kernel::scheduler.schedule(td);
-  return td.tid;
+  return tid;
 }
 
 Syscall activate(int tid) {
@@ -120,6 +121,25 @@ void handle(int tid, Syscall request) {
   case Syscall::EXIT: {
     td.state = TaskStatus::TERMINATED;
     task_allocator.free(tid);
+
+    // wake sender queue to alert of task exist
+    while (!td.sender_queue.is_empty()) {
+      auto to_tid = td.sender_queue.peek().value();
+      td.sender_queue.pop();
+      auto &to_td = task_descriptors[to_tid];
+      auto to_tf  = (TrapFrame *)to_td.sp_el0;
+
+      Message msg{};
+      msg.type = MessageType::TASK_EXIT;
+
+      char *rcv_reply = (char *)to_tf->x[3];
+      int rcv_len     = to_tf->x[4];
+
+      __builtin_memcpy(rcv_reply, &msg, rcv_len);
+      to_td.state = TaskStatus::READY;
+      scheduler.schedule(to_td);
+    }
+
     break;
   }
   case Syscall::SEND: {

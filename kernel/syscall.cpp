@@ -1,4 +1,5 @@
 #include "syscall.h"
+#include "debug.h"
 #include "message.h"
 
 int create(int priority, void (*function)()) {
@@ -104,4 +105,15 @@ int reply_with_error(int tid) {
   Message msg{};
   msg.type = MessageType::ERROR;
   return reply(tid, msg);
+}
+
+void await_task(int tid) {
+  Message msg{};
+  while (true) {
+    msg.type = MessageType::TASK_EXIT;
+    send(tid, msg, msg);
+    _assert(msg.type == MessageType::TASK_EXIT, "UNEXPECTED MESSAGE ON AWAIT TASK");
+    if (msg.type == MessageType::TASK_EXIT)
+      return;
+  }
 }

@@ -4,6 +4,7 @@
 enum class MessageType {
   // error is 0, so uninitalized is an error
   ERROR = 0,
+  TASK_EXIT = 1,
 
   // name server
   NAME_SERVER_REGISTER_AS    = 2,

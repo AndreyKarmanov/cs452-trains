@@ -28,3 +28,5 @@ int receive(int *tid, char *msg, int msglen);
 int reply(int tid, Message msg);
 int reply(int tid, const char *reply, int rplen);
 int reply_with_error(int tid);
+
+void await_task(int tid);

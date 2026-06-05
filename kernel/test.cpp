@@ -1,5 +1,6 @@
 #include "test.h"
 #include "debug.h"
+#include "message.h"
 #include "name_server.h"
 #include "rps_client.h"
 #include "rps_server.h"
@@ -348,38 +349,46 @@ void test_rps_task() {
               "\n\r==============================================\n\r");
   uart_printf(CONSOLE, "Running RPS Test 1 (normal cases)\n");
   uart_printf(CONSOLE, "==============================================\n\n");
-  create(2, test_rps_1_client_1);
-  create(2, test_rps_1_client_2);
+  auto tid1 = create(0, test_rps_1_client_1);
+  auto tid2 = create(0, test_rps_1_client_2);
+  await_task(tid1);
+  await_task(tid2);
 
   // test 2
   uart_printf(CONSOLE,
               "\n\r==============================================\n\r");
   uart_printf(CONSOLE, "Running RPS Test 2 (1 player quits)\n");
   uart_printf(CONSOLE, "==============================================\n\n");
-  create(2, test_rps_2_client_1);
-  create(2, test_rps_2_client_2);
+  auto tid3 = create(0, test_rps_2_client_1);
+  auto tid4 = create(0, test_rps_2_client_2);
+  await_task(tid3);
+  await_task(tid4);
 
   // test 3
   uart_printf(CONSOLE,
               "\n\r==============================================\n\r");
   uart_printf(CONSOLE, "Running RPS Test 3 (both players quit)\n");
   uart_printf(CONSOLE, "==============================================\n\n");
-  create(2, test_rps_3_client_1);
-  create(2, test_rps_3_client_2);
+  auto tid5 = create(0, test_rps_3_client_1);
+  auto tid6 = create(0, test_rps_3_client_2);
+  await_task(tid5);
+  await_task(tid6);
 
   // test 4
   uart_printf(CONSOLE,
               "\n\r==============================================\n\r");
   uart_printf(CONSOLE, "Running RPS Test 4 (lots of games)\n");
   uart_printf(CONSOLE, "==============================================\n\n");
-  create(1, test_rps_4);
+  auto tid7 = create(0, test_rps_4);
+  await_task(tid7);
 
   // test 5
   uart_printf(CONSOLE,
               "\n\r==============================================\n\r");
   uart_printf(CONSOLE, "Running RPS Test 5 (concurrent games)\n");
   uart_printf(CONSOLE, "==============================================\n\n");
-  create(2, test_rps_5);
+  auto tid8 = create(0, test_rps_5);
+  await_task(tid8);
 
   uart_printf(CONSOLE, "\n\n All tests completed! \n\r");
   exit();

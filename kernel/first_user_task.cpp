@@ -1,3 +1,4 @@
+
 #include "first_user_task.h"
 #include "name_server.h"
 #include "shell.h"
@@ -5,6 +6,7 @@
 #include "uart.h"
 
 #if (defined(PERF_TEST) && PERF_TEST) || (defined(RPS_TEST) && RPS_TEST)
+#include "message.h"
 #include "rps_server.h"
 #include "test.h"
 #endif
@@ -16,7 +18,7 @@ void first_user_task() {
 #if defined(RPS_TEST) && RPS_TEST
   create(2, rps_server_task);
   uart_printf(CONSOLE, "Created RPS server\n");
-  create(0, test_rps_task);
+  await_task(create(0, test_rps_task));
 #endif
 
 #if defined(PERF_TEST) && PERF_TEST
@@ -25,7 +27,7 @@ void first_user_task() {
 #endif
 
   // Shell
-  create(0, shell_task);
+  await_task(create(0, shell_task));
 
   exit();
 }
