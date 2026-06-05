@@ -1,4 +1,4 @@
-optimization,cache,first,size,time
+optimization,cache,first,size,time(us)
 opt,nocache,S,4,28.2
 opt,nocache,S,64,28.4
 opt,nocache,S,256,30.2
