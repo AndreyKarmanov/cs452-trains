@@ -5,13 +5,6 @@
 #include "syscall.h"
 #include "uart.h"
 
-static const char *play_reply_str(const Message &reply) {
-  if (reply.type != MessageType::RPS_PLAY_RESULT) {
-    return "failed";
-  }
-  return RPS::result_str(reply.payload.rps_play_result.result);
-}
-
 RPSClient::RPSClient() {
   rps_server_tid = WhoIs(RPS_SERVER_NAME);
   _assert(rps_server_tid >= 0, "RPS server not found");

@@ -11,7 +11,7 @@ void test_rps_1_client_1() {
   RPSClient client;
 
   // test case 1: tie
-  auto ready  = client.signup();
+  client.signup();
   auto result = client.play(RPS::PlayMessage::Choice::ROCK);
   _assert(result->payload.rps_play_result.result ==
               RPS::PlayResultMessage::Result::TIE,
@@ -31,7 +31,7 @@ void test_rps_1_client_2() {
   RPSClient client;
 
   // test case 1: tie
-  auto ready  = client.signup();
+  client.signup();
   auto result = client.play(RPS::PlayMessage::Choice::ROCK);
   _assert(result->payload.rps_play_result.result ==
               RPS::PlayResultMessage::Result::TIE,
@@ -50,14 +50,14 @@ void test_rps_2_client_1() {
   RPSClient client;
 
   // test case 2: user quits
-  auto ready  = client.signup();
+  client.signup();
   auto result = client.quit();
   _assert(result->type == MessageType::RPS_QUIT_ACK,
           "Expected a response from quit");
 
   // test 2.2: former partner can sign up with new partner
-  auto ready2 = client.signup();
-  result      = client.play(RPS::PlayMessage::Choice::ROCK);
+  client.signup();
+  result = client.play(RPS::PlayMessage::Choice::ROCK);
   _assert(result->payload.rps_play_result.result ==
               RPS::PlayResultMessage::Result::TIE,
           "expected tie");
@@ -69,7 +69,7 @@ void test_rps_2_client_2() {
   RPSClient client;
 
   // test case 2: partner quits
-  auto ready  = client.signup();
+  client.signup();
   auto result = client.play(RPS::PlayMessage::Choice::ROCK);
   _assert(result->payload.rps_play_result.result ==
               RPS::PlayResultMessage::Result::PLAYER_QUIT,
@@ -81,8 +81,8 @@ void test_rps_2_client_2() {
 
   // test case 2.2: should be able to signup with new partner if partner has
   // quit
-  auto ready3 = client.signup();
-  result      = client.play(RPS::PlayMessage::Choice::ROCK);
+  client.signup();
+  result = client.play(RPS::PlayMessage::Choice::ROCK);
   _assert(result->payload.rps_play_result.result ==
               RPS::PlayResultMessage::Result::TIE,
           "expected tie");
@@ -94,7 +94,7 @@ void test_rps_3_client_1() {
   RPSClient client;
 
   // test case 3: both users quit
-  auto ready  = client.signup();
+  client.signup();
   auto result = client.quit();
   _assert(result->type == MessageType::RPS_QUIT_ACK,
           "Expected a response from quit");
@@ -105,7 +105,7 @@ void test_rps_3_client_2() {
   RPSClient client;
 
   // test case 3: both users quit
-  auto ready  = client.signup();
+  client.signup();
   auto result = client.quit();
   _assert(result->type == MessageType::RPS_QUIT_ACK,
           "Expected a response from quit");
@@ -118,31 +118,31 @@ void test_rps_3_client_2() {
 
 void basic_scissors() {
   RPSClient client;
-  auto ready  = client.signup();
-  auto result = client.play(RPS::PlayMessage::Choice::SCISSORS);
+  client.signup();
+  client.play(RPS::PlayMessage::Choice::SCISSORS);
   client.quit();
   exit();
 }
 
 void basic_paper() {
   RPSClient client;
-  auto ready  = client.signup();
-  auto result = client.play(RPS::PlayMessage::Choice::PAPER);
+  client.signup();
+  client.play(RPS::PlayMessage::Choice::PAPER);
   client.quit();
   exit();
 }
 
 void basic_rock() {
   RPSClient client;
-  auto ready  = client.signup();
-  auto result = client.play(RPS::PlayMessage::Choice::ROCK);
+  client.signup();
+  client.play(RPS::PlayMessage::Choice::ROCK);
   client.quit();
   exit();
 }
 
 void test_rps_4() {
   // test if game allocator cycles games
-  for (int i = 0; i < RPS_SERVER_MAX_GAMES + 5; i++) {
+  for (size_t i = 0; i < RPS_SERVER_MAX_GAMES + 5; i++) {
     create(2, basic_scissors);
     create(2, basic_paper);
     yield();

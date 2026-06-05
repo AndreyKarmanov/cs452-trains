@@ -12,7 +12,7 @@ void RPSServer::run() {
   Message msg{};
   int len = receive(&sender_tid, (char *)&msg, sizeof(msg));
 
-  if (len < (int)sizeof(Message)) {
+  if (len < static_cast<int>(sizeof(msg))) {
     reply_with_error(sender_tid);
     return;
   }
@@ -84,7 +84,7 @@ void RPSServer::run() {
 
     if (game->game_state == Game::GameState::PartnerHasQuit) {
       game_index_allocator.free(game_index.value());
-      player_to_game_ptr[game_index.value()][is_player1 ? 0 : 1] = -1;
+      player_to_game_ptr[game_index.value()][partner_index] = -1;
       uart_printf(CONSOLE,
                   "RPS server: Game ended between player %d and player %d\r\n",
                   sender_tid, partner_tid);
@@ -239,10 +239,13 @@ void RPSServer::run() {
             sender_tid, partner_tid);
       }
 
+      Message reply_msg{};
       if (reply_to_partner) {
-        reply(partner_tid, {.type = MessageType::RPS_PLAYER_QUIT});
+        reply_msg.type = MessageType::RPS_PLAYER_QUIT;
+        reply(partner_tid, reply_msg);
       }
-      reply(sender_tid, {.type = MessageType::RPS_QUIT_ACK});
+      reply_msg.type = MessageType::RPS_QUIT_ACK;
+      reply(sender_tid, reply_msg);
     }
     break;
   }

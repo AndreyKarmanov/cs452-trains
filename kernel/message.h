@@ -37,7 +37,7 @@ namespace NS {
   };
 
   struct WhoIsReplyMessage {
-    int status;
+    int tid;
   };
 
 } // namespace NS

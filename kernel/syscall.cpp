@@ -41,7 +41,6 @@ int my_tid() {
 int my_parent_tid() {
   register int r0 asm("x0");
   asm volatile("svc %1" : "=r"(r0) : "i"(Syscall::MY_PARENT_TID) : "memory");
-  // asm volatile("ret");
   return r0;
 }
 

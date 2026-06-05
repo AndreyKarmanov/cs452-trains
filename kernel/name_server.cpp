@@ -21,7 +21,7 @@ void NameServer::run() {
   Message msg{};
   int len = receive(&sender_tid, msg);
 
-  if (len < (int)sizeof(Message)) {
+  if (len < static_cast<int>(sizeof(msg))) {
     reply_with_error(sender_tid);
     return;
   }
@@ -39,7 +39,7 @@ void NameServer::run() {
     auto tid = WhoIs(msg.payload.ns_who_is.name).value_or(-1);
     Message reply_msg{};
     reply_msg.type = MessageType::NAME_SERVER_WHO_IS_REPLY;
-    reply_msg.payload.ns_who_is_reply.status = tid;
+    reply_msg.payload.ns_who_is_reply.tid = tid;
     reply(sender_tid, reply_msg);
     break;
   }
@@ -82,5 +82,5 @@ int WhoIs(const char *name) {
       reply_msg.type != MessageType::NAME_SERVER_WHO_IS_REPLY) {
     return -1;
   }
-  return reply_msg.payload.ns_who_is_reply.status;
+  return reply_msg.payload.ns_who_is_reply.tid;
 }
