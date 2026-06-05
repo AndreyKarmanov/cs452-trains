@@ -22,7 +22,7 @@ void first_user_task() {
 #endif
 
 #if defined(PERF_TEST) && PERF_TEST
-  create(2, test_timer_task);
+  create(3, test_timer_task);
   uart_printf(CONSOLE, "Created timer task\n");
 #endif
 

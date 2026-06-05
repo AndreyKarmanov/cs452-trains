@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-QEMU="../../qemu/build/qemu-system-aarch64"
+QEMU="qemu-system-aarch64"
 QEMU_ARGS=(
   -M raspi4b
   -cpu cortex-a53
@@ -30,7 +30,7 @@ for opt in -O3 -O0; do
         echo "### opt=${opt} data_cache=${data_cache} instruction_cache=${instruction_cache}"
         echo "### $(date -Is)"
         make clean
-        make OPT="${opt}" DATA_CACHE="${data_cache}" INSTRUCTION_CACHE="${instruction_cache}"
+        make OPT="${opt}" DATA_CACHE="${data_cache}" INSTRUCTION_CACHE="${instruction_cache}" PERF_TEST="true"
         "${QEMU}" "${QEMU_ARGS[@]}"
       } &> "${log_file}"
     done

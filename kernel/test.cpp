@@ -174,13 +174,10 @@ void test_timer_b_task() {
 
 void test_timer_task() {
   uart_printf(CONSOLE, "test timer task start\n\r");
-  auto tid_a = create(3, test_timer_a_task);
+  auto tid_a = create(1, test_timer_a_task);
   uart_printf(CONSOLE, "tid a: %d ", tid_a);
-  auto tid_b = create(3, test_timer_b_task);
+  auto tid_b = create(1, test_timer_b_task);
   uart_printf(CONSOLE, "tid b: %d\n\r", tid_b);
-
-  await_task(tid_a);
-  await_task(tid_b);
 }
 
 void test_rps_1_client_1() {
