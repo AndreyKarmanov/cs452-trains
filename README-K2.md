@@ -6,7 +6,9 @@
 - `../upload.sh iotest.img <pi mac address>`
 
 # running RPS tests
+
 make RPS_TEST="true"
+
 # running the performance tests
 
 copy paste for testing different configurations
