@@ -32,22 +32,23 @@ extern "C" void task_entry_wrapper(void (*function)()) {
 }
 
 // Allocates a new task, initalizes descriptor and stack
-int _create(int priority, void (*function)()) {
+int _create(int priority, void (*function)(), int parent_tid) {
   using namespace Kernel;
 
   if (0 > priority || priority >= PRIORITY_LEVELS) {
     return -1; // invalid priority
   }
 
-  auto tid_opt = task_allocator.allocate();
-  _assert(tid_opt != std::nullopt, "No free task descriptors");
-  if (tid_opt == std::nullopt) {
+  auto descriptor_index_opt = task_allocator.allocate();
+  _assert(descriptor_index_opt != std::nullopt, "No free task descriptors");
+  if (descriptor_index_opt == std::nullopt) {
     return -2; // no free task descriptors
   }
-  auto tid = tid_opt.value();
+  auto td_idx = descriptor_index_opt.value();
+  auto tid    = static_cast<int>(next_tid++);
 
   // define task stack (grows downwards)
-  uint64_t task_stack_base = (uint64_t)&task_stacks[tid][TASK_STACK_SIZE];
+  uint64_t task_stack_base = (uint64_t)&task_stacks[td_idx][TASK_STACK_SIZE];
   uint64_t task_stack_end  = task_stack_base - TASK_STACK_SIZE;
 
   // clear stack memory (not required but helpful)
@@ -59,18 +60,21 @@ int _create(int priority, void (*function)()) {
   tf->x[0]      = (uint64_t)function;
   tf->spsr_el1  = 0;
 
-  auto &td = task_descriptors[tid] = {.tid        = tid,
-                                      .parent_tid = -1,
-                                      .priority   = priority,
-                                      .state      = TaskStatus::READY,
-                                      .sp_el0     = (uint64_t)tf};
+  auto &td = task_descriptors[td_idx] = {.td_idx     = td_idx,
+                                         .tid        = tid,
+                                         .parent_tid = parent_tid,
+                                         .priority   = priority,
+                                         .state      = TaskStatus::READY,
+                                         .sp_el0     = (uint64_t)tf};
+
+  _assert(tid_to_descriptor.set(tid, td_idx), "failed to register tid");
 
   Kernel::scheduler.schedule(td);
   return tid;
 }
 
 Syscall activate(int tid) {
-  TaskDescriptor &td = Kernel::task_descriptors[tid];
+  TaskDescriptor &td = Kernel::require_td(tid);
   td.state           = TaskStatus::RUNNING;
 
   // switch to user mode
@@ -91,15 +95,13 @@ void handle(int tid, Syscall request) {
   // (e.g. for syscalls) ESR_EL1 will have exception code, holds n form svc N
 
   using namespace Kernel;
-  TaskDescriptor &td = task_descriptors[tid];
+  TaskDescriptor &td = require_td(tid);
   TrapFrame *tf      = (TrapFrame *)td.sp_el0;
 
   switch (request) {
   case Syscall::CREATE: {
-    int new_tid            = _create(tf->x[0], (void (*)())tf->x[1]);
-    tf->x[0]               = new_tid;
-    TaskDescriptor &new_td = task_descriptors[new_tid];
-    new_td.parent_tid      = tid;
+    int new_tid = _create(tf->x[0], (void (*)())tf->x[1], tid);
+    tf->x[0]    = new_tid;
     scheduler.schedule(td);
     break;
   }
@@ -120,14 +122,20 @@ void handle(int tid, Syscall request) {
   }
   case Syscall::EXIT: {
     td.state = TaskStatus::TERMINATED;
-    task_allocator.free(tid);
+    tid_to_descriptor.remove(tid);
+    task_allocator.free(td.td_idx);
 
     // wake sender queue to alert of task exist
     auto to_tid_opt = td.sender_queue.pop();
     while (to_tid_opt.has_value()) {
       auto to_tid = to_tid_opt.value();
-      auto &to_td = task_descriptors[to_tid];
-      auto to_tf  = (TrapFrame *)to_td.sp_el0;
+      auto *to_td = lookup_td(to_tid);
+      if (to_td == nullptr) {
+        to_tid_opt = td.sender_queue.pop();
+        continue;
+      }
+
+      auto to_tf = (TrapFrame *)to_td->sp_el0;
 
       Message msg{};
       msg.type = MessageType::TASK_EXIT;
@@ -136,8 +144,8 @@ void handle(int tid, Syscall request) {
       int rcv_len     = to_tf->x[4];
 
       __builtin_memcpy(rcv_reply, &msg, rcv_len);
-      to_td.state = TaskStatus::READY;
-      scheduler.schedule(to_td);
+      to_td->state = TaskStatus::READY;
+      scheduler.schedule(*to_td);
       to_tid_opt = td.sender_queue.pop();
     }
 
@@ -146,16 +154,9 @@ void handle(int tid, Syscall request) {
   case Syscall::SEND: {
     int to_tid = tf->x[0];
 
-    if (to_tid < 0 || to_tid >= MAX_TASKS) {
+    auto *to_td = lookup_td(to_tid);
+    if (to_td == nullptr) {
       tf->x[0] = -1; // invalid tid
-      scheduler.schedule(td);
-      break;
-    }
-
-    auto &to_td = task_descriptors[to_tid];
-
-    if (to_td.state == TaskStatus::TERMINATED) {
-      tf->x[0] = -1; // task doesn't exist
       scheduler.schedule(td);
       break;
     }
@@ -166,8 +167,8 @@ void handle(int tid, Syscall request) {
       break;
     }
 
-    if (to_td.state == TaskStatus::W4_SEND) {
-      auto to_tf = (TrapFrame *)to_td.sp_el0;
+    if (to_td->state == TaskStatus::W4_SEND) {
+      auto to_tf = (TrapFrame *)to_td->sp_el0;
 
       // set the sender tid (x0 is a pointer to a int)
       *(int *)to_tf->x[0] = tid;
@@ -183,12 +184,12 @@ void handle(int tid, Syscall request) {
       __builtin_memcpy(rcv_buf, msg, len);
 
       // skip the W4_RECEIVE state, someone was already waiting
-      td.state    = TaskStatus::W4_REPLY;
-      to_td.state = TaskStatus::READY;
-      scheduler.schedule(to_td);
+      td.state     = TaskStatus::W4_REPLY;
+      to_td->state = TaskStatus::READY;
+      scheduler.schedule(*to_td);
     } else {
       td.state = TaskStatus::W4_RECEIVE;
-      to_td.sender_queue.push(tid);
+      to_td->sender_queue.push(tid);
     }
 
     break;
@@ -198,8 +199,9 @@ void handle(int tid, Syscall request) {
     if (from_tid_opt.has_value()) {
       int from_tid = from_tid_opt.value();
 
-      auto &to_td  = task_descriptors[from_tid];
-      auto from_tf = (TrapFrame *)to_td.sp_el0;
+      auto *to_td = lookup_td(from_tid);
+      _assert(to_td != nullptr, "sender tid missing from map");
+      auto from_tf = (TrapFrame *)to_td->sp_el0;
 
       // set who msg is from (follow int ptr)
       *(int *)tf->x[0] = from_tid;
@@ -216,8 +218,8 @@ void handle(int tid, Syscall request) {
 
       // update sender task to waiting for reply
       // however no impact on scheduling
-      to_td.state = TaskStatus::W4_REPLY;
-      td.state    = TaskStatus::READY;
+      to_td->state = TaskStatus::W4_REPLY;
+      td.state     = TaskStatus::READY;
       scheduler.schedule(td);
     } else {
       td.state = TaskStatus::W4_SEND;
@@ -227,20 +229,20 @@ void handle(int tid, Syscall request) {
   case Syscall::REPLY: {
     int to_tid = tf->x[0];
 
-    if (to_tid < 0 || to_tid >= MAX_TASKS) {
+    auto *to_td = lookup_td(to_tid);
+    if (to_td == nullptr) {
       tf->x[0] = -1; // invalid tid
       scheduler.schedule(td);
       break;
     }
 
-    auto &to_td = task_descriptors[to_tid];
-    if (to_td.state != TaskStatus::W4_REPLY) {
+    if (to_td->state != TaskStatus::W4_REPLY) {
       tf->x[0] = -2; // task not waiting for reply
       scheduler.schedule(td);
       break;
     }
 
-    auto to_tf        = (TrapFrame *)to_td.sp_el0;
+    auto to_tf        = (TrapFrame *)to_td->sp_el0;
     const char *reply = (const char *)tf->x[1];
     int reply_len     = tf->x[2];
 
@@ -249,11 +251,11 @@ void handle(int tid, Syscall request) {
     int len = to_tf->x[0] = tf->x[0] = std::min(reply_len, rcv_len);
     __builtin_memcpy(rcv_reply, reply, len);
 
-    _assert(to_td.state == TaskStatus::W4_REPLY,
+    _assert(to_td->state == TaskStatus::W4_REPLY,
             "TASK NOT WAITING FOR REPLY\r\n");
 
-    to_td.state = TaskStatus::READY;
-    scheduler.schedule(to_td);
+    to_td->state = TaskStatus::READY;
+    scheduler.schedule(*to_td);
     scheduler.schedule(td);
     break;
   }

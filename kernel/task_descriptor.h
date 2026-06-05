@@ -16,6 +16,7 @@ enum class TaskStatus {
 // TODO: perhaps make buffer a linkedlist?, update the sender queue to be
 // templated? idk.
 struct alignas(16) TaskDescriptor {
+  int td_idx;
   int tid;
   int parent_tid;
   int priority;

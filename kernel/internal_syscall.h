@@ -6,7 +6,7 @@
 extern "C" Kernel::TrapFrame *_switch_to_user(uint64_t sp); // in boot.S
 extern "C" void default_handler(int n);
 
-int _create(int priority, void (*function)());
+int _create(int priority, void (*function)(), int parent_tid = -1);
 Syscall activate(int tid);
 
 void handle(int tid, Syscall request);
