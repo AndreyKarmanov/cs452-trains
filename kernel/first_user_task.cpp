@@ -28,6 +28,4 @@ void first_user_task() {
 
   // Shell
   await_task(create(0, shell_task));
-
-  exit();
 }

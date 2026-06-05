@@ -62,5 +62,4 @@ void shell_task() {
     }
     uart.send_io();
   }
-  exit();
 }

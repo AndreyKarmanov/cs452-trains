@@ -23,7 +23,6 @@ void test_k1() {
 
   // end
   uart_puts(CONSOLE, "FirstUserTask: Exiting\n\r");
-  exit();
 }
 
 void test_k1_child() {
@@ -32,7 +31,6 @@ void test_k1_child() {
   yield();
   uart_printf(CONSOLE, "Child tid: %d, Parent tid: %d\n\r", my_tid(),
               my_parent_tid());
-  exit();
 }
 
 void test_name_server() {
@@ -47,7 +45,6 @@ void test_name_server() {
   uart_printf(CONSOLE, "WhoIs Test2: %d (expect %d)\n\r", tid, me);
   tid = WhoIs("Missing");
   uart_printf(CONSOLE, "WhoIs Missing: %d (expect -1)\n\r", tid);
-  exit();
 }
 
 void test_timer_a_task() {
@@ -121,8 +118,6 @@ void test_timer_a_task() {
   }
   delta = (time_get() - start) / (N_ITERATIONS / 10);
   uart_printf(CONSOLE, "%u.%uus \n\r", delta / 10, delta % 10);
-
-  exit();
 }
 
 void test_timer_b_task() {
@@ -175,8 +170,6 @@ void test_timer_b_task() {
     send(other, msg_buf_256, sizeof(msg_buf_256), reply_buf_256,
          sizeof(reply_buf_256));
   }
-
-  exit();
 }
 
 void test_timer_task() {
@@ -185,7 +178,6 @@ void test_timer_task() {
   uart_printf(CONSOLE, "tid a: %d ", tid_a);
   auto tid_b = create(3, test_timer_b_task);
   uart_printf(CONSOLE, "tid b: %d\n\r", tid_b);
-  exit();
 }
 
 void test_rps_1_client_1() {
@@ -205,7 +197,6 @@ void test_rps_1_client_1() {
           "expected win");
 
   client.quit();
-  exit();
 }
 
 void test_rps_1_client_2() {
@@ -224,7 +215,6 @@ void test_rps_1_client_2() {
               RPS::PlayResultMessage::Result::LOSE,
           "expected lose");
   client.quit();
-  exit();
 }
 
 void test_rps_2_client_1() {
@@ -243,7 +233,6 @@ void test_rps_2_client_1() {
               RPS::PlayResultMessage::Result::TIE,
           "expected tie");
   client.quit();
-  exit();
 }
 
 void test_rps_2_client_2() {
@@ -268,7 +257,6 @@ void test_rps_2_client_2() {
               RPS::PlayResultMessage::Result::TIE,
           "expected tie");
   client.quit();
-  exit();
 }
 
 void test_rps_3_client_1() {
@@ -279,7 +267,6 @@ void test_rps_3_client_1() {
   auto result = client.quit();
   _assert(result->type == MessageType::RPS_QUIT_ACK,
           "Expected a response from quit");
-  exit();
 }
 
 void test_rps_3_client_2() {
@@ -294,7 +281,6 @@ void test_rps_3_client_2() {
   // test case 3.1: cannot play if has quit
   auto result2 = client.play(RPS::PlayMessage::Choice::ROCK);
   _assert(result2->type == MessageType::ERROR, "expected error");
-  exit();
 }
 
 void basic_scissors() {
@@ -302,7 +288,6 @@ void basic_scissors() {
   client.signup();
   client.play(RPS::PlayMessage::Choice::SCISSORS);
   client.quit();
-  exit();
 }
 
 void basic_paper() {
@@ -310,7 +295,6 @@ void basic_paper() {
   client.signup();
   client.play(RPS::PlayMessage::Choice::PAPER);
   client.quit();
-  exit();
 }
 
 void basic_rock() {
@@ -318,7 +302,6 @@ void basic_rock() {
   client.signup();
   client.play(RPS::PlayMessage::Choice::ROCK);
   client.quit();
-  exit();
 }
 
 void test_rps_4() {
@@ -328,7 +311,6 @@ void test_rps_4() {
     create(2, basic_paper);
     yield();
   }
-  exit();
 }
 
 void test_rps_5() {
@@ -340,7 +322,6 @@ void test_rps_5() {
   create(1, basic_scissors);
   create(1, basic_paper);
   create(1, basic_paper);
-  exit();
 }
 
 void test_rps_task() {
@@ -391,5 +372,4 @@ void test_rps_task() {
   await_task(tid8);
 
   uart_printf(CONSOLE, "\n\n All tests completed! \n\r");
-  exit();
 }
