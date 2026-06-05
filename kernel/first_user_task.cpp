@@ -5,6 +5,7 @@
 #include "uart.h"
 
 #if (defined(PERF_TEST) && PERF_TEST) || (defined(RPS_TEST) && RPS_TEST)
+#include "rps_server.h"
 #include "test.h"
 #endif
 
@@ -24,7 +25,7 @@ void first_user_task() {
 #endif
 
   // Shell
-  create(3, shell_task);
+  create(0, shell_task);
 
   exit();
 }
