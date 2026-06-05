@@ -15,6 +15,11 @@
 #ifndef INSTRUCTION_CACHE
 #define INSTRUCTION_CACHE 1
 #endif
+
+#ifndef __OPTIMIZE__
+#define __OPTIMIZE__ 0
+#endif
+
 extern "C" void setup_mmu(); // in mmu.S
 
 extern "C" int kmain() {
@@ -29,8 +34,9 @@ extern "C" int kmain() {
   uart_puts(CONSOLE, "\033[2J\033[?25l\033[1;1H" __DATE__ " / " __TIME__
                      " / Andrey Karmanov / Anthony Ho\n\r");
   uart_printf(CONSOLE,
-              "Kernel initialized DATA_CACHE: %u INSTRUCTION_CACHE: %u\n\r",
-              DATA_CACHE, INSTRUCTION_CACHE);
+              "Kernel initialized DATA_CACHE: %u INSTRUCTION_CACHE: %u "
+              "OPTIMIZATION: %u\n\r",
+              DATA_CACHE, INSTRUCTION_CACHE, __OPTIMIZE__);
 
   using namespace Kernel;
   _create(1, first_user_task);
