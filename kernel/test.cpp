@@ -329,35 +329,35 @@ void test_rps_5() {
 }
 
 void test_rps_task() {
-  // // test 1: test normal cases
-  // uart_printf(CONSOLE,
-  //             "\n\r==============================================\n\r");
-  // uart_printf(CONSOLE, "Running RPS Test 1 (normal cases)\n");
-  // uart_printf(CONSOLE, "==============================================\n\n");
-  // auto tid1 = create(0, test_rps_1_client_1);
-  // auto tid2 = create(0, test_rps_1_client_2);
-  // await_task(tid1);
-  // await_task(tid2);
+  // test 1: test normal cases
+  uart_printf(CONSOLE,
+              "\n\r==============================================\n\r");
+  uart_printf(CONSOLE, "Running RPS Test 1 (normal cases)\n");
+  uart_printf(CONSOLE, "==============================================\n\n");
+  auto tid1 = create(0, test_rps_1_client_1);
+  auto tid2 = create(0, test_rps_1_client_2);
+  await_task(tid1);
+  await_task(tid2);
 
-  // // test 2
-  // uart_printf(CONSOLE,
-  //             "\n\r==============================================\n\r");
-  // uart_printf(CONSOLE, "Running RPS Test 2 (1 player quits)\n");
-  // uart_printf(CONSOLE, "==============================================\n\n");
-  // auto tid3 = create(0, test_rps_2_client_1);
-  // auto tid4 = create(0, test_rps_2_client_2);
-  // await_task(tid3);
-  // await_task(tid4);
+  // test 2
+  uart_printf(CONSOLE,
+              "\n\r==============================================\n\r");
+  uart_printf(CONSOLE, "Running RPS Test 2 (1 player quits)\n");
+  uart_printf(CONSOLE, "==============================================\n\n");
+  auto tid3 = create(0, test_rps_2_client_1);
+  auto tid4 = create(0, test_rps_2_client_2);
+  await_task(tid3);
+  await_task(tid4);
 
-  // // test 3
-  // uart_printf(CONSOLE,
-  //             "\n\r==============================================\n\r");
-  // uart_printf(CONSOLE, "Running RPS Test 3 (both players quit)\n");
-  // uart_printf(CONSOLE, "==============================================\n\n");
-  // auto tid5 = create(0, test_rps_3_client_1);
-  // auto tid6 = create(0, test_rps_3_client_2);
-  // await_task(tid5);
-  // await_task(tid6);
+  // test 3
+  uart_printf(CONSOLE,
+              "\n\r==============================================\n\r");
+  uart_printf(CONSOLE, "Running RPS Test 3 (both players quit)\n");
+  uart_printf(CONSOLE, "==============================================\n\n");
+  auto tid5 = create(0, test_rps_3_client_1);
+  auto tid6 = create(0, test_rps_3_client_2);
+  await_task(tid5);
+  await_task(tid6);
 
   // test 4
   uart_printf(CONSOLE,
