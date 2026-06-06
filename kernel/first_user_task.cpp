@@ -18,7 +18,7 @@ void first_user_task() {
 #if defined(RPS_TEST) && RPS_TEST
   create(2, rps_server_task);
   uart_printf(CONSOLE, "Created RPS server\n");
-  await_task(create(0, test_rps_task));
+  await_task(create(1, test_rps_task));
 #endif
 
 #if defined(PERF_TEST) && PERF_TEST

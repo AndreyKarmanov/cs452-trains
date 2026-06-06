@@ -14,3 +14,5 @@ cacert.pem
 .clangd
 **/.cache/*
 
+# notebook
+*.ipynb

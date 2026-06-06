@@ -301,8 +301,8 @@ void basic_rock() {
 void test_rps_4() {
   // test if game allocator cycles games
   for (size_t i = 0; i < RPS_SERVER_MAX_GAMES + 5; i++) {
-    auto tid1 = create(2, basic_scissors);
-    auto tid2 = create(2, basic_paper);
+    auto tid1 = create(0, basic_scissors);
+    auto tid2 = create(0, basic_paper);
     await_task(tid1);
     await_task(tid2);
   }
