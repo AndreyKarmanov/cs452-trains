@@ -16,9 +16,15 @@ std::optional<Message> RPSClient::signup() {
   msg.type = MessageType::RPS_SIGNUP;
   Message reply_msg{};
   int len = send(rps_server_tid, msg, reply_msg);
-  if (len < static_cast<int>(sizeof(reply_msg)) ||
-      reply_msg.type != MessageType::RPS_PLAY_READY) {
+  if (len < static_cast<int>(sizeof(reply_msg))) {
     uart_printf(CONSOLE, "RPS client %d: signup -> failed\r\n", my_tid());
+    return std::nullopt;
+  }
+  if (reply_msg.type != MessageType::RPS_PLAY_READY) {
+    uart_printf(CONSOLE, "RPS client %d: signup -> error\r\n", my_tid());
+    if (reply_msg.type == MessageType::ERROR) {
+      return reply_msg;
+    }
     return std::nullopt;
   }
   return reply_msg;
@@ -32,10 +38,17 @@ std::optional<Message> RPSClient::play(RPS::PlayMessage::Choice choice) {
   msg.payload.rps_play.choice = choice;
   Message reply_msg{};
   int len = send(rps_server_tid, msg, reply_msg);
-  if (len < static_cast<int>(sizeof(reply_msg)) ||
-      reply_msg.type != MessageType::RPS_PLAY_RESULT) {
+  if (len < static_cast<int>(sizeof(reply_msg))) {
     uart_printf(CONSOLE, "RPS client %d: play %s -> failed\r\n", my_tid(),
                 RPS::choice_str(choice));
+    return std::nullopt;
+  }
+  if (reply_msg.type != MessageType::RPS_PLAY_RESULT) {
+    uart_printf(CONSOLE, "RPS client %d: play %s -> error\r\n", my_tid(),
+                RPS::choice_str(choice));
+    if (reply_msg.type == MessageType::ERROR) {
+      return reply_msg;
+    }
     return std::nullopt;
   }
   return reply_msg;
@@ -47,9 +60,15 @@ std::optional<Message> RPSClient::quit() {
   msg.type = MessageType::RPS_QUIT;
   Message reply_msg{};
   int len = send(rps_server_tid, msg, reply_msg);
-  if (len < static_cast<int>(sizeof(reply_msg)) ||
-      reply_msg.type != MessageType::RPS_QUIT_ACK) {
+  if (len < static_cast<int>(sizeof(reply_msg))) {
     uart_printf(CONSOLE, "RPS client %d: quit -> failed\r\n", my_tid());
+    return std::nullopt;
+  }
+  if (reply_msg.type != MessageType::RPS_QUIT_ACK) {
+    uart_printf(CONSOLE, "RPS client %d: quit -> error\r\n", my_tid());
+    if (reply_msg.type == MessageType::ERROR) {
+      return reply_msg;
+    }
     return std::nullopt;
   }
   return reply_msg;
