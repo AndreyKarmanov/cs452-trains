@@ -4,7 +4,7 @@
 #include "syscall.h"
 
 void name_server_task() {
-  NameServer server;
+  static NameServer server;
   for (;;) {
     server.run();
     yield();

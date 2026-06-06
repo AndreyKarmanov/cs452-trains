@@ -45,7 +45,7 @@ int _create(int priority, void (*function)(), int parent_tid) {
     return -2; // no free task descriptors
   }
   auto td_idx = descriptor_index_opt.value();
-  auto tid    = static_cast<int>(next_tid++);
+  auto tid    = next_tid++;
 
   // define task stack (grows downwards)
   uint64_t task_stack_base = (uint64_t)&task_stacks[td_idx][TASK_STACK_SIZE];

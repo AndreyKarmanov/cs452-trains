@@ -4,7 +4,7 @@
 #include <cstddef>
 #include <optional>
 // TODO: make a linked list version to enable removing arbitrary
-template <typename T, size_t SIZE> class Buffer {
+template <typename T, size_t SIZE> class alignas(16) Buffer {
   std::array<T, SIZE> arr;
   size_t head  = 0;
   size_t _size = 0;

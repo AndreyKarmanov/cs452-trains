@@ -268,7 +268,7 @@ std::optional<int> RPSServer::find_game_index_for_player(int tid) {
 }
 
 void rps_server_task() {
-  RPSServer server{};
+  static RPSServer server{};
   for (;;) {
     server.run();
   }

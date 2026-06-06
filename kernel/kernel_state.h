@@ -23,7 +23,7 @@ namespace Kernel {
   inline TaskDescriptor task_descriptors[MAX_TASKS];
   inline Allocator<MAX_TASKS> task_allocator;
   inline Map<int, int, MAX_TASKS> tid_to_descriptor;
-  inline uint64_t next_tid = 0;
+  inline int next_tid = 0;
 
   inline Scheduler<MAX_TASKS, PRIORITY_LEVELS> scheduler;
 
