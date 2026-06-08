@@ -8,7 +8,7 @@ $(error No valid XDIR found)
 endif
 TRIPLE=aarch64-none-elf
 XBINDIR:=$(XDIR)/bin
-CXX:=$(XBINDIR)/$(TRIPLE)-g++ -ffreestanding
+CXX:=$(XBINDIR)/$(TRIPLE)-g++ -ffreestanding -fno-exceptions -fno-rtti
 OBJCOPY:=$(XBINDIR)/$(TRIPLE)-objcopy
 OBJDUMP:=$(XBINDIR)/$(TRIPLE)-objdump
 

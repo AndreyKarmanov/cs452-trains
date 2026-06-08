@@ -4,8 +4,10 @@
 #include "first_user_task.h"
 #include "internal_syscall.h"
 #include "kernel_state.h"
+#include "multi_core.h"
 #include "rpi.h"
 #include "scheduler.h"
+#include "shell.h"
 #include "uart.h"
 
 #ifndef DATA_CACHE
@@ -21,6 +23,12 @@
 #endif
 
 extern "C" void setup_mmu(); // in mmu.S
+
+void test_task() {
+  while (1) {
+    uart_puts(CONSOLE, "Hello from test task!\n\r");
+  }
+}
 
 extern "C" int kmain() {
 #if defined(MMU)
@@ -39,7 +47,16 @@ extern "C" int kmain() {
               DATA_CACHE, INSTRUCTION_CACHE, __OPTIMIZE__);
 
   using namespace Kernel;
-  _create(1, first_user_task);
+
+  auto td = require_td(_create(1, test_task));
+  launch_pinned_task(1, td); // launch shell task on core 1
+
+  while (true) {
+    asm volatile("wfe" : : : "memory"); // wait for events (e.g. interrupts)
+  }
+  
+  int tid = _create(1, first_user_task);
+  scheduler.schedule(require_td(tid));
 
   for (;;) {
     auto tid = scheduler.get_task();

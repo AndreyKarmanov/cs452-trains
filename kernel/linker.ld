@@ -26,14 +26,13 @@ SECTIONS {
 		KEEP (*(.init_array))
 		PROVIDE(__init_array_end = .);
 	}
-
 	.fini_array : {
 		PROVIDE(__fini_array_start = .);
 		KEEP (*(SORT(.fini_array.*)))
 		KEEP (*(.fini_array))
 		PROVIDE(__fini_array_end = .);
 	}
-	.task_stacks (NOLOAD) : {
+	.task_stacks (NOLOAD) : { /* NOLOAD indicates we don't need it saved in the elf file and can zero out at runtime */
 		__task_stacks_start = .;
 		. = ALIGN(16);
 		KEEP(*(.task_stacks))

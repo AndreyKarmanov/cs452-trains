@@ -60,16 +60,14 @@ int _create(int priority, void (*function)(), int parent_tid) {
   tf->x[0]      = (uint64_t)function;
   tf->spsr_el1  = 0;
 
-  auto &td = task_descriptors[td_idx] = {.td_idx     = td_idx,
-                                         .tid        = tid,
-                                         .parent_tid = parent_tid,
-                                         .priority   = priority,
-                                         .state      = TaskStatus::READY,
-                                         .sp_el0     = (uint64_t)tf};
+  task_descriptors[td_idx] = {.td_idx     = td_idx,
+                              .tid        = tid,
+                              .parent_tid = parent_tid,
+                              .priority   = priority,
+                              .state      = TaskStatus::READY,
+                              .sp_el0     = (uint64_t)tf};
 
   _assert(tid_to_descriptor.set(tid, td_idx), "failed to register tid");
-
-  Kernel::scheduler.schedule(td);
   return tid;
 }
 
@@ -101,7 +99,11 @@ void handle(int tid, Syscall request) {
   switch (request) {
   case Syscall::CREATE: {
     int new_tid = _create(tf->x[0], (void (*)())tf->x[1], tid);
-    tf->x[0]    = new_tid;
+    auto new_td = lookup_td(new_tid);
+    if (new_td != nullptr) {
+      scheduler.schedule(*new_td);
+    }
+    tf->x[0] = new_tid;
     scheduler.schedule(td);
     break;
   }
