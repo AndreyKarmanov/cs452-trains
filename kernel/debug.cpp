@@ -29,7 +29,7 @@ bool _assert(bool value, const char *msg) {
 void dump_memory_region(size_t address, size_t count) {
   auto *words = reinterpret_cast<volatile const uint32_t *>(address);
 
-  uart_puts(CONSOLE, "\n\rAddress                               ");
+  uart_puts(CONSOLE, "\n\rAddress             ");
   uart_puts(CONSOLE, "+00        +04        +08        +0c\n\r");
 
   for (size_t i = 0; i < count; i += 4) {
