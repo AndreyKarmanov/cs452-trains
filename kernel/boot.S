@@ -27,6 +27,9 @@
 #define SPSR_MASK_ALL (11 << 6) // mask D,I,F
 #define SPSR_EL1       (5 << 0) // EL1 with SP_EL1
 
+// must match Kernel::TrapFrame in kernel_state.h
+#define TRAPFRAME_SIZE 280
+
 // ensure the linker puts this at the start of the image
 .section ".text.boot"
 .global _start
@@ -69,6 +72,7 @@ _start:
 vectors:
 	// Exception from the current EL while using SP_EL0
 	// goes  sync / (fiq/vfiq) / (irq/virq) / (serror/vserror)
+	// or maybe it's sync / irq / fiq / serror
 	mov x0, #1
 	b default_handler
 	.space 120
@@ -95,14 +99,14 @@ vectors:
 	b default_handler
 	.space 120
 	//Lower EL AArch64
-	b _save_user_stack
+	b _save_user_stack_syscall
 	.space 124
-	mov x0, #9
-	b default_handler
-	.space 120
-	mov x0, #10
-	b default_handler
-	.space 120
+	// irq / virq
+	b _save_user_stack_interrupt
+	.space 124
+	// fiq / vfiq
+	b _save_user_stack_interrupt
+	.space 124
 	mov x0, #11
 	b default_handler
 	.space 120
@@ -121,14 +125,13 @@ vectors:
 	.space 120
 
 _save_user_stack:
-
 	// switch to EL0 stack
 	msr spsel, #0
 
 	// make space for fake trap frame on EL0 stack
 	// c++ loads structs at increasing address spaces
 	// so we store registers in increasing order
-	sub sp, sp, #272 	// size of trapframe, do sizeof(TrapFrame)
+	sub sp, sp, #TRAPFRAME_SIZE 	// size of trapframe, do sizeof(TrapFrame)
 	
 	// save user state to EL0 stack
 	// only store these when doing an interrupt, for now just syscall
@@ -154,7 +157,20 @@ _save_user_stack:
 
 	stp x30, x0, [sp, #240]
 	stp x1, x2, [sp, #256]
+	ret
 
+_save_user_stack_syscall:
+	bl _save_user_stack
+	str xzr, [sp, #272]
+	b _save_user_stack_finish
+
+_save_user_stack_interrupt:
+	bl _save_user_stack
+	mov x1, #1
+	str x1, [sp, #272]
+	b _save_user_stack_finish
+
+_save_user_stack_finish:
 	// return TrapFrame* by saving into x0
 	mov x0, sp 
 
@@ -213,7 +229,7 @@ _switch_to_user:
 	ldp x28, x29, [sp, #224]
 
 	// remove frame from top of stack
-	add sp, sp, #272
+	add sp, sp, #TRAPFRAME_SIZE
 
 	// switch back to EL1 stack
 	msr spsel, #1

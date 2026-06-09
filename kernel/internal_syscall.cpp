@@ -1,6 +1,7 @@
 #include <cstdint>
 #include <optional>
 
+#include "gic.h"
 #include "internal_syscall.h"
 #include "kernel_state.h"
 #include "message.h"
@@ -55,10 +56,11 @@ int _create(int priority, void (*function)(), int parent_tid) {
   __builtin_memset((void *)(task_stack_end), 0, TASK_STACK_SIZE);
 
   // build & push inital trapframe
-  TrapFrame *tf = (TrapFrame *)(task_stack_base - sizeof(TrapFrame));
-  tf->elr_el1   = (uint64_t)task_entry_wrapper;
-  tf->x[0]      = (uint64_t)function;
-  tf->spsr_el1  = 0;
+  TrapFrame *tf    = (TrapFrame *)(task_stack_base - sizeof(TrapFrame));
+  tf->elr_el1      = (uint64_t)task_entry_wrapper;
+  tf->x[0]         = (uint64_t)function;
+  tf->spsr_el1     = 0;
+  tf->is_interrupt = 0;
 
   auto &td = task_descriptors[td_idx] = {.td_idx     = td_idx,
                                          .tid        = tid,
@@ -73,14 +75,52 @@ int _create(int priority, void (*function)(), int parent_tid) {
   return tid;
 }
 
+static void handle_interrupt() {
+  // choose next task to run
+  // restore chosen task context, return from exeption with eret
+  // loop through all pending interrupts
+  for (;;) {
+    uint32_t gic_iar      = gic_iar_read();
+    uint32_t interrupt_id = gic_iar & GIC_IAR_ID_MASK;
+
+    // break if no more interrupts
+    if (interrupt_id == GIC_SPURIOUS_IRQ) {
+      return;
+    }
+
+    switch (interrupt_id) {
+    case GIC_TIMER_IRQ_C1:
+      // handle_timer_irq_c1();
+      break;
+    case GIC_TIMER_IRQ_C3:
+      // handle_timer_irq_c3();
+      break;
+    default:
+      break;
+    }
+    gic_eoi(gic_iar);
+  }
+}
+
 Syscall activate(int tid) {
   TaskDescriptor &td = Kernel::require_td(tid);
   td.state           = TaskStatus::RUNNING;
+
+  // clear I and F bits in saved Pstate to allow interrupts in user mode.
+  auto *user_tf         = (Kernel::TrapFrame *)td.sp_el0;
+  uint64_t pstate_mask  = 0x3 << 6;
+  user_tf->spsr_el1    &= ~pstate_mask;
 
   // switch to user mode
   // this will return when task makes a syscall
   Kernel::TrapFrame *tf = _switch_to_user(td.sp_el0);
   td.sp_el0             = (uint64_t)tf;
+
+  // check if interrupt
+  if (tf->is_interrupt) {
+    handle_interrupt();
+    return Syscall::YIELD;
+  }
 
   // https://developer.arm.com/documentation/ddi0595/2020-12/AArch64-Registers/ESR-EL1--Exception-Syndrome-Register--EL1-
   Syscall svc_imm = static_cast<Syscall>(tf->esr_el1 & 0xFFFF);

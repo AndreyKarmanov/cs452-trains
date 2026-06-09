@@ -16,6 +16,7 @@ namespace Kernel {
     uint64_t esr_el1;
     uint64_t elr_el1;
     uint64_t spsr_el1;
+    uint64_t is_interrupt;
   };
 
   // inline variable here says "this is a global"
