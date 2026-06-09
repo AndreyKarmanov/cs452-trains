@@ -38,6 +38,8 @@
 #define MBOX_SET_BASE (MBOX_BASE + 0x80)
 #define MBOX_CLR_BASE (MBOX_BASE + 0xc0)
 
+#define deadbeef 0xDEADBEEF
+
 // ensure the linker puts this at the start of the image
 .section ".text.boot"
 .global _start
@@ -295,8 +297,9 @@ core_entry:
 	ret
 
 secondary_core_wait:
+	ldr x7, =deadbeef
 	wfe                       // wait for event signal (sev)
-
+	b secondary_core_wait       // loop back to wfe until core_entry writes to mailbox and sends sev
 	// get this core's id from mpidr_el1
 	mrs x0, mpidr_el1
 	and x0, x0, #3            // mask to get core number (0-3)

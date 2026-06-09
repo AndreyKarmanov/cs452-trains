@@ -48,13 +48,11 @@ extern "C" int kmain() {
 
   using namespace Kernel;
 
-  auto td = require_td(_create(1, test_task));
-  launch_pinned_task(1, td); // launch shell task on core 1
+  // auto td = require_td(_create(1, test_task));
+  // launch_pinned_task(1, td); // launch shell task on core 1
 
-  while (true) {
-    asm volatile("wfe" : : : "memory"); // wait for events (e.g. interrupts)
-  }
-  
+  // uart_getc(CONSOLE); // wait for a key press to start the shell
+
   int tid = _create(1, first_user_task);
   scheduler.schedule(require_td(tid));
 

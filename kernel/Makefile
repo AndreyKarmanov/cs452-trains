@@ -46,7 +46,8 @@ clean:
 	rm -f $(OBJECTS) $(DEPENDS) $(FILENAME).elf $(FILENAME).img
 
 run: $(FILENAME).img
-	qemu-system-aarch64 -M raspi4b -cpu cortex-a53 -m 2G -nographic -kernel $(FILENAME).img
+	qemu-system-aarch64 -M raspi4b -cpu cortex-a53 -m 2G -nographic -device loader,file=$(FILENAME).img
+# 	make clean && make -j 4 OPT="-O0" && ../../qemu/build/qemu-system-aarch64 -M raspi4b -	cpu cortex-a53 -m 2G -serial stdio -display none iotest.img -s -S -smp 4
 
 $(FILENAME).img: $(FILENAME).elf
 	$(OBJCOPY) -S -O binary $< $@; sync

@@ -61,7 +61,7 @@ void shell_task() {
         buf_n = 0;
       }
     } else {
-      // yield();
+      yield();
     }
     uart.send_io();
   }

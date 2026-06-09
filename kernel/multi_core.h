@@ -1,15 +1,16 @@
 #pragma once
 
-#include <cstdint>
 #include "task_descriptor.h"
+#include <cstdint>
 
 // Declares the low-level mailbox activation routine.
 // x0: core # (1-3)
-// x1: trapframe pointer (sp_el0) - 64-bit address to be split and sent via mailbox
+// x1: trapframe pointer (sp_el0) - 64-bit address to be split and sent via
+// mailbox
 //
-// Implemented in boot.S; writes the trapframe address to the secondary core's mailbox
-// and sends SEV. The secondary core wakes, reads the mailbox, transitions to EL1,
-// enables the MMU, and enters EL0 to run the task.
+// Implemented in boot.S; writes the trapframe address to the secondary core's
+// mailbox and sends SEV. The secondary core wakes, reads the mailbox,
+// transitions to EL1, enables the MMU, and enters EL0 to run the task.
 extern "C" void core_entry(int core, uint64_t sp_el0); // in boot.S
 
 // Helper: launches a task created by _create() on a secondary core.
