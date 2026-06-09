@@ -1,3 +1,4 @@
+#include <cstdint>
 #include <stdint.h>
 
 #include "rpi.h"
@@ -13,8 +14,24 @@ static char *const TIME_BASE = (char *)(MMIO_BASE + 0x3000);
 static const uint32_t TIME_CS  = 0x00;
 static const uint32_t TIME_CLO = 0x04;
 static const uint32_t TIME_CHI = 0x08;
+static const uint32_t TIME_C1  = 0x10;
+static const uint32_t TIME_C3  = 0x18;
 
-uint32_t time_get() { return *(volatile uint32_t *)(TIME_BASE + TIME_CLO); }
+#define SYSTIME_REG(reg) *(volatile uint32_t *)(TIME_BASE + reg)
+
+void set_timer_interrupt(uint32_t timer, uint32_t delay_us) {
+  if (timer == 1) {
+    SYSTIME_REG(TIME_C1) = time_get() + delay_us;
+  } else if (timer == 3) {
+    SYSTIME_REG(TIME_C3) = time_get() + delay_us;
+  }
+}
+
+void clear_timer_interrupt(uint32_t timer) {
+  SYSTIME_REG(TIME_CS) = (1u << timer);
+}
+
+uint32_t time_get() { return SYSTIME_REG(TIME_CLO); }
 
 const char *format_time(uint32_t time_us) {
   static char buf[8] = "00:00.0";

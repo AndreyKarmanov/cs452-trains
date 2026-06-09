@@ -2,10 +2,12 @@
 
 #include "cache.h"
 #include "first_user_task.h"
+#include "gic.h"
 #include "internal_syscall.h"
 #include "kernel_state.h"
 #include "rpi.h"
 #include "scheduler.h"
+#include "time.h"
 #include "uart.h"
 
 #ifndef DATA_CACHE
@@ -31,16 +33,10 @@ extern "C" int kmain() {
 
   data_cache_set(DATA_CACHE);
   instruction_cache_set(INSTRUCTION_CACHE);
-  uart_puts(CONSOLE, "\033[2J\033[?25l\033[1;1H" __DATE__ " / " __TIME__
-                     " / Andrey Karmanov / Anthony Ho\n\r");
-  uart_printf(CONSOLE,
-              "Kernel initialized DATA_CACHE: %u INSTRUCTION_CACHE: %u "
-              "OPTIMIZATION: %u\n\r",
-              DATA_CACHE, INSTRUCTION_CACHE, __OPTIMIZE__);
-
+  
   using namespace Kernel;
   _create(1, first_user_task);
-
+  set_delay_interrupt(0, true, TIME_1S_US * 5);
   for (;;) {
     auto tid = scheduler.get_task();
     if (!tid.has_value()) {

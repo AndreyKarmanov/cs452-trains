@@ -12,6 +12,9 @@
 #endif
 
 void first_user_task() {
+  uart_puts(CONSOLE, "\033[2J\033[?25l\033[1;1H" __DATE__ " / " __TIME__
+                     " / Andrey Karmanov / Anthony Ho\n\r");
+
   create(2, name_server_task);
   uart_printf(CONSOLE, "Created name server\n");
 

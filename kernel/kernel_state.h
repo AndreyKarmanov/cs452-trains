@@ -11,13 +11,15 @@
 #define TASK_STACK_SIZE 4096
 
 namespace Kernel {
-  struct TrapFrame {
+  struct alignas(16) TrapFrame {
     uint64_t x[31]; // x0 to x30
     uint64_t esr_el1;
     uint64_t elr_el1;
     uint64_t spsr_el1;
     uint64_t is_interrupt;
   };
+
+  static_assert(sizeof(TrapFrame) == 288, "TrapFrame size must match boot.S");
 
   // inline variable here says "this is a global"
   // even if you include multiple times, just use this one

@@ -28,7 +28,7 @@
 #define SPSR_EL1       (5 << 0) // EL1 with SP_EL1
 
 // must match Kernel::TrapFrame in kernel_state.h
-#define TRAPFRAME_SIZE 280
+#define TRAPFRAME_SIZE 288
 
 // ensure the linker puts this at the start of the image
 .section ".text.boot"
@@ -123,7 +123,7 @@ vectors:
 	b default_handler
 	.space 120
 
-_save_user_stack:
+_save_user_stack_syscall:
 	// switch to EL0 stack
 	msr spsel, #0
 
@@ -156,15 +156,42 @@ _save_user_stack:
 
 	stp x30, x0, [sp, #240]
 	stp x1, x2, [sp, #256]
-	ret
-
-_save_user_stack_syscall:
-	bl _save_user_stack
 	str xzr, [sp, #272]
 	b _save_user_stack_finish
 
 _save_user_stack_interrupt:
-	bl _save_user_stack
+	// switch to EL0 stack
+	msr spsel, #0
+
+	// make space for fake trap frame on EL0 stack
+	// c++ loads structs at increasing address spaces
+	// so we store registers in increasing order
+	sub sp, sp, #TRAPFRAME_SIZE 	// size of trapframe, do sizeof(TrapFrame)
+	
+	// save user state to EL0 stack
+	// only store these when doing an interrupt, for now just syscall
+	stp x0, x1, [sp, #0]
+	stp x2, x3, [sp, #16]
+	stp x4, x5, [sp, #32]
+	stp x6, x7, [sp, #48]
+	stp x8, x9, [sp, #64]
+	stp x10, x11, [sp, #80]
+	stp x12, x13, [sp, #96]
+	stp x14, x15, [sp, #112]
+	stp x16, x17, [sp, #128]
+	stp x18, x19, [sp, #144]
+	stp x20, x21, [sp, #160]
+	stp x22, x23, [sp, #176]
+	stp x24, x25, [sp, #192]
+	stp x26, x27, [sp, #208]
+	stp x28, x29, [sp, #224]
+
+	mrs x0, esr_el1 // stores the svc immediate
+	mrs x1, elr_el1 // stores return jump addr
+	mrs x2, spsr_el1 // store pstate
+
+	stp x30, x0, [sp, #240]
+	stp x1, x2, [sp, #256]
 	mov x1, #1
 	str x1, [sp, #272]
 	b _save_user_stack_finish

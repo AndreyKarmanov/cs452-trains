@@ -90,10 +90,12 @@ static void handle_interrupt() {
 
     switch (interrupt_id) {
     case GIC_TIMER_IRQ_C1:
-      // handle_timer_irq_c1();
+      uart_puts(CONSOLE, "C1 Timer hit\r\n");
+      clear_timer_interrupt(1);
       break;
     case GIC_TIMER_IRQ_C3:
-      // handle_timer_irq_c3();
+      uart_puts(CONSOLE, "C3 Timer hit\r\n");
+      clear_timer_interrupt(3);
       break;
     default:
       break;
