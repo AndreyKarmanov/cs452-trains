@@ -71,8 +71,7 @@ _start:
 .global vectors
 vectors:
 	// Exception from the current EL while using SP_EL0
-	// goes  sync / (fiq/vfiq) / (irq/virq) / (serror/vserror)
-	// or maybe it's sync / irq / fiq / serror
+	// goes  sync / (IRQ/vIRQ) / (FIQ/vFIQ) / (serror/vserror)
 	mov x0, #1
 	b default_handler
 	.space 120
