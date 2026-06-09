@@ -28,20 +28,19 @@
 #define SPSR_EL1       (5 << 0) // EL1 with SP_EL1
 
 
-// ***************************************
-// Bcm2711 - C13.2 ARM Mailboxes
-// ARM_LOCAL register base is at 0x4c000000 (standard) or 0xff000000 (low peripheral mode)
-// Mailbox SET registers are at ARM_LOCAL + 0x80 + offset
-// Mailbox CLR registers are at ARM_LOCAL + 0xc0 + offset
-// ***************************************
-#define MBOX_BASE 0xff800000
-#define MBOX_SET_BASE (MBOX_BASE + 0x80)
-#define MBOX_CLR_BASE (MBOX_BASE + 0xc0)
-
 #define deadbeef 0xDEADBEEF
 
-// ensure the linker puts this at the start of the image
+// Per-core boot handoff slots in ordinary memory.
+// Core 0 uses slot 0, core 1 uses slot 1, etc.
+.section ".bss"
+.align 3
+.global secondary_core_boot_slots
+secondary_core_boot_slots:
+	.skip 32
+
 .section ".text.boot"
+
+// ensure the linker puts this at the start of the image
 .global _start
 _start:
 	// if this is not Core 0, exit to wfe-loop
@@ -274,24 +273,25 @@ _reboot:
 	str w1, [x0]
 	// shouldn't be reached
 
+.global wakeup_core
+wakeup_core:
+	// x0 = core index / MPIDR low bits, x1 = start address
+	and x0, x0, #3
+	mov x2, #0xd8
+	str x1, [x2, x0, lsl #3]
+	dmb sy
+	sev
+	ret
+
 .global core_entry
 core_entry:
 // x0 is core # (must be above 0, typically 1-3)
 // x1 is taskdescriptor sp_el0 (trapframe pointer, 64-bit)
-//
-// Writes the trapframe address to the target core's mailbox so it can be read by secondary_core_wait
-// Splits x1 (64-bit) into low/high 32-bit words and writes them to mailbox words 0 and 1
-	ldr x3, =MBOX_SET_BASE
-	add x3, x3, x0, lsl 4  // each core has 4 mailbox words, 4 bytes each = 16 bytes stride
-
-	// split 64-bit pointer into low and high 32-bit parts
-	mov w4, w1                // w4 = low 32 bits of x1
-	lsr x1, x1, #32           // x1 = x1 >> 32
-	mov w5, w1                // w5 = high 32 bits
-
-	// write via SET registers: word 0 = low, word 1 = high
-	str w4, [x3, #0]          // MBOX_SET: mailbox word 0 = low 32 bits (signals "wake up")
-	str w5, [x3, #4]          // MBOX_SET: mailbox word 1 = high 32 bits
+	// Write the handoff pointer into a plain shared-memory slot.
+	ldr x3, =secondary_core_boot_slots
+	add x3, x3, x0, lsl 3     // one 64-bit slot per core
+	str x1, [x3]
+	dmb sy
 
 	sev                       // send event to wake secondary core from wfe
 	ret
@@ -299,32 +299,17 @@ core_entry:
 secondary_core_wait:
 	ldr x7, =deadbeef
 	wfe                       // wait for event signal (sev)
-	b secondary_core_wait       // loop back to wfe until core_entry writes to mailbox and sends sev
+	dmb sy
 	// get this core's id from mpidr_el1
 	mrs x0, mpidr_el1
 	and x0, x0, #3            // mask to get core number (0-3)
 
-	// read from this core's mailbox CLR registers
-	ldr x3, =MBOX_CLR_BASE
-	add x3, x3, x0, lsl 4     // compute per-core CLR base
-
-	// read mailbox words 0 and 1 (low and high 32-bit parts of pointer)
-	ldr w4, [x3, #0]          // w4 = low 32 bits of trapframe pointer
-	ldr w5, [x3, #4]          // w5 = high 32 bits of trapframe pointer
-
-	// check if word 0 is nonzero (indicates valid pointer)
-	cbz w4, secondary_core_wait  // if low bits are 0, no work yet; go back to wfe
-
-	// reconstruct 64-bit pointer
-	mov x1, x4                // x1 = low 32 bits (zero-extended)
-	mov x2, x5                // x2 = high 32 bits
-	lsl x2, x2, #32           // shift high to upper 32 bits
-	orr x1, x1, x2            // x1 = full 64-bit trapframe pointer
-
-	// clear the mailbox by writing 0xFFFFFFFF to CLR registers (write-one-to-clear)
-	mov w6, #0xffffffff
-	str w6, [x3, #0]          // clear mailbox word 0
-	str w6, [x3, #4]          // clear mailbox word 1
+	// read this core's shared-memory slot
+	ldr x3, =secondary_core_boot_slots
+	add x3, x3, x0, lsl 3     // compute per-core slot address
+	ldr x1, [x3]
+	cbz x1, secondary_core_wait
+	str xzr, [x3]             // clear the slot now that we've consumed it
 
 	// now x1 = trapframe pointer (sp_el0)
 	// check if we're in EL2 and need to transition to EL1

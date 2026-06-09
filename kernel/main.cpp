@@ -48,8 +48,10 @@ extern "C" int kmain() {
 
   using namespace Kernel;
 
-  // auto td = require_td(_create(1, test_task));
-  // launch_pinned_task(1, td); // launch shell task on core 1
+  // After dropping to EL1, in core 0:
+
+  auto td = require_td(_create(1, test_task));
+  launch_pinned_task(1, td); // launch shell task on core 1
 
   // uart_getc(CONSOLE); // wait for a key press to start the shell
 

@@ -2,6 +2,18 @@
     "version": "0.2.0",
     "configurations": [
         {
+            "type": "lldb",
+            "request": "attach",
+            "name": "Attach to gdbserver",
+            "targetCreateCommands": [
+                "target create iotest.elf"
+            ],
+            "processCreateCommands": [
+                "gdb-remote localhost:1234",
+                "c"
+            ]
+        },
+        {
             "name": "QEMU kernel debug",
             "type": "cppdbg",
             "request": "launch",
