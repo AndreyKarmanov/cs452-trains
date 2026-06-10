@@ -5,6 +5,7 @@
 
 #include "allocator.h"
 #include "buffer.h"
+#include "idle_manager.h"
 #include "map.h"
 #include "scheduler.h"
 #include "syscall.h"
@@ -36,6 +37,8 @@ namespace Kernel {
 
   inline Map<Event, Buffer<int, MAX_TASKS>, TOTAL_EVENT_TYPES> event_buffers;
   inline uint64_t initalized_events{0};
+
+  inline IdleManager idle_manager;
 
   // Make sure this lives in a separate, non-kernel section
   inline uint8_t task_stacks[MAX_TASKS][TASK_STACK_SIZE]

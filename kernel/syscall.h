@@ -4,15 +4,17 @@
 #include <cstddef>
 
 enum class Syscall {
-  CREATE        = 0,
-  MY_TID        = 1,
-  MY_PARENT_TID = 2,
-  YIELD         = 3,
-  EXIT          = 4,
-  SEND          = 5,
-  RECEIVE       = 6,
-  REPLY         = 7,
-  AWAIT_EVENT   = 8
+  CREATE          = 0,
+  MY_TID          = 1,
+  MY_PARENT_TID   = 2,
+  YIELD           = 3,
+  EXIT            = 4,
+  SEND            = 5,
+  RECEIVE         = 6,
+  REPLY           = 7,
+  AWAIT_EVENT     = 8,
+  PARK            = 9,
+  KERNEL_IDLE_PCT = 10,
 };
 
 // make sure that event count is the last event!!
@@ -25,6 +27,8 @@ int my_tid();
 int my_parent_tid();
 void yield();
 void exit();
+void park();
+int kernel_idle_pct();
 
 int send(int tid, const Message msg, Message &reply_msg);
 int send(int tid, const char *msg, int msglen, char *reply, int rplen);

@@ -1,6 +1,7 @@
 
 #include "first_user_task.h"
 #include "clock_server.h"
+#include "idle_manager.h"
 #include "name_server.h"
 #include "shell.h"
 #include "syscall.h"
@@ -33,6 +34,9 @@ void first_user_task() {
   uart_printf(CONSOLE, "Created timer task\n");
 #endif
 
+  // Idle task
+  create(0, idle_task);
+
   // Shell
-  await_task(create(0, shell_task));
+  // create(0, shell_task);
 }

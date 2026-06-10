@@ -124,3 +124,11 @@ void await_event(Event event) {
   register auto r0 asm("x0") = event;
   asm volatile("svc %1" : "=r"(r0) : "i"(Syscall::AWAIT_EVENT) : "memory");
 }
+
+void park() { asm volatile("svc %0" : : "i"(Syscall::PARK) : "memory"); }
+
+int kernel_idle_pct() {
+  register int r0 asm("x0");
+  asm volatile("svc %1" : "=r"(r0) : "i"(Syscall::KERNEL_IDLE_PCT) : "memory");
+  return r0;
+}

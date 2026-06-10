@@ -2,6 +2,7 @@
 #include <optional>
 
 #include "gic.h"
+#include "idle_manager.h"
 #include "internal_syscall.h"
 #include "kernel_state.h"
 #include "message.h"
@@ -407,6 +408,17 @@ void handle(int tid, Syscall request) {
     auto event_buf = event_buffers.get_ref(event);
     event_buf->push(tid);
     initalize_event(event);
+    break;
+  }
+  case Syscall::PARK: {
+    idle_manager.go_idle();
+    td->state = TaskStatus::READY;
+    scheduler.schedule(*td);
+    break;
+  }
+  case Syscall::KERNEL_IDLE_PCT: {
+    tf->x[0] = idle_manager.get_idle_time_percentage();
+    scheduler.schedule(*td);
     break;
   }
   }

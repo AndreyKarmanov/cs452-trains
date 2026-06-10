@@ -2,12 +2,10 @@
 
 #include "cache.h"
 #include "first_user_task.h"
-#include "gic.h"
 #include "internal_syscall.h"
 #include "kernel_state.h"
 #include "rpi.h"
 #include "scheduler.h"
-#include "time.h"
 #include "uart.h"
 
 #ifndef DATA_CACHE
@@ -39,11 +37,7 @@ extern "C" int kmain() {
   for (;;) {
     auto tid = scheduler.get_task();
     if (!tid.has_value()) {
-      if (task_allocator.allocated_count() == 1) { // only name server task left
-        uart_puts(CONSOLE, "No tasks left, halting.\n\r");
-        break;
-      }
-      continue; // no ready tasks, spin
+      break; // error
     }
     auto active_tid = tid.value();
     auto request    = activate(active_tid);
