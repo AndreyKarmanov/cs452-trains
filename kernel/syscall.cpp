@@ -101,9 +101,10 @@ int reply(int tid, const char *reply, int reply_len) {
   return r0;
 }
 
-int reply_with_error(int tid) {
+int reply_with_error(int tid, int error_code) {
   Message msg{};
-  msg.type = MessageType::ERROR;
+  msg.type            = MessageType::ERROR;
+  msg.data.error_code = error_code;
   return reply(tid, msg);
 }
 
@@ -112,8 +113,14 @@ void await_task(int tid) {
   while (true) {
     msg.type = MessageType::TASK_EXIT;
     send(tid, msg, msg);
-    _assert(msg.type == MessageType::TASK_EXIT, "UNEXPECTED MESSAGE ON AWAIT TASK");
+    _assert(msg.type == MessageType::TASK_EXIT,
+            "UNEXPECTED MESSAGE ON AWAIT TASK");
     if (msg.type == MessageType::TASK_EXIT)
       return;
   }
+}
+
+void await_event(Event event) {
+  register auto r0 asm("x0") = event;
+  asm volatile("svc %1" : "=r"(r0) : "i"(Syscall::AWAIT_EVENT) : "memory");
 }

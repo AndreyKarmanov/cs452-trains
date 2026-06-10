@@ -125,6 +125,8 @@ struct Message {
   MessageType type;
 
   union {
+    int error_code;
+
     NS::RegisterMessage ns_register;
     NS::WhoIsMessage ns_who_is;
     NS::RegisterReplyMessage ns_register_reply;

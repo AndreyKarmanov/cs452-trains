@@ -33,10 +33,9 @@ extern "C" int kmain() {
 
   data_cache_set(DATA_CACHE);
   instruction_cache_set(INSTRUCTION_CACHE);
-  
+
   using namespace Kernel;
   _create(1, first_user_task);
-  set_delay_interrupt(0, true, TIME_1S_US * 5);
   for (;;) {
     auto tid = scheduler.get_task();
     if (!tid.has_value()) {

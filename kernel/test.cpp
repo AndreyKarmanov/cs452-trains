@@ -1,4 +1,5 @@
 #include "test.h"
+#include "clock_server.h"
 #include "debug.h"
 #include "heap.h"
 #include "message.h"
@@ -422,4 +423,23 @@ void test_rps_task() {
   test_rps_5();
 
   uart_printf(CONSOLE, "\n\n All tests completed! \n\r");
+}
+
+void test_await_event_task() {
+  await_event(Event::DELAY_5S);
+  uart_puts(CONSOLE, "5 second delay task");
+}
+
+void test_clock_server() {
+  auto cs_tid = WhoIs(ClockServer<>::CLOCK_SERVER_NAME);
+  _assert(cs_tid != -1, "Clock server not found");
+
+  auto time = Time(cs_tid);
+  uart_printf(CONSOLE, "Current time: %d ticks\n\r", time);
+
+  time = Delay(cs_tid, 5000);
+  uart_puts(CONSOLE, "5 second delay\n\r");
+
+  time = DelayUntil(cs_tid, time + 5000);
+  uart_puts(CONSOLE, "5 second delay until\n\r");
 }

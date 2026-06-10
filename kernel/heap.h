@@ -28,17 +28,17 @@ public:
       return buf[0];
     }
 
-    auto ret = buf[0];
-    buf[0]   = buf[--count];
-    auto idx = 0;
+    auto ret   = buf[0];
+    buf[0]     = buf[--count];
+    size_t idx = 0;
 
     // bubble down
     while (true) {
-      auto best = idx * 2 + 1;
+      size_t best = idx * 2 + 1;
       if (best >= count)
         break;
 
-      auto right = best + 1;
+      size_t right = best + 1;
       if (right < count && compare(*buf[right], *buf[best]))
         best = right;
 
@@ -57,11 +57,11 @@ public:
       return false;
 
     buf[count] = v;
-    auto idx   = count++;
+    size_t idx = count++;
 
     // bubble up
     while (idx != 0) {
-      auto p_idx = (idx - 1) / 2;
+      size_t p_idx = (idx - 1) / 2;
       if (compare(*buf[idx], *buf[p_idx])) {
         std::swap(buf[idx], buf[p_idx]);
         idx = p_idx;

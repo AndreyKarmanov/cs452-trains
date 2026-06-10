@@ -139,6 +139,10 @@ void fire_command(char *buf, size_t blen, UARTNB &uart) {
     test_map();
   } else if (strncmp(cmd, "t heap", 6) == 0) {
     test_heap();
+  }else if (strncmp(cmd, "t event", 7) == 0){
+    create(0, test_await_event_task);
+  } else if (strncmp(cmd, "t clock", 7) == 0){
+    create(0, test_clock_server);
   } else {
     uart.puts("Unknown command. Available: q (quit), p (parent tid), "
               "m (my tid), y (yield), c (create), d (dump memory), "

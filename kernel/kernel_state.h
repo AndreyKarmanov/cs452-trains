@@ -4,8 +4,10 @@
 #include <optional>
 
 #include "allocator.h"
+#include "buffer.h"
 #include "map.h"
 #include "scheduler.h"
+#include "syscall.h"
 #include "task_descriptor.h"
 
 #define PRIORITY_LEVELS 4
@@ -32,13 +34,14 @@ namespace Kernel {
 
   inline Scheduler<MAX_TASKS, PRIORITY_LEVELS> scheduler;
 
+  inline Map<Event, Buffer<int, MAX_TASKS>, TOTAL_EVENT_TYPES> event_buffers;
+  inline uint64_t initalized_events{0};
+
   // Make sure this lives in a separate, non-kernel section
   inline uint8_t task_stacks[MAX_TASKS][TASK_STACK_SIZE]
       __attribute__((section(".task_stacks")));
 
   inline std::optional<TaskDescriptor *> lookup_td(int tid) {
-    using namespace Kernel;
-
     auto descriptor_index_opt = tid_to_descriptor.get(tid);
     if (!descriptor_index_opt.has_value()) {
       return std::nullopt;

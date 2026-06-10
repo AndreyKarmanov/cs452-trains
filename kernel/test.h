@@ -9,3 +9,6 @@ void test_timer_task();
 void test_heap();
 
 void test_rps_task();
+
+void test_await_event_task();
+void test_clock_server();

@@ -76,6 +76,96 @@ int _create(int priority, void (*function)(), int parent_tid) {
   return tid;
 }
 
+static void initalize_event(Event event) {
+  using namespace Kernel;
+
+  // check if we've already initalized this event
+  if (initalized_events & (1u << static_cast<int>(event)))
+    return;
+  initalized_events |= (1u << static_cast<int>(event));
+
+  switch (event) {
+  case Event::CLOCK_TICK_1MS: {
+    set_interrupt_core_routing(0, GIC_TIMER_IRQ_C1, true);
+    set_interrupt(GIC_TIMER_IRQ_C1, true);
+    clear_timer_interrupt(1);
+    set_timer_interrupt(1, TIME_1MS_US);
+    break;
+  }
+  case Event::DELAY_5S: {
+    set_interrupt_core_routing(0, GIC_TIMER_IRQ_C3, true);
+    set_interrupt(GIC_TIMER_IRQ_C3, true);
+    clear_timer_interrupt(3);
+    set_timer_interrupt(3, TIME_1S_US * 5);
+    break;
+  }
+  default: {
+    break;
+  }
+  }
+}
+
+static void handle_event(Event event) {
+  using namespace Kernel;
+
+  // one-time handling
+  switch (event) {
+  case Event::CLOCK_TICK_1MS: {
+    update_timer_interrupt(1, TIME_1MS_US);
+    clear_timer_interrupt(1);
+    break;
+  }
+  case Event::DELAY_5S: {
+    clear_timer_interrupt(3);
+    initalized_events &= ~(1u << static_cast<int>(event));
+    break;
+  }
+  default: {
+    break;
+  }
+  }
+
+  if (!event_buffers.contains(event)) {
+    _assert(false, "Received event with no waiting tasks");
+    return;
+  }
+
+  // handle buffer of waiting tasks
+  // some events may require all tasks to wake
+  // some events may require the first to wake
+  auto event_buf = event_buffers.get_ref(event);
+  auto tid_opt   = event_buf->pop();
+  while (tid_opt.has_value()) {
+    auto tid = tid_opt.value();
+    auto td  = lookup_td(tid);
+    if (!td.has_value()) {
+      tid_opt = event_buf->pop();
+      continue;
+    }
+
+    switch (event) {
+    case Event::CLOCK_TICK_1MS: {
+      scheduler.schedule(*td.value());
+      break;
+    }
+    case Event::DELAY_5S: {
+      scheduler.schedule(*td.value());
+
+      // reset the delay for the next task.
+      if (!event_buf->is_empty()) {
+        initalize_event(event);
+      }
+      return; // return if only the first should wake
+    }
+    default: {
+      return;
+    }
+    }
+
+    tid_opt = event_buf->pop();
+  }
+}
+
 static void handle_interrupt() {
   // choose next task to run
   // restore chosen task context, return from exeption with eret
@@ -89,18 +179,19 @@ static void handle_interrupt() {
       return;
     }
 
+    // interrupt id to event mapping
     switch (interrupt_id) {
     case GIC_TIMER_IRQ_C1:
-      uart_puts(CONSOLE, "C1 Timer hit\r\n");
-      clear_timer_interrupt(1);
+      handle_event(Event::CLOCK_TICK_1MS);
       break;
     case GIC_TIMER_IRQ_C3:
-      uart_puts(CONSOLE, "C3 Timer hit\r\n");
-      clear_timer_interrupt(3);
+      uart_printf(CONSOLE, "5 second delay event\n\r");
+      handle_event(Event::DELAY_5S);
       break;
     default:
       break;
     }
+
     gic_eoi(gic_iar);
   }
 }
@@ -195,7 +286,6 @@ void handle(int tid, Syscall request) {
       scheduler.schedule(*to_td);
       to_tid_opt = td->sender_queue.pop();
     }
-
     break;
   }
   case Syscall::SEND: {
@@ -307,6 +397,16 @@ void handle(int tid, Syscall request) {
     to_td->state = TaskStatus::READY;
     scheduler.schedule(*to_td);
     scheduler.schedule(*td);
+    break;
+  }
+  case Syscall::AWAIT_EVENT: {
+    auto event = static_cast<Event>(tf->x[0]);
+    if (!event_buffers.contains(event)) {
+      event_buffers.set(event, {});
+    }
+    auto event_buf = event_buffers.get_ref(event);
+    event_buf->push(tid);
+    initalize_event(event);
     break;
   }
   }

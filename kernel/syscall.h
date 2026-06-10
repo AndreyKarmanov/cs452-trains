@@ -1,6 +1,7 @@
 #pragma once
 
 #include "message.h"
+#include <cstddef>
 
 enum class Syscall {
   CREATE        = 0,
@@ -10,12 +11,14 @@ enum class Syscall {
   EXIT          = 4,
   SEND          = 5,
   RECEIVE       = 6,
-  REPLY         = 7
+  REPLY         = 7,
+  AWAIT_EVENT   = 8
 };
 
-enum class Event {
-  CLOCK_TICK_1MS
-};
+// make sure that event count is the last event!!
+// this is pivotal to ensure we can use it as the number of events :)
+enum class Event { CLOCK_TICK_1MS, DELAY_5S, EVENT_COUNT };
+constexpr auto TOTAL_EVENT_TYPES = static_cast<size_t>(Event::EVENT_COUNT) + 1;
 
 int create(int priority, void (*function)());
 int my_tid();
@@ -31,7 +34,7 @@ int receive(int *tid, char *msg, int msglen);
 
 int reply(int tid, Message msg);
 int reply(int tid, const char *reply, int rplen);
-int reply_with_error(int tid);
+int reply_with_error(int tid, int error_code = 0);
 
 void await_task(int tid);
 void await_event(Event event);
