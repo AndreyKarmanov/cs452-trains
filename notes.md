@@ -229,3 +229,38 @@ In startup routine, we must program the interrupts we want.
 
 - An optimization is to include a loop to read the GICC_IRR again after handling it in the kernel, in case a second interrupt is pending. This saves the overhead of scheduling a task that gets immediately interrupted.
 - Can use a hybrid approach with polling, if there are lots of interrupts it is lots of overhead, so if we get an interrupt, we can try polling with interrupts disabled, and only when ~5 polls fail then we re-enable interrupts to go back to them. Useful in high frequency devices like network handlers, which can have bursts of work.
+
+## lec9: Events, Clock, Idle
+
+### AwaitEvent
+
+- synchronization between user tasks & device (expose device interrupts to the applications)
+- not strictly specified in the kernel documentation, lots of freedom
+    - can specify the return code (subtype, count, data, etc)
+
+What happens if you have X tasks waiting for an event that appears?
+
+- 0: not good, task is too slow / not scheduled in time.
+- 1: good, one to one task to event
+- N: questionable, could be a overly complex design
+
+### Clockserver
+
+- Time, Delay, DelayUntil
+- Can't use AwaitEvent directly in the clockserver, as it is blocking and that is not correct for a server pattern.
+    - ClockNotifierTask: Loop around awaitevent for clock ticks, send to the server
+    - ClockServer receives Delays, Clockupdates. need some sort of smarter datastructure with clockupdates
+
+### Idle task
+
+- Task that does things when no other task is active (lowest prio)
+- Can do maintenance (garbage collection, diagnosis, halt, etc)
+- Idle time should be high (>>90%)
+
+### Per-task information registers
+
+- TPIDR_EL0: per-thread pointer (RW, in EL0)
+    - can be set by user-level
+- TPIDR_EL1 (RW in EL1)
+    - can store a pointer to the current task
+    - perhaps there's some optimization?
