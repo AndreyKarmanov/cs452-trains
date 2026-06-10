@@ -137,10 +137,12 @@ void fire_command(char *buf, size_t blen, UARTNB &uart) {
     uart.printf("Created tid %u", tid);
   } else if (strncmp(cmd, "t map", 5) == 0) {
     test_map();
+  } else if (strncmp(cmd, "t heap", 6) == 0) {
+    test_heap();
   } else {
     uart.puts("Unknown command. Available: q (quit), p (parent tid), "
               "m (my tid), y (yield), c (create), d (dump memory), "
-              "w (write memory)\n\r");
+              "w (write memory), t k1, t map, t heap\n\r");
   }
 }
 
