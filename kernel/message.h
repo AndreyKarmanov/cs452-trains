@@ -8,10 +8,10 @@ enum class MessageType {
   TASK_EXIT = 1,
 
   // name server
-  NAME_SERVER_REGISTER_AS    = 2,
-  NAME_SERVER_WHO_IS         = 3,
-  NAME_SERVER_REGISTER_REPLY = 4,
-  NAME_SERVER_WHO_IS_REPLY   = 5,
+  NS_REGISTER_AS    = 2,
+  NS_WHO_IS         = 3,
+  NS_REGISTER_REPLY = 4,
+  NS_WHO_IS_REPLY   = 5,
 
   // to rps server
   RPS_SIGNUP = 6, // client asks to join a game
@@ -105,5 +105,5 @@ struct Message {
     RPS::PlayResultMessage rps_play_result;
     RPS::QuitAckMessage rps_quit_ack;
 
-  } payload;
+  } data;
 };

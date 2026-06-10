@@ -90,14 +90,14 @@ void RPSServer::run() {
                   sender_tid, partner_tid);
       Message msg{};
       msg.type = MessageType::RPS_PLAY_RESULT;
-      msg.payload.rps_play_result.result =
+      msg.data.rps_play_result.result =
           RPS::PlayResultMessage::Result::PLAYER_QUIT;
       reply(sender_tid, msg);
       break;
     }
 
     using Choice = RPS::PlayMessage::Choice;
-    auto choice  = msg.payload.rps_play.choice;
+    auto choice  = msg.data.rps_play.choice;
     if (choice != Choice::ROCK && choice != Choice::PAPER &&
         choice != Choice::SCISSORS) {
       reply_with_error(sender_tid);
@@ -155,11 +155,11 @@ void RPSServer::run() {
 
       Message p1_msg{};
       p1_msg.type                           = MessageType::RPS_PLAY_RESULT;
-      p1_msg.payload.rps_play_result.result = p1_result;
+      p1_msg.data.rps_play_result.result = p1_result;
 
       Message p2_msg{};
       p2_msg.type                           = MessageType::RPS_PLAY_RESULT;
-      p2_msg.payload.rps_play_result.result = p2_result;
+      p2_msg.data.rps_play_result.result = p2_result;
 
       // print game result
       uart_printf(CONSOLE,

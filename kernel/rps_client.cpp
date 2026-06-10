@@ -35,7 +35,7 @@ std::optional<Message> RPSClient::play(RPS::PlayMessage::Choice choice) {
               RPS::choice_str(choice));
   Message msg{};
   msg.type                    = MessageType::RPS_PLAY;
-  msg.payload.rps_play.choice = choice;
+  msg.data.rps_play.choice = choice;
   Message reply_msg{};
   int len = send(rps_server_tid, msg, reply_msg);
   if (len < static_cast<int>(sizeof(reply_msg))) {

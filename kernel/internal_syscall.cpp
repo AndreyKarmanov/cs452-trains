@@ -232,7 +232,7 @@ void handle(int tid, Syscall request) {
       __builtin_memcpy(rcv_buf, msg, len);
 
       // skip the W4_RECEIVE state, someone was already waiting
-      td->state     = TaskStatus::W4_REPLY;
+      td->state    = TaskStatus::W4_REPLY;
       to_td->state = TaskStatus::READY;
       scheduler.schedule(*to_td);
     } else {
@@ -268,7 +268,7 @@ void handle(int tid, Syscall request) {
       // update sender task to waiting for reply
       // however no impact on scheduling
       to_td->state = TaskStatus::W4_REPLY;
-      td->state     = TaskStatus::READY;
+      td->state    = TaskStatus::READY;
       scheduler.schedule(*td);
     } else {
       td->state = TaskStatus::W4_SEND;

@@ -228,13 +228,13 @@ void test_rps_1_client_1() {
   // test case 1: tie
   client.signup();
   auto result = client.play(RPS::PlayMessage::Choice::ROCK);
-  _assert(result->payload.rps_play_result.result ==
+  _assert(result->data.rps_play_result.result ==
               RPS::PlayResultMessage::Result::TIE,
           "expected tie");
 
   // test case 2: win
   result = client.play(RPS::PlayMessage::Choice::PAPER);
-  _assert(result->payload.rps_play_result.result ==
+  _assert(result->data.rps_play_result.result ==
               RPS::PlayResultMessage::Result::WIN,
           "expected win");
 
@@ -247,13 +247,13 @@ void test_rps_1_client_2() {
   // test case 1: tie
   client.signup();
   auto result = client.play(RPS::PlayMessage::Choice::ROCK);
-  _assert(result->payload.rps_play_result.result ==
+  _assert(result->data.rps_play_result.result ==
               RPS::PlayResultMessage::Result::TIE,
           "expected tie");
 
   // test case 2: lose
   result = client.play(RPS::PlayMessage::Choice::ROCK);
-  _assert(result->payload.rps_play_result.result ==
+  _assert(result->data.rps_play_result.result ==
               RPS::PlayResultMessage::Result::LOSE,
           "expected lose");
   client.quit();
@@ -271,7 +271,7 @@ void test_rps_2_client_1() {
   // test 2.2: former partner can sign up with new partner
   client.signup();
   result = client.play(RPS::PlayMessage::Choice::ROCK);
-  _assert(result->payload.rps_play_result.result ==
+  _assert(result->data.rps_play_result.result ==
               RPS::PlayResultMessage::Result::TIE,
           "expected tie");
   client.quit();
@@ -283,7 +283,7 @@ void test_rps_2_client_2() {
   // test case 2: partner quits
   client.signup();
   auto result = client.play(RPS::PlayMessage::Choice::ROCK);
-  _assert(result->payload.rps_play_result.result ==
+  _assert(result->data.rps_play_result.result ==
               RPS::PlayResultMessage::Result::PLAYER_QUIT,
           "expected player quit");
 
@@ -295,7 +295,7 @@ void test_rps_2_client_2() {
   // quit
   client.signup();
   result = client.play(RPS::PlayMessage::Choice::ROCK);
-  _assert(result->payload.rps_play_result.result ==
+  _assert(result->data.rps_play_result.result ==
               RPS::PlayResultMessage::Result::TIE,
           "expected tie");
   client.quit();
