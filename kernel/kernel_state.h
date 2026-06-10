@@ -1,5 +1,7 @@
 #pragma once
+
 #include <cstdint>
+#include <optional>
 
 #include "allocator.h"
 #include "map.h"
@@ -34,20 +36,14 @@ namespace Kernel {
   inline uint8_t task_stacks[MAX_TASKS][TASK_STACK_SIZE]
       __attribute__((section(".task_stacks")));
 
-  inline TaskDescriptor *lookup_td(int tid) {
+  inline std::optional<TaskDescriptor *> lookup_td(int tid) {
     using namespace Kernel;
 
     auto descriptor_index_opt = tid_to_descriptor.get(tid);
     if (!descriptor_index_opt.has_value()) {
-      return nullptr;
+      return std::nullopt;
     }
 
     return &task_descriptors[descriptor_index_opt.value()];
-  }
-
-  inline TaskDescriptor &require_td(int tid) {
-    auto *td = lookup_td(tid);
-    _assert(td != nullptr, "invalid tid");
-    return *td;
   }
 } // namespace Kernel

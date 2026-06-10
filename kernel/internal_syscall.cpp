@@ -8,6 +8,7 @@
 #include "scheduler.h"
 #include "syscall.h"
 #include "task_descriptor.h"
+#include "time.h"
 #include "uart.h"
 
 extern "C" void default_handler(int n) {
@@ -105,18 +106,20 @@ static void handle_interrupt() {
 }
 
 Syscall activate(int tid) {
-  TaskDescriptor &td = Kernel::require_td(tid);
-  td.state           = TaskStatus::RUNNING;
+  auto td_opt = Kernel::lookup_td(tid);
+  _assert(td_opt.has_value(), "invalid tid");
+  auto td   = td_opt.value();
+  td->state = TaskStatus::RUNNING;
 
   // clear I and F bits in saved Pstate to allow interrupts in user mode.
-  auto *user_tf         = (Kernel::TrapFrame *)td.sp_el0;
+  auto *user_tf         = (Kernel::TrapFrame *)td->sp_el0;
   uint64_t pstate_mask  = 0x3 << 6;
   user_tf->spsr_el1    &= ~pstate_mask;
 
   // switch to user mode
   // this will return when task makes a syscall
-  Kernel::TrapFrame *tf = _switch_to_user(td.sp_el0);
-  td.sp_el0             = (uint64_t)tf;
+  Kernel::TrapFrame *tf = _switch_to_user(td->sp_el0);
+  td->sp_el0            = (uint64_t)tf;
 
   // check if interrupt
   if (tf->is_interrupt) {
@@ -137,46 +140,48 @@ void handle(int tid, Syscall request) {
   // (e.g. for syscalls) ESR_EL1 will have exception code, holds n form svc N
 
   using namespace Kernel;
-  TaskDescriptor &td = require_td(tid);
-  TrapFrame *tf      = (TrapFrame *)td.sp_el0;
+  auto td_opt = lookup_td(tid);
+  _assert(td_opt.has_value(), "invalid tid");
+  auto td       = td_opt.value();
+  TrapFrame *tf = (TrapFrame *)td->sp_el0;
 
   switch (request) {
   case Syscall::CREATE: {
     int new_tid = _create(tf->x[0], (void (*)())tf->x[1], tid);
     tf->x[0]    = new_tid;
-    scheduler.schedule(td);
+    scheduler.schedule(*td);
     break;
   }
   case Syscall::MY_TID: {
     tf->x[0] = tid;
-    scheduler.schedule(td);
+    scheduler.schedule(*td);
     break;
   }
   case Syscall::MY_PARENT_TID: {
-    tf->x[0] = td.parent_tid;
-    scheduler.schedule(td);
+    tf->x[0] = td->parent_tid;
+    scheduler.schedule(*td);
     break;
   }
   case Syscall::YIELD: {
-    td.state = TaskStatus::READY;
-    scheduler.schedule(td);
+    td->state = TaskStatus::READY;
+    scheduler.schedule(*td);
     break;
   }
   case Syscall::EXIT: {
-    td.state = TaskStatus::TERMINATED;
+    td->state = TaskStatus::TERMINATED;
     tid_to_descriptor.remove(tid);
-    task_allocator.free(td.td_idx);
+    task_allocator.free(td->td_idx);
 
     // wake sender queue to alert of task exist
-    auto to_tid_opt = td.sender_queue.pop();
+    auto to_tid_opt = td->sender_queue.pop();
     while (to_tid_opt.has_value()) {
-      auto to_tid = to_tid_opt.value();
-      auto *to_td = lookup_td(to_tid);
-      if (to_td == nullptr) {
-        to_tid_opt = td.sender_queue.pop();
+      auto to_tid    = to_tid_opt.value();
+      auto to_td_opt = lookup_td(to_tid);
+      if (!to_td_opt.has_value()) {
+        to_tid_opt = td->sender_queue.pop();
         continue;
       }
-
+      auto to_td = to_td_opt.value();
       auto to_tf = (TrapFrame *)to_td->sp_el0;
 
       Message msg{};
@@ -188,7 +193,7 @@ void handle(int tid, Syscall request) {
       __builtin_memcpy(rcv_reply, &msg, rcv_len);
       to_td->state = TaskStatus::READY;
       scheduler.schedule(*to_td);
-      to_tid_opt = td.sender_queue.pop();
+      to_tid_opt = td->sender_queue.pop();
     }
 
     break;
@@ -196,16 +201,17 @@ void handle(int tid, Syscall request) {
   case Syscall::SEND: {
     int to_tid = tf->x[0];
 
-    auto *to_td = lookup_td(to_tid);
-    if (to_td == nullptr) {
+    auto to_td_opt = lookup_td(to_tid);
+    if (!to_td_opt.has_value()) {
       tf->x[0] = -1; // invalid tid
-      scheduler.schedule(td);
+      scheduler.schedule(*td);
       break;
     }
 
+    auto to_td = to_td_opt.value();
     if (to_tid == tid) {
       tf->x[0] = -2; // can't send to self
-      scheduler.schedule(td);
+      scheduler.schedule(*td);
       break;
     }
 
@@ -226,23 +232,24 @@ void handle(int tid, Syscall request) {
       __builtin_memcpy(rcv_buf, msg, len);
 
       // skip the W4_RECEIVE state, someone was already waiting
-      td.state     = TaskStatus::W4_REPLY;
+      td->state     = TaskStatus::W4_REPLY;
       to_td->state = TaskStatus::READY;
       scheduler.schedule(*to_td);
     } else {
-      td.state = TaskStatus::W4_RECEIVE;
+      td->state = TaskStatus::W4_RECEIVE;
       to_td->sender_queue.push(tid);
     }
 
     break;
   }
   case Syscall::RECEIVE: {
-    auto from_tid_opt = td.sender_queue.pop();
+    auto from_tid_opt = td->sender_queue.pop();
     if (from_tid_opt.has_value()) {
       int from_tid = from_tid_opt.value();
 
-      auto *to_td = lookup_td(from_tid);
-      _assert(to_td != nullptr, "sender tid missing from map");
+      auto to_td_opt = lookup_td(from_tid);
+      _assert(to_td_opt.has_value(), "sender tid missing from map");
+      auto to_td   = to_td_opt.value();
       auto from_tf = (TrapFrame *)to_td->sp_el0;
 
       // set who msg is from (follow int ptr)
@@ -261,26 +268,27 @@ void handle(int tid, Syscall request) {
       // update sender task to waiting for reply
       // however no impact on scheduling
       to_td->state = TaskStatus::W4_REPLY;
-      td.state     = TaskStatus::READY;
-      scheduler.schedule(td);
+      td->state     = TaskStatus::READY;
+      scheduler.schedule(*td);
     } else {
-      td.state = TaskStatus::W4_SEND;
+      td->state = TaskStatus::W4_SEND;
     }
     break;
   }
   case Syscall::REPLY: {
     int to_tid = tf->x[0];
 
-    auto *to_td = lookup_td(to_tid);
-    if (to_td == nullptr) {
+    auto to_td_opt = lookup_td(to_tid);
+    if (!to_td_opt.has_value()) {
       tf->x[0] = -1; // invalid tid
-      scheduler.schedule(td);
+      scheduler.schedule(*td);
       break;
     }
+    auto to_td = to_td_opt.value();
 
     if (to_td->state != TaskStatus::W4_REPLY) {
       tf->x[0] = -2; // task not waiting for reply
-      scheduler.schedule(td);
+      scheduler.schedule(*td);
       break;
     }
 
@@ -298,7 +306,7 @@ void handle(int tid, Syscall request) {
 
     to_td->state = TaskStatus::READY;
     scheduler.schedule(*to_td);
-    scheduler.schedule(td);
+    scheduler.schedule(*td);
     break;
   }
   }
