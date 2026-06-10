@@ -1,6 +1,5 @@
 #pragma once
 
-#include "time.h"
 #include <cstdint>
 
 static constexpr uint32_t GIC_SPURIOUS_IRQ = 1023;

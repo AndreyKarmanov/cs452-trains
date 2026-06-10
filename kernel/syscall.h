@@ -13,6 +13,10 @@ enum class Syscall {
   REPLY         = 7
 };
 
+enum class Event {
+  CLOCK_TICK_1MS
+};
+
 int create(int priority, void (*function)());
 int my_tid();
 int my_parent_tid();
@@ -30,3 +34,4 @@ int reply(int tid, const char *reply, int rplen);
 int reply_with_error(int tid);
 
 void await_task(int tid);
+void await_event(Event event);

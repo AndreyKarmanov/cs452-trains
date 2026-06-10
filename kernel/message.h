@@ -1,5 +1,6 @@
 #pragma once
 
+#include <cstdint>
 #define NS_MAX_NAME_LENGTH 32
 
 enum class MessageType {
@@ -22,7 +23,15 @@ enum class MessageType {
   RPS_PLAY_READY  = 9,  // server notifies of game start
   RPS_PLAY_RESULT = 10, // server returns game result
   RPS_PLAYER_QUIT = 11, // server notifies other player quit
-  RPS_QUIT_ACK    = 12  // server confirms player quit
+  RPS_QUIT_ACK    = 12, // server confirms player quit
+
+  // clock server
+  CS_TIME        = 13,
+  CS_TIME_REPLY  = 14,
+  CS_DELAY       = 15,
+  CS_DELAY_UNTIL = 16,
+  CS_DELAY_REPLY = 17,
+  CS_TICK        = 18,
 };
 
 namespace NS {
@@ -86,6 +95,29 @@ namespace RPS {
   struct QuitAckMessage {};
 } // namespace RPS
 
+namespace CS {
+  struct TimeMessage {};
+
+  struct TimeReplyMessage {
+    uint32_t ticks;
+  };
+
+  struct DelayMessage {
+    uint32_t ticks;
+  };
+
+  struct DelayUntilMessage {
+    uint32_t ticks;
+  };
+
+  struct DelayReplyMessage {
+    uint32_t ticks;
+  };
+
+  struct TickMessage {};
+
+} // namespace CS
+
 // todo: This will grow to be the size of the largest in union
 // in future, when this has much more data, we want a smaller approach for hot
 // message types
@@ -104,6 +136,13 @@ struct Message {
     RPS::PlayReadyMessage rps_play_ready;
     RPS::PlayResultMessage rps_play_result;
     RPS::QuitAckMessage rps_quit_ack;
+
+    CS::TimeMessage cs_time;
+    CS::TimeReplyMessage cs_time_reply;
+    CS::DelayMessage cs_delay;
+    CS::DelayUntilMessage cs_delay_until;
+    CS::DelayReplyMessage cs_delay_reply;
+    CS::TickMessage cs_tick;
 
   } data;
 };
