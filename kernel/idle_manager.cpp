@@ -1,8 +1,24 @@
 #include "idle_manager.h"
 #include "syscall.h"
 #include "time.h"
+#include "uart.h"
 
-bool maintainance() { return false; }
+#define IDLE_ROW "3"
+#define IDLE_UPDATE_US 100000
+
+bool maintainance() {
+  static uint32_t last_update = 0;
+  const uint32_t now          = time_get();
+
+  if (now - last_update < IDLE_UPDATE_US) {
+    return false;
+  }
+  last_update = now;
+
+  const int pct = kernel_idle_pct();
+  uart_printf(CONSOLE, "\033[" IDLE_ROW ";1H\033[KIdle: %d%%", pct);
+  return false;
+}
 
 void idle_task() {
   for (;;) {
@@ -13,19 +29,21 @@ void idle_task() {
   }
 }
 
+IdleManager::IdleManager() : last_busy_us_(time_get()) {}
+
 void IdleManager::go_idle() {
   // Note: should reason if we should double check that kernel scheduler is
   // empty here. That is, we don't go idle if there are tasks. Personally I
   // think it's excessive.
 
   // account for busy time
-  busy_us_ += static_cast<uint64_t>(time_get() - last_busy_us_);
+  const uint32_t start  = time_get();
+  busy_us_             += static_cast<uint64_t>(start - last_busy_us_);
 
   // go idle and track idle time
-  uint32_t start = time_get();
   asm volatile("wfi" ::: "memory");
-  uint32_t end  = time_get();
-  idle_us_     += static_cast<uint64_t>(end - start);
+  const uint32_t end  = time_get();
+  idle_us_           += static_cast<uint64_t>(end - start);
 
   // kernel is busy after wfi
   last_busy_us_ = time_get();
