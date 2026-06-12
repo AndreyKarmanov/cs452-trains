@@ -51,7 +51,7 @@ int Delay(int tid, int ticks) {
   int rcv_len             = send(tid, msg, rcv_msg);
   if (rcv_len < static_cast<int>(sizeof(rcv_msg)) ||
       rcv_msg.type != MessageType::CS_DELAY_REPLY) {
-    return -1;
+    return rcv_msg.data.error_code;
   }
   return rcv_msg.data.cs_delay_reply.ticks;
 }
@@ -64,7 +64,7 @@ int DelayUntil(int tid, int ticks) {
   int rcv_len                   = send(tid, msg, rcv_msg);
   if (rcv_len < static_cast<int>(sizeof(rcv_msg)) ||
       rcv_msg.type != MessageType::CS_DELAY_REPLY) {
-    return -1;
+    return rcv_msg.data.error_code;
   }
   return rcv_msg.data.cs_delay_reply.ticks;
 }
