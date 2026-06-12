@@ -1,25 +1,27 @@
 #include "debug.h"
 #include <cstdint>
+#include <source_location>
 
 #include "uart.h"
 
 namespace {
-void put_hex(size_t value, size_t width) {
-  static const char hex_digits[] = "0123456789abcdef";
+  void put_hex(size_t value, size_t width) {
+    static const char hex_digits[] = "0123456789abcdef";
 
-  uart_puts(CONSOLE, "0x");
-  for (size_t shift = width; shift > 0; --shift) {
-    size_t digit = (value >> ((shift - 1) * 4)) & 0x0f;
-    uart_putc(CONSOLE, hex_digits[digit]);
+    uart_puts(CONSOLE, "0x");
+    for (size_t shift = width; shift > 0; --shift) {
+      size_t digit = (value >> ((shift - 1) * 4)) & 0x0f;
+      uart_putc(CONSOLE, hex_digits[digit]);
+    }
   }
-}
 } // namespace
 
-bool _assert(bool value, const char *msg) {
+bool _assert(bool value, const char *msg, const std::source_location location) {
   if (value)
     return false;
 
-  uart_puts(CONSOLE, "\n\rASSERTION FAILED: ");
+  uart_printf(CONSOLE, "Assert Failed\n\r%s:%s:%d\n\r", location.file_name(),
+              location.function_name(), location.line());
   uart_puts(CONSOLE, msg);
   uart_puts(CONSOLE, "\n\r");
 
@@ -50,5 +52,6 @@ void dump_memory_region(size_t address, size_t count) {
 }
 
 void write_memory_word(size_t address, size_t value) {
-  *reinterpret_cast<volatile uint32_t *>(address) = static_cast<uint32_t>(value);
+  *reinterpret_cast<volatile uint32_t *>(address) =
+      static_cast<uint32_t>(value);
 }
