@@ -19,7 +19,7 @@ enum class Syscall {
 
 // make sure that event count is the last event!!
 // this is pivotal to ensure we can use it as the number of events :)
-enum class Event { CLOCK_TICK_1MS, DELAY_5S, EVENT_COUNT };
+enum class Event { CLOCK_TICK_1MS, DELAY_5S, UART_IRQ, EVENT_COUNT };
 constexpr auto TOTAL_EVENT_TYPES = static_cast<size_t>(Event::EVENT_COUNT) + 1;
 
 int create(int priority, void (*function)());

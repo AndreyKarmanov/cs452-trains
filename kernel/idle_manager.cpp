@@ -3,7 +3,7 @@
 #include "time.h"
 #include "uart.h"
 
-#define IDLE_ROW "3"
+#define IDLE_ROW "5"
 #define IDLE_UPDATE_US 100000
 
 bool maintainance() {

@@ -9,8 +9,11 @@ static char *const GICC_BASE = GIC_BASE + 0x2000;
 
 #define GIC_REG(base, offset) (*(volatile uint32_t *)((base) + (offset)))
 
-static const uint32_t GICC_IAR  = 0x00C;
-static const uint32_t GICC_EOIR = 0x010;
+static const uint32_t GICC_IAR             = 0x00C;
+static const uint32_t GICC_EOIR            = 0x010;
+static const uint32_t GICD_TARGETSRN_BASE  = 0x800;
+static const uint32_t GICD_ISENABLERN_BASE = 0x100;
+static const uint32_t GICD_ICENABLERN_BASE = 0x180;
 
 uint32_t gic_iar_read() {
   // for multiprocessor implementations, this also returns the cpu id and needs
@@ -33,9 +36,9 @@ void set_interrupt_core_routing(int core_id, int interrupt_id, bool enabled) {
 
   // GIC 4.3.12, GICD_ITARGETSRn
   if (enabled) {
-    GIC_REG(GICD_BASE, 0x800 + (4 * n)) |= bit << shift;
+    GIC_REG(GICD_BASE, GICD_TARGETSRN_BASE + (4 * n)) |= bit << shift;
   } else {
-    GIC_REG(GICD_BASE, 0x800 + (4 * n)) &= ~(bit << shift);
+    GIC_REG(GICD_BASE, GICD_TARGETSRN_BASE + (4 * n)) &= ~(bit << shift);
   }
 }
 
@@ -44,9 +47,9 @@ void set_interrupt(int interrupt_id, bool enabled) {
   auto bit = 1u << (interrupt_id % 32);
   if (enabled) {
     // GIC 4.3.5, GICD_ISENABLERn
-    GIC_REG(GICD_BASE, 0x100 + (4 * n)) |= bit;
+    GIC_REG(GICD_BASE, GICD_ISENABLERN_BASE + (4 * n)) |= bit;
   } else {
     // GIC 4.3.6, GICD_ICENABLERn
-    GIC_REG(GICD_BASE, 0x180 + (4 * n)) |= bit;
+    GIC_REG(GICD_BASE, GICD_ICENABLERN_BASE + (4 * n)) |= bit;
   }
 }

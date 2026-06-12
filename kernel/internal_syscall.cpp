@@ -11,6 +11,7 @@
 #include "task_descriptor.h"
 #include "time.h"
 #include "uart.h"
+#include "uart_new.h"
 
 extern "C" void default_handler(int n) {
   uint64_t esr_el1;
@@ -100,6 +101,11 @@ static void initalize_event(Event event) {
     set_timer_interrupt(3, TIME_1S_US * 5);
     break;
   }
+  case Event::UART_IRQ: {
+    // uart and its interrupts inits on startup to be entirely masked.
+    // unmasking occurs later once we start awaiting.
+    break;
+  }
   default: {
     break;
   }
@@ -119,6 +125,10 @@ static void handle_event(Event event) {
   case Event::DELAY_5S: {
     clear_timer_interrupt(3);
     initalized_events &= ~(1u << static_cast<int>(event));
+    break;
+  }
+  case Event::UART_IRQ: {
+    // don't need to do anything as we only need notifiers to be notified.
     break;
   }
   default: {
@@ -188,6 +198,9 @@ static void handle_interrupt() {
     case GIC_TIMER_IRQ_C3:
       uart_printf(CONSOLE, "5 second delay event\n\r");
       handle_event(Event::DELAY_5S);
+      break;
+    case GIC_UART_IRQ:
+      handle_event(Event::UART_IRQ);
       break;
     default:
       break;
