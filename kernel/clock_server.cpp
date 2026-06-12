@@ -1,4 +1,5 @@
 #include "clock_server.h"
+#include "debug.h"
 #include "message.h"
 #include "syscall.h"
 #include "uart.h"

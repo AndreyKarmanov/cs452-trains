@@ -1,4 +1,5 @@
 #include "internal_syscall.h"
+#include "debug.h"
 #include "gic.h"
 #include "idle_manager.h"
 #include "kernel_state.h"
