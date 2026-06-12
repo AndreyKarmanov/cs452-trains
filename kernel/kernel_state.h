@@ -10,7 +10,7 @@
 #include <cstdint>
 #include <optional>
 
-#define PRIORITY_LEVELS 4
+#define PRIORITY_LEVELS 7
 #define MAX_TASKS 16
 #define TASK_STACK_SIZE 4096
 

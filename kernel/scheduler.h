@@ -3,6 +3,7 @@
 #include "buffer.h"
 #include "debug.h"
 #include "task_descriptor.h"
+#include <cstddef>
 #include <optional>
 
 template <size_t MAX_TASKS, size_t MAX_PRIORITY> class Scheduler {
@@ -17,7 +18,7 @@ public:
   };
 
   std::optional<int> get_task() {
-    for (int i = MAX_PRIORITY - 1; i >= 0; i--) {
+    for (size_t i = 0; i < MAX_PRIORITY; i--) {
       auto res = schedules[i].pop();
       if (res.has_value()) {
         return res.value();

@@ -12,3 +12,4 @@ void test_rps_task();
 
 void test_await_event_task();
 void test_clock_server();
+void test_clock_client_task();

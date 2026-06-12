@@ -32,6 +32,10 @@ enum class MessageType {
   CS_DELAY_UNTIL = 16,
   CS_DELAY_REPLY = 17,
   CS_TICK        = 18,
+
+  FUT_CLIENT_PARAMS       = 19,
+  FUT_CLIENT_PARAMS_REPLY = 20,
+
 };
 
 namespace NS {
@@ -118,6 +122,14 @@ namespace CS {
 
 } // namespace CS
 
+namespace FUT {
+  struct ClientParamRequest {};
+  struct ClientInitMessage {
+    int delay_ticks;
+    int delay_count;
+  };
+
+} // namespace FUT
 // todo: This will grow to be the size of the largest in union
 // in future, when this has much more data, we want a smaller approach for hot
 // message types
@@ -146,5 +158,7 @@ struct Message {
     CS::DelayReplyMessage cs_delay_reply;
     CS::TickMessage cs_tick;
 
+    FUT::ClientParamRequest fut_params_req;
+    FUT::ClientInitMessage fut_params;
   } data;
 };

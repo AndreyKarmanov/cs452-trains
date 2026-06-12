@@ -32,7 +32,7 @@ extern "C" int kmain() {
   instruction_cache_set(INSTRUCTION_CACHE);
 
   using namespace Kernel;
-  _create(1, first_user_task);
+  _create(0, first_user_task);
   for (;;) {
     auto tid = scheduler.get_task();
     if (!tid.has_value()) {
