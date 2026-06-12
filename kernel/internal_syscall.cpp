@@ -400,7 +400,14 @@ void handle(int tid, Syscall request) {
     break;
   }
   case Syscall::AWAIT_EVENT: {
-    auto event = static_cast<Event>(tf->x[0]);
+    auto raw_event = static_cast<int>(tf->x[0]);
+    if (raw_event < 0 || raw_event > static_cast<int>(Event::EVENT_COUNT)) {
+      tf->x[0] = -1;
+      scheduler.schedule(*td);
+      break;
+    }
+
+    auto event = static_cast<Event>(raw_event);
     if (!event_buffers.contains(event)) {
       event_buffers.set(event, {});
     }
