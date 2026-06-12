@@ -1,8 +1,7 @@
 #pragma once
 
-#include <optional>
-
 #include "message.h"
+#include <optional>
 
 class RPSClient {
   int rps_server_tid;

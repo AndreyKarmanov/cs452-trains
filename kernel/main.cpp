@@ -1,5 +1,3 @@
-#include <optional>
-
 #include "cache.h"
 #include "first_user_task.h"
 #include "internal_syscall.h"
@@ -7,6 +5,7 @@
 #include "rpi.h"
 #include "scheduler.h"
 #include "uart.h"
+#include <optional>
 
 #ifndef DATA_CACHE
 #define DATA_CACHE 1

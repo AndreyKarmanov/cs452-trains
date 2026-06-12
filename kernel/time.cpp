@@ -1,9 +1,8 @@
+#include "time.h"
+#include "rpi.h"
+#include "uart.h"
 #include <cstdint>
 #include <stdint.h>
-
-#include "rpi.h"
-#include "time.h"
-#include "uart.h"
 
 #define TIME_COL "1"
 #define TIME_ROW "2"
@@ -36,7 +35,9 @@ void update_timer_interrupt(uint32_t timer, uint32_t delta_us) {
   SYSTIME_REG(TIME_CS) = (1u << timer);
 }
 
-void clear_timer_interrupt(uint32_t timer) { SYSTIME_REG(TIME_CS) = (1u << timer); }
+void clear_timer_interrupt(uint32_t timer) {
+  SYSTIME_REG(TIME_CS) = (1u << timer);
+}
 
 uint32_t time_get() { return SYSTIME_REG(TIME_CLO); }
 

@@ -1,11 +1,10 @@
 
-#include <optional>
-
+#include "rps_server.h"
 #include "debug.h"
 #include "message.h"
-#include "rps_server.h"
 #include "syscall.h"
 #include "uart.h"
+#include <optional>
 
 void RPSServer::run() {
   int sender_tid;
@@ -154,11 +153,11 @@ void RPSServer::run() {
       }
 
       Message p1_msg{};
-      p1_msg.type                           = MessageType::RPS_PLAY_RESULT;
+      p1_msg.type                        = MessageType::RPS_PLAY_RESULT;
       p1_msg.data.rps_play_result.result = p1_result;
 
       Message p2_msg{};
-      p2_msg.type                           = MessageType::RPS_PLAY_RESULT;
+      p2_msg.type                        = MessageType::RPS_PLAY_RESULT;
       p2_msg.data.rps_play_result.result = p2_result;
 
       // print game result

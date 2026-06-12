@@ -1,9 +1,6 @@
-#include <cstdint>
-#include <optional>
-
+#include "internal_syscall.h"
 #include "gic.h"
 #include "idle_manager.h"
-#include "internal_syscall.h"
 #include "kernel_state.h"
 #include "message.h"
 #include "scheduler.h"
@@ -11,6 +8,8 @@
 #include "task_descriptor.h"
 #include "time.h"
 #include "uart.h"
+#include <cstdint>
+#include <optional>
 
 extern "C" void default_handler(int n) {
   uint64_t esr_el1;

@@ -1,8 +1,7 @@
 #pragma once
 
-#include <optional>
-
 #include "buffer.h"
+#include <optional>
 
 template <size_t SIZE> class Allocator {
   Buffer<int, SIZE> free_items;

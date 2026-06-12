@@ -3,6 +3,7 @@
 #include <array>
 #include <cstddef>
 #include <optional>
+
 // TODO: make a linked list version to enable removing arbitrary
 template <typename T, size_t SIZE> class alignas(16) Buffer {
   std::array<T, SIZE> arr;

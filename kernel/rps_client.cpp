@@ -34,7 +34,7 @@ std::optional<Message> RPSClient::play(RPS::PlayMessage::Choice choice) {
   uart_printf(CONSOLE, "RPS client %d: play %s\r\n", my_tid(),
               RPS::choice_str(choice));
   Message msg{};
-  msg.type                    = MessageType::RPS_PLAY;
+  msg.type                 = MessageType::RPS_PLAY;
   msg.data.rps_play.choice = choice;
   Message reply_msg{};
   int len = send(rps_server_tid, msg, reply_msg);

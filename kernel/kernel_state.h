@@ -1,8 +1,5 @@
 #pragma once
 
-#include <cstdint>
-#include <optional>
-
 #include "allocator.h"
 #include "buffer.h"
 #include "idle_manager.h"
@@ -10,6 +7,8 @@
 #include "scheduler.h"
 #include "syscall.h"
 #include "task_descriptor.h"
+#include <cstdint>
+#include <optional>
 
 #define PRIORITY_LEVELS 4
 #define MAX_TASKS 16

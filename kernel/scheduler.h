@@ -1,10 +1,9 @@
 #pragma once
 
-#include <optional>
-
 #include "buffer.h"
 #include "debug.h"
 #include "task_descriptor.h"
+#include <optional>
 
 template <size_t MAX_TASKS, size_t MAX_PRIORITY> class Scheduler {
 public:

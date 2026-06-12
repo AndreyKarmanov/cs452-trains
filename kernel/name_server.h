@@ -1,12 +1,11 @@
 #pragma once
 
-#include <cstring>
-
 #include "buffer.h"
 #include "map.h"
 #include "message.h"
 #include "static_string.h"
 #include "syscall.h"
+#include <cstring>
 
 constexpr static int NAMESERVER_TID = 1;
 
@@ -56,7 +55,7 @@ public:
       auto tid_opt = name_to_tid.get(msg.data.ns_who_is.name);
       if (tid_opt.has_value()) {
         Message reply_msg{};
-        reply_msg.type = MessageType::NS_WHO_IS_REPLY;
+        reply_msg.type                     = MessageType::NS_WHO_IS_REPLY;
         reply_msg.data.ns_who_is_reply.tid = tid_opt.value();
         reply(sender_tid, reply_msg);
       } else {

@@ -1,8 +1,7 @@
 #include "debug.h"
+#include "uart.h"
 #include <cstdint>
 #include <source_location>
-
-#include "uart.h"
 
 namespace {
   void put_hex(size_t value, size_t width) {
@@ -16,16 +15,12 @@ namespace {
   }
 } // namespace
 
-bool _assert(bool value, const char *msg, const std::source_location location) {
-  if (value)
-    return false;
-
-  uart_printf(CONSOLE, "Assert Failed\n\r%s:%s:%d\n\r", location.file_name(),
-              location.function_name(), location.line());
-  uart_puts(CONSOLE, msg);
-  uart_puts(CONSOLE, "\n\r");
-
-  return true;
+bool _assert(bool condition, const char *msg, const std::source_location loc) {
+  if (!condition) {
+    uart_printf(CONSOLE, "FAIL: %s at %s:%u\n", msg, loc.file_name(),
+                loc.line());
+  }
+  return condition;
 }
 
 void dump_memory_region(size_t address, size_t count) {

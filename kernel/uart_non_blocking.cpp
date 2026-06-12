@@ -1,10 +1,9 @@
-#include <cstdarg>
-#include <cstdint>
-
+#include "uart_non_blocking.h"
 #include "rpi.h"
 #include "uart.h"
-#include "uart_non_blocking.h"
 #include "util.h"
+#include <cstdarg>
+#include <cstdint>
 
 static char *const UART_BASE = (char *)(MMIO_BASE + 0x201000);
 #define UART_REG(line, offset)                                                 \
