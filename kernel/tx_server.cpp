@@ -41,9 +41,6 @@ void TX_Server::drain() {
   }
 
   buffer_has_pending_tx = !tx_buffer.is_empty();
-  if (buffer_has_pending_tx) {
-    clear_uart_interrupt(UARTInterruptType::TXIM);
-  }
 }
 
 void TX_Server::reply_to_notifier() {

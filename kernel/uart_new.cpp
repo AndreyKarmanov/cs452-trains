@@ -18,6 +18,7 @@ static const uint32_t UART_LCRH = 0x2c;
 static const uint32_t UART_CR   = 0x30;
 
 // masks for specific fields in the UART registers
+static const uint32_t UART_FR_CTS  = 0x01;
 static const uint32_t UART_FR_BUSY = 0x08;
 static const uint32_t UART_FR_RXFE = 0x10;
 static const uint32_t UART_FR_TXFF = 0x20;
@@ -46,10 +47,11 @@ static const uint32_t UART_MIS  = 0x40;
 static const uint32_t UART_ICR  = 0x44;
 
 // IMSC: write 1 to unmask (enable), 0 to mask (disable)
-static const uint32_t UART_IMSC_RXIM = 1 << 4;
-static const uint32_t UART_IMSC_TXIM = 1 << 5;
-static const uint32_t UART_IMSC_RTIM = 1 << 6;
-static const uint32_t UART_IMSC_ALL  = 0x7FF;
+static const uint32_t UART_IMSC_CTSMIM = 1 << 1;
+static const uint32_t UART_IMSC_RXIM   = 1 << 4;
+static const uint32_t UART_IMSC_TXIM   = 1 << 5;
+static const uint32_t UART_IMSC_RTIM   = 1 << 6;
+static const uint32_t UART_IMSC_ALL    = 0x7FF;
 
 // Configure the line properties (e.g, parity, baud rate) of a UART and ensure
 // that it is enabled
@@ -90,9 +92,9 @@ void uart_config_and_enable(size_t line) {
   UART_REG(line, UART_ICR) = UART_IMSC_ALL;
 
   // re-enable the UART; enable both transmit and receive regardless of previous
-  // state
+  // state. Also enable flow control with ctsen (but not rtsen)
   UART_REG(line, UART_CR) =
-      cr_state | UART_CR_UARTEN | UART_CR_TXE | UART_CR_RXE;
+      cr_state | UART_CR_UARTEN | UART_CR_TXE | UART_CR_RXE | UART_CR_CTSEN;
 
   // config init interrupt states
   set_interrupt_core_routing(0, GIC_UART_IRQ, true);
@@ -102,6 +104,9 @@ void uart_config_and_enable(size_t line) {
 void enable_uart_interrupt(UARTInterruptType interrupt_type) {
   // enable the interrupt by setting the corresponding bit in the IMSC register
   switch (interrupt_type) {
+  case UARTInterruptType::CTSMIM:
+    UART_REG(CONSOLE, UART_IMSC) |= UART_IMSC_CTSMIM;
+    break;
   case UARTInterruptType::RXIM:
     UART_REG(CONSOLE, UART_IMSC) |= UART_IMSC_RXIM;
     break;
@@ -120,6 +125,9 @@ void disable_uart_interrupt(UARTInterruptType interrupt_type) {
   // disable the interrupt by clearing the corresponding bit in the IMSC
   // register
   switch (interrupt_type) {
+  case UARTInterruptType::CTSMIM:
+    UART_REG(CONSOLE, UART_IMSC) &= ~UART_IMSC_CTSMIM;
+    break;
   case UARTInterruptType::RXIM:
     UART_REG(CONSOLE, UART_IMSC) &= ~UART_IMSC_RXIM;
     break;
@@ -136,6 +144,9 @@ void disable_uart_interrupt(UARTInterruptType interrupt_type) {
 
 void clear_uart_interrupt(UARTInterruptType interrupt_type) {
   switch (interrupt_type) {
+  case UARTInterruptType::CTSMIM:
+    UART_REG(CONSOLE, UART_ICR) = UART_IMSC_CTSMIM;
+    break;
   case UARTInterruptType::RXIM:
     UART_REG(CONSOLE, UART_ICR) = UART_IMSC_RXIM;
     break;
@@ -161,8 +172,26 @@ bool is_uart_mis_tx_pending() {
   return (UART_REG(CONSOLE, UART_MIS) & UART_IMSC_TXIM) != 0;
 }
 
+bool is_uart_mis_cts_pending() {
+  return (UART_REG(CONSOLE, UART_MIS) & UART_IMSC_CTSMIM) != 0;
+}
+
+bool is_cts_clear_to_send() {
+  return (UART_REG(CONSOLE, UART_FR) & UART_FR_CTS) != 0;
+}
+
 bool can_receive_io() { return !(UART_REG(CONSOLE, UART_FR) & UART_FR_RXFE); }
-bool can_transmit_io() { return !(UART_REG(CONSOLE, UART_FR) & UART_FR_TXFF); }
+
+bool can_transmit_io() {
+  uint32_t fr = UART_REG(CONSOLE, UART_FR);
+  if (fr & UART_FR_TXFF) {
+    return false;
+  }
+  if (!(fr & UART_FR_CTS)) {
+    return false;
+  }
+  return true;
+}
 
 char getc() { return UART_REG(CONSOLE, UART_DR); }
 void putc(char c) { UART_REG(CONSOLE, UART_DR) = c; }

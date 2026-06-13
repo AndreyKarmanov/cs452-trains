@@ -8,6 +8,7 @@ void uart_config_and_enable(size_t line);
 
 // Enum for UART interrupt identifiers
 enum class UARTInterruptType {
+  CTSMIM,
   RXIM,
   TXIM,
   RTIM,
@@ -17,6 +18,8 @@ void disable_uart_interrupt(UARTInterruptType interrupt_type);
 void clear_uart_interrupt(UARTInterruptType interrupt_type);
 bool is_uart_mis_rx_pending();
 bool is_uart_mis_tx_pending();
+bool is_uart_mis_cts_pending();
+bool is_cts_clear_to_send();
 bool can_receive_io();
 bool can_transmit_io();
 char getc();

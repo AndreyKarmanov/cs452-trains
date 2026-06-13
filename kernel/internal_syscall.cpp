@@ -113,6 +113,7 @@ static void initalize_event(Event event) {
   }
   case Event::UART_TX_IRQ: {
     enable_uart_interrupt(UARTInterruptType::TXIM);
+    enable_uart_interrupt(UARTInterruptType::CTSMIM);
     break;
   }
   default: {
@@ -143,8 +144,9 @@ static void handle_event(Event event) {
     break;
   }
   case Event::UART_TX_IRQ: {
-    // immediately disable after tx firing as it will keep firing
+    // immediately disable after firing as they will keep firing
     disable_uart_interrupt(UARTInterruptType::TXIM);
+    disable_uart_interrupt(UARTInterruptType::CTSMIM);
     break;
   }
   default: {
@@ -201,6 +203,33 @@ static void handle_event(Event event) {
   }
 }
 
+// Wake the TX notifier only when FR says we can send (!TXFF and CTS up).
+// If not ready, mask/clear the firing source without waking; the other
+// interrupt (still armed from await_event) covers the remaining condition.
+static void handle_uart_irq() {
+  // if rx is a cause of interrupt
+  if (is_uart_mis_rx_pending()) {
+    handle_event(Event::UART_RX_IRQ);
+  }
+
+  // handling tx interrupts
+  if (!is_uart_mis_tx_pending() && !is_uart_mis_cts_pending()) {
+    return;
+  }
+
+  if (can_transmit_io()) {
+    handle_event(Event::UART_TX_IRQ);
+    return;
+  }
+
+  if (is_uart_mis_tx_pending()) {
+    disable_uart_interrupt(UARTInterruptType::TXIM);
+  }
+  if (is_uart_mis_cts_pending()) {
+    clear_uart_interrupt(UARTInterruptType::CTSMIM);
+  }
+}
+
 static void handle_interrupt() {
   // choose next task to run
   // restore chosen task context, return from exeption with eret
@@ -224,13 +253,7 @@ static void handle_interrupt() {
       handle_event(Event::DELAY_5S);
       break;
     case GIC_UART_IRQ:
-      // determine cause of interrupt
-      if (is_uart_mis_rx_pending()) {
-        handle_event(Event::UART_RX_IRQ);
-      }
-      if (is_uart_mis_tx_pending()) {
-        handle_event(Event::UART_TX_IRQ);
-      }
+      handle_uart_irq();
       break;
     default:
       break;
