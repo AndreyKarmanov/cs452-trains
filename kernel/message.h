@@ -32,6 +32,14 @@ enum class MessageType {
   CS_DELAY_UNTIL = 16,
   CS_DELAY_REPLY = 17,
   CS_TICK        = 18,
+
+  // io servers
+  TX_INTERRUPT = 19,
+  TX_SEND      = 20,
+  TX_REPLY     = 21,
+
+  RX_INTERRUPT       = 22,
+  RX_INTERRUPT_REPLY = 23,
 };
 
 namespace NS {
@@ -118,6 +126,12 @@ namespace CS {
 
 } // namespace CS
 
+namespace TX {
+  struct SendMessage {
+    char c;
+  };
+} // namespace TX
+
 // todo: This will grow to be the size of the largest in union
 // in future, when this has much more data, we want a smaller approach for hot
 // message types
@@ -145,6 +159,8 @@ struct Message {
     CS::DelayUntilMessage cs_delay_until;
     CS::DelayReplyMessage cs_delay_reply;
     CS::TickMessage cs_tick;
+
+    TX::SendMessage tx_send;
 
   } data;
 };

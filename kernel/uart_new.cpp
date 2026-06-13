@@ -1,10 +1,8 @@
 // helper to enable and disable for rx and tx and rxtim
-#include <cstdint>
-
+#include "uart_new.h"
 #include "gic.h"
 #include "rpi.h"
-#include "uart.h"
-#include "uart_non_blocking.h"
+#include <cstdint>
 
 // we only use uart0
 static char *const UART_BASE = (char *)(MMIO_BASE + 0x201000);
@@ -100,6 +98,74 @@ void uart_config_and_enable(size_t line) {
   set_interrupt_core_routing(0, GIC_UART_IRQ, true);
   set_interrupt(GIC_UART_IRQ, true);
 }
+
+void enable_uart_interrupt(UARTInterruptType interrupt_type) {
+  // enable the interrupt by setting the corresponding bit in the IMSC register
+  switch (interrupt_type) {
+  case UARTInterruptType::RXIM:
+    UART_REG(CONSOLE, UART_IMSC) |= UART_IMSC_RXIM;
+    break;
+  case UARTInterruptType::TXIM:
+    UART_REG(CONSOLE, UART_IMSC) |= UART_IMSC_TXIM;
+    break;
+  case UARTInterruptType::RTIM:
+    UART_REG(CONSOLE, UART_IMSC) |= UART_IMSC_RTIM;
+    break;
+  default:
+    break;
+  }
+}
+
+void disable_uart_interrupt(UARTInterruptType interrupt_type) {
+  // disable the interrupt by clearing the corresponding bit in the IMSC
+  // register
+  switch (interrupt_type) {
+  case UARTInterruptType::RXIM:
+    UART_REG(CONSOLE, UART_IMSC) &= ~UART_IMSC_RXIM;
+    break;
+  case UARTInterruptType::TXIM:
+    UART_REG(CONSOLE, UART_IMSC) &= ~UART_IMSC_TXIM;
+    break;
+  case UARTInterruptType::RTIM:
+    UART_REG(CONSOLE, UART_IMSC) &= ~UART_IMSC_RTIM;
+    break;
+  default:
+    break;
+  }
+}
+
+void clear_uart_interrupt(UARTInterruptType interrupt_type) {
+  switch (interrupt_type) {
+  case UARTInterruptType::RXIM:
+    UART_REG(CONSOLE, UART_ICR) = UART_IMSC_RXIM;
+    break;
+  case UARTInterruptType::TXIM:
+    UART_REG(CONSOLE, UART_ICR) = UART_IMSC_TXIM;
+    break;
+  case UARTInterruptType::RTIM:
+    UART_REG(CONSOLE, UART_ICR) = UART_IMSC_RTIM;
+    break;
+  default:
+    break;
+  }
+}
+
+bool is_uart_mis_rx_pending() {
+  bool rx_timer_pending = (UART_REG(CONSOLE, UART_MIS) & UART_IMSC_RTIM) != 0;
+  bool rx_interrupt_pending =
+      (UART_REG(CONSOLE, UART_MIS) & UART_IMSC_RXIM) != 0;
+  return rx_timer_pending || rx_interrupt_pending;
+}
+
+bool is_uart_mis_tx_pending() {
+  return (UART_REG(CONSOLE, UART_MIS) & UART_IMSC_TXIM) != 0;
+}
+
+bool can_receive_io() { return !(UART_REG(CONSOLE, UART_FR) & UART_FR_RXFE); }
+bool can_transmit_io() { return !(UART_REG(CONSOLE, UART_FR) & UART_FR_TXFF); }
+
+char getc() { return UART_REG(CONSOLE, UART_DR); }
+void putc(char c) { UART_REG(CONSOLE, UART_DR) = c; }
 
 // void handle_uart_irq() {
 //   // can use pactl_cs here to make sure that the interrupt is coming from

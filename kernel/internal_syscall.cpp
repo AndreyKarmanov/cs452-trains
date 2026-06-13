@@ -82,12 +82,14 @@ static void initalize_event(Event event) {
   using namespace Kernel;
 
   // check if we've already initalized this event
-  if (initalized_events & (1u << static_cast<int>(event)))
-    return;
+  bool is_initialized =
+      (initalized_events & (1u << static_cast<int>(event))) != 0;
   initalized_events |= (1u << static_cast<int>(event));
 
   switch (event) {
   case Event::CLOCK_TICK_1MS: {
+    if (is_initialized)
+      return;
     set_interrupt_core_routing(0, GIC_TIMER_IRQ_C1, true);
     set_interrupt(GIC_TIMER_IRQ_C1, true);
     clear_timer_interrupt(1);
@@ -95,15 +97,22 @@ static void initalize_event(Event event) {
     break;
   }
   case Event::DELAY_5S: {
+    if (is_initialized)
+      return;
     set_interrupt_core_routing(0, GIC_TIMER_IRQ_C3, true);
     set_interrupt(GIC_TIMER_IRQ_C3, true);
     clear_timer_interrupt(3);
     set_timer_interrupt(3, TIME_1S_US * 5);
     break;
   }
-  case Event::UART_IRQ: {
-    // uart and its interrupts inits on startup to be entirely masked.
-    // unmasking occurs later once we start awaiting.
+  case Event::UART_RX_IRQ: {
+    // unmask rtim and rxim
+    enable_uart_interrupt(UARTInterruptType::RTIM);
+    enable_uart_interrupt(UARTInterruptType::RXIM);
+    break;
+  }
+  case Event::UART_TX_IRQ: {
+    enable_uart_interrupt(UARTInterruptType::TXIM);
     break;
   }
   default: {
@@ -127,8 +136,15 @@ static void handle_event(Event event) {
     initalized_events &= ~(1u << static_cast<int>(event));
     break;
   }
-  case Event::UART_IRQ: {
-    // don't need to do anything as we only need notifiers to be notified.
+  case Event::UART_RX_IRQ: {
+    // mask so no RX IRQ fires until notifier re-await_event
+    disable_uart_interrupt(UARTInterruptType::RXIM);
+    disable_uart_interrupt(UARTInterruptType::RTIM);
+    break;
+  }
+  case Event::UART_TX_IRQ: {
+    // immediately disable after tx firing as it will keep firing
+    disable_uart_interrupt(UARTInterruptType::TXIM);
     break;
   }
   default: {
@@ -168,6 +184,14 @@ static void handle_event(Event event) {
       }
       return; // return if only the first should wake
     }
+    case Event::UART_RX_IRQ: {
+      scheduler.schedule(*td.value());
+      break;
+    }
+    case Event::UART_TX_IRQ: {
+      scheduler.schedule(*td.value());
+      break;
+    }
     default: {
       return;
     }
@@ -200,7 +224,13 @@ static void handle_interrupt() {
       handle_event(Event::DELAY_5S);
       break;
     case GIC_UART_IRQ:
-      handle_event(Event::UART_IRQ);
+      // determine cause of interrupt
+      if (is_uart_mis_rx_pending()) {
+        handle_event(Event::UART_RX_IRQ);
+      }
+      if (is_uart_mis_tx_pending()) {
+        handle_event(Event::UART_TX_IRQ);
+      }
       break;
     default:
       break;
