@@ -449,6 +449,7 @@ void test_clock_client_task() {
   int tid   = my_tid();
   int p_tid = my_parent_tid();
   Message msg;
+  msg.type = MessageType::FUT_CLIENT_PARAMS;
   Message rcv_msg;
 
   int rcv_len = send(p_tid, msg, rcv_msg);
@@ -458,8 +459,8 @@ void test_clock_client_task() {
           "clock client task did not receive param msg");
 
   int cs_tid       = WhoIs(ClockServer<>::CLOCK_SERVER_NAME);
-  auto delay_ticks = msg.data.fut_params.delay_ticks;
-  auto delay_count = msg.data.fut_params.delay_count;
+  auto delay_ticks = rcv_msg.data.fut_params.delay_ticks;
+  auto delay_count = rcv_msg.data.fut_params.delay_count;
 
   for (int delays_complete = 0; delays_complete < delay_count;
        ++delays_complete) {

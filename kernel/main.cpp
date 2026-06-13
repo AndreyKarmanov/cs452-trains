@@ -36,6 +36,7 @@ extern "C" int kmain() {
   for (;;) {
     auto tid = scheduler.get_task();
     if (!tid.has_value()) {
+      uart_puts(CONSOLE, "No task to run\n\r");
       break; // error
     }
     auto active_tid = tid.value();

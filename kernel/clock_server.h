@@ -6,7 +6,6 @@
 #include "message.h"
 #include "name_server.h"
 #include "syscall.h"
-#include "uart.h"
 #include <cstdint>
 #include <stdint.h>
 #include <utility>
@@ -39,8 +38,6 @@ public:
       break;
     }
     case MessageType::CS_DELAY: {
-      uart_printf(CONSOLE, "CS DELAY RECEIVED: %d ticks\n\r",
-                  msg.data.cs_delay.ticks);
       if (msg.data.cs_delay.ticks < 0) {
         reply_with_error(tid, -2);
         break;
@@ -49,8 +46,6 @@ public:
       break;
     }
     case MessageType::CS_DELAY_UNTIL: {
-      uart_printf(CONSOLE, "CS DELAY UNTIL RECEIVED: %d ticks\n\r",
-                  msg.data.cs_delay_until.ticks);
       if (msg.data.cs_delay_until.ticks < 0) {
         reply_with_error(tid, -2);
         break;
@@ -67,9 +62,6 @@ public:
       break;
     }
     case MessageType::CS_TICK: {
-      if (curr_tick % 10000 == 0) {
-        uart_printf(CONSOLE, "CS tick\n\r");
-      }
       curr_tick++;
       reply(tid, msg);
       while (true) {

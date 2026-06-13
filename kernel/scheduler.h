@@ -18,7 +18,7 @@ public:
   };
 
   std::optional<int> get_task() {
-    for (size_t i = 0; i < MAX_PRIORITY; i--) {
+    for (size_t i = 0; i < MAX_PRIORITY; i++) {
       auto res = schedules[i].pop();
       if (res.has_value()) {
         return res.value();

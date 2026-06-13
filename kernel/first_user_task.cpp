@@ -47,8 +47,8 @@ void first_user_task() {
   auto p5_tid = create(5, test_clock_client_task);
   auto p6_tid = create(6, test_clock_client_task);
 
-  uart_printf(CONSOLE, "Created p3: %d, p4: %d, p5: %d, p6: %d", p3_tid, p4_tid,
-              p5_tid, p6_tid);
+  uart_printf(CONSOLE, "Created p3: %d, p4: %d, p5: %d, p6: %d\n\r", p3_tid,
+              p4_tid, p5_tid, p6_tid);
 
   int rcv_tid;
   Message rcv_msg;
@@ -84,5 +84,5 @@ void first_user_task() {
   create(PRIORITY_LEVELS - 1, idle_task);
 
   // Shell
-  create(0, shell_task);
+  // create(0, shell_task);
 }

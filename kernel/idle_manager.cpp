@@ -3,7 +3,8 @@
 #include "time.h"
 #include "uart.h"
 
-#define IDLE_ROW "3"
+#define IDLE_ROW "0"
+#define IDLE_COL "100"
 #define IDLE_UPDATE_US 100000
 
 bool maintainance() {
@@ -16,7 +17,7 @@ bool maintainance() {
   last_update = now;
 
   const int pct = kernel_idle_pct();
-  uart_printf(CONSOLE, "\033[" IDLE_ROW ";1H\033[KIdle: %d%%", pct);
+  uart_printf(CONSOLE, "\033[" IDLE_ROW ";" IDLE_COL "H\033[KIdle: %d%%", pct);
   return false;
 }
 
