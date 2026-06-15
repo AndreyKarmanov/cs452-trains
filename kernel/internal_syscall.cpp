@@ -96,7 +96,7 @@ static void initalize_event(Event event) {
     set_interrupt_core_routing(0, GIC_TIMER_IRQ_C1, true);
     set_interrupt(GIC_TIMER_IRQ_C1, true);
     clear_timer_interrupt(1);
-    set_timer_interrupt(1, TIME_1MS_US);
+    set_timer_interrupt(1, TIME_10MS_US);
     break;
   }
   case Event::DELAY_5S: {
@@ -118,7 +118,7 @@ static void handle_event(Event event) {
   // one-time handling
   switch (event) {
   case Event::CLOCK_TICK_1MS: {
-    update_timer_interrupt(1, TIME_1MS_US);
+    update_timer_interrupt(1, TIME_10MS_US);
     clear_timer_interrupt(1);
     break;
   }
