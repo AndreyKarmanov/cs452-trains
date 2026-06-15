@@ -145,6 +145,8 @@ void fire_command(char *buf, size_t blen, UARTNB &uart) {
     create(0, test_await_event_task);
   } else if (strncmp(cmd, "t clock", 7) == 0) {
     create(0, test_clock_server);
+  } else if (strncmp(cmd, "t name_server", 13) == 0) {
+    create(0, test_name_server);
   } else if (strncmp(cmd, "t cycles", 8) == 0) {
     uart.puts("Syscall cycle counts:\n\r");
     for (const auto &[k, v] : Kernel::syscall_cycle_counts) {
@@ -152,7 +154,7 @@ void fire_command(char *buf, size_t blen, UARTNB &uart) {
       uart.printf("  %d: %d cycles\n\r", k, v / total_cycles);
     }
   } else if (strncmp(cmd, "t ssr", 5) == 0) {
-    int timer_tid = create(1, test_timer_task);
+    create(1, test_timer_task);
   } else {
     uart.puts("Unknown command. Available: q (quit), p (parent tid), "
               "m (my tid), y (yield), c (create), d (dump memory), "

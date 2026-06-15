@@ -68,6 +68,10 @@ int send(int tid, const char *msg, int msg_len, char *reply, int reply_len) {
   return r0;
 }
 
+void receive(int *tid, MessageVar &msg) {
+  receive(tid, (char *)&msg, sizeof(msg));
+}
+
 int receive(int *tid, Message &msg) {
   return receive(tid, (char *)&msg, sizeof(msg));
 }
@@ -85,6 +89,10 @@ int receive(int *tid, char *msg, int msg_len) {
   return r0_out;
 }
 
+void reply(int tid, const MessageVar &msg) {
+  reply(tid, (const char *)&msg, sizeof(msg));
+}
+
 int reply(int tid, Message msg) {
   return reply(tid, (const char *)&msg, sizeof(msg));
 };
@@ -99,6 +107,11 @@ int reply(int tid, const char *reply, int reply_len) {
                : "r"(r0), "r"(r1), "r"(r2), "i"(Syscall::REPLY)
                : "memory");
   return r0;
+}
+
+void reply_with_error_var(int tid, int error_code) {
+  auto msg = ErrorMessage{.error_code = error_code};
+  reply(tid, reinterpret_cast<const char *>(&msg), sizeof(msg));
 }
 
 int reply_with_error(int tid, int error_code) {

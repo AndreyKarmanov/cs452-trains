@@ -22,77 +22,69 @@ public:
     _assert(response == 0, "CLOCK SERVER REGISTERAS FAILED");
   }
 
+  void handle(const int tid, const CS::Time &) {
+    reply(tid, CS::TimeReply{.ticks = curr_tick});
+  }
+
+  void handle(const int tid, const CS::Delay &msg) {
+    if (msg.ticks < 0) {
+      reply_with_error_var(tid, -2);
+      return;
+    }
+
+    waiting_heap.push({msg.ticks + curr_tick, tid});
+  }
+
+  void handle(const int tid, const CS::DelayUntil &msg) {
+    if (msg.ticks < 0) {
+      reply_with_error_var(tid, -2);
+      return;
+    }
+
+    if (msg.ticks <= curr_tick) {
+      reply(tid, CS::DelayReply{.ticks = curr_tick});
+    } else {
+      waiting_heap.push({msg.ticks, tid});
+    }
+  }
+
+  void handle(const int tid, const CS::Tick &) {
+    curr_tick++;
+    reply(tid, CS::Tick{});
+
+    while (true) {
+      auto waiting_val_opt = waiting_heap.peek();
+      if (!waiting_val_opt.has_value()) {
+        break;
+      }
+
+      auto [wake_time, waiting_tid] = waiting_val_opt.value();
+      if (wake_time > curr_tick) {
+        break;
+      }
+
+      waiting_heap.pop();
+      reply(waiting_tid, CS::DelayReply{.ticks = curr_tick});
+    }
+  }
+
+  template <class T> void handle(const int tid, const T &) {
+    reply_with_error_var(tid);
+  }
+
   void run() {
-    int tid;
-    Message msg;
-    auto rcv_size = receive(&tid, msg);
-
-    switch (msg.type) {
-    case MessageType::CS_TIME: {
-      Message reply_msg;
-      reply_msg.type                     = MessageType::CS_TIME_REPLY;
-      reply_msg.data.cs_time_reply.ticks = curr_tick;
-      reply(tid, reply_msg);
-      break;
-    }
-    case MessageType::CS_DELAY: {
-      if (msg.data.cs_delay.ticks < 0) {
-        reply_with_error(tid, -2);
-        break;
-      }
-      waiting_heap.push({msg.data.cs_delay.ticks + curr_tick, tid});
-      break;
-    }
-    case MessageType::CS_DELAY_UNTIL: {
-      if (msg.data.cs_delay_until.ticks < 0) {
-        reply_with_error(tid, -2);
-        break;
-      }
-
-      if (msg.data.cs_delay_until.ticks <= curr_tick) {
-        Message reply_msg;
-        reply_msg.type                      = MessageType::CS_DELAY_REPLY;
-        reply_msg.data.cs_delay_reply.ticks = curr_tick;
-        reply(tid, reply_msg);
-      } else {
-        waiting_heap.push({msg.data.cs_delay_until.ticks, tid});
-      }
-      break;
-    }
-    case MessageType::CS_TICK: {
-      curr_tick++;
-      reply(tid, msg);
-      while (true) {
-        auto waiting_val_opt = waiting_heap.peek();
-        if (!waiting_val_opt.has_value()) {
-          break;
-        }
-
-        auto [wake_time, waiting_tid] = waiting_val_opt.value();
-        if (wake_time > static_cast<int>(curr_tick)) {
-          break;
-        }
-
-        waiting_heap.pop();
-        Message reply_msg;
-        reply_msg.type                      = MessageType::CS_DELAY_REPLY;
-        reply_msg.data.cs_delay_reply.ticks = curr_tick;
-        reply(waiting_tid, reply_msg);
-      }
-      break;
-    }
-    default:
-      reply_with_error(tid);
-      break;
-    }
+    int sender_tid;
+    MessageVar msg;
+    receive(&sender_tid, msg);
+    std::visit([&](auto &&arg) { handle(sender_tid, arg); }, msg);
   }
 };
 
 void clock_server_task();
 
 int Time(int tid);
-int Delay(int tid, int ticks);
-int DelayUntil(int tid, int ticks);
+int Delay(int tid, uint32_t ticks);
+int DelayUntil(int tid, uint32_t ticks);
 
 void test_clock_server();
 void test_clock_client_task();

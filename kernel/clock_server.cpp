@@ -10,13 +10,9 @@ static void clock_notifier_task() {
 
   uart_printf(CONSOLE, "STARTED CLOCK NOTIFIER\n\r");
 
-  Message msg;
-  msg.type = MessageType::CS_TICK;
-  Message rcv_msg;
-
   while (true) {
     await_event(Event::CLOCK_TICK_1MS);
-    auto rcv_len = send(cs_tid, msg, rcv_msg);
+    [[maybe_unused]] auto rcv_msg = sendVariant<CS::Tick>(cs_tid, CS::Tick{});
   }
 }
 
@@ -30,55 +26,39 @@ void clock_server_task() {
 }
 
 int Time(int tid) {
-  Message msg;
-  Message rcv_msg;
-  msg.type = MessageType::CS_TIME;
-
-  int rcv_len = send(tid, msg, rcv_msg);
-  if (rcv_len < static_cast<int>(sizeof(rcv_msg)) ||
-      rcv_msg.type != MessageType::CS_TIME_REPLY) {
-    return -1;
+  auto res = sendVariant<CS::TimeReply>(tid, CS::Time{});
+  if (!res) {
+    return res.error();
   }
-  return rcv_msg.data.cs_time_reply.ticks;
+  return res->ticks;
 }
 
-int Delay(int tid, int ticks) {
-  Message msg;
-  Message rcv_msg;
-  msg.type                = MessageType::CS_DELAY;
-  msg.data.cs_delay.ticks = ticks;
-  int rcv_len             = send(tid, msg, rcv_msg);
-  if (rcv_len < static_cast<int>(sizeof(rcv_msg)) ||
-      rcv_msg.type != MessageType::CS_DELAY_REPLY) {
-    return rcv_msg.data.error_code;
+int Delay(int tid, uint32_t ticks) {
+  auto res = sendVariant<CS::DelayReply>(tid, CS::Delay{.ticks = ticks});
+  if (!res) {
+    return res.error();
   }
-  return rcv_msg.data.cs_delay_reply.ticks;
+  return res->ticks;
 }
 
-int DelayUntil(int tid, int ticks) {
-  Message msg;
-  Message rcv_msg;
-  msg.type                      = MessageType::CS_DELAY_UNTIL;
-  msg.data.cs_delay_until.ticks = ticks;
-  int rcv_len                   = send(tid, msg, rcv_msg);
-  if (rcv_len < static_cast<int>(sizeof(rcv_msg)) ||
-      rcv_msg.type != MessageType::CS_DELAY_REPLY) {
-    return rcv_msg.data.error_code;
+int DelayUntil(int tid, uint32_t ticks) {
+  auto res = sendVariant<CS::DelayReply>(tid, CS::DelayUntil{.ticks = ticks});
+  if (!res) {
+    return res.error();
   }
-  return rcv_msg.data.cs_delay_reply.ticks;
+  return res->ticks;
 }
 
 void test_clock_server() {
   auto cs_tid = WhoIs(ClockServer<>::CLOCK_SERVER_NAME);
-  _assert(cs_tid != -1, "Clock server not found");
 
   auto time = Time(cs_tid);
   uart_printf(CONSOLE, "Current time: %d ticks\n\r", time);
 
-  time = Delay(cs_tid, 5000);
+  time = Delay(cs_tid, 500);
   uart_puts(CONSOLE, "5 second delay\n\r");
 
-  time = DelayUntil(cs_tid, time + 5000);
+  time = DelayUntil(cs_tid, time + 500);
   uart_puts(CONSOLE, "5 second delay until\n\r");
 }
 
@@ -86,9 +66,9 @@ void test_clock_client_task() {
 
   int tid   = my_tid();
   int p_tid = my_parent_tid();
-  Message msg;
+  Message msg{};
   msg.type = MessageType::FUT_CLIENT_PARAMS;
-  Message rcv_msg;
+  Message rcv_msg{};
 
   int rcv_len = send(p_tid, msg, rcv_msg);
 
@@ -102,7 +82,7 @@ void test_clock_client_task() {
 
   for (int delays_complete = 0; delays_complete < delay_count;
        ++delays_complete) {
-    auto time = Delay(cs_tid, delay_ticks);
+    [[maybe_unused]] auto time = Delay(cs_tid, delay_ticks);
     uart_printf(CONSOLE,
                 "T %d delay_ticks: %d delay_count: %d delays_complete: %d\n\r",
                 tid, delay_ticks, delay_count, delays_complete);

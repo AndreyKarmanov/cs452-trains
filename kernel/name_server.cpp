@@ -11,32 +11,22 @@ void name_server_task() {
   }
 }
 
-int RegisterAs(const char *name) {
-  Message msg{};
-  msg.type = MessageType::NS_REGISTER_AS;
-  _assert(std::strlen(name) < NS_MAX_NAME_LENGTH, "Name is too long");
-  std::strncpy(msg.data.ns_register.name, name, NS_MAX_NAME_LENGTH);
-  Message reply_msg{};
-  int len = send(NAMESERVER_TID, msg, reply_msg);
-  if (len < static_cast<int>(sizeof(reply_msg)) ||
-      reply_msg.type != MessageType::NS_REGISTER_REPLY) {
-    return -1;
+int RegisterAs(const StaticString<NS::MAX_NAME_LEN> &name) {
+  NS::Register msg{.name = name};
+  auto res = sendVariant<NS::RegisterReply>(NAMESERVER_TID, msg);
+  if (!res) {
+    return res.error();
   }
-  return static_cast<int>(reply_msg.data.ns_register_reply.status);
+  return static_cast<int>(res->status);
 }
 
-int WhoIs(const char *name) {
-  Message msg{};
-  msg.type = MessageType::NS_WHO_IS;
-  _assert(std::strlen(name) < NS_MAX_NAME_LENGTH, "Name is too long");
-  std::strncpy(msg.data.ns_who_is.name, name, NS_MAX_NAME_LENGTH);
-  Message reply_msg{};
-  int len = send(NAMESERVER_TID, msg, reply_msg);
-  if (len < static_cast<int>(sizeof(reply_msg)) ||
-      reply_msg.type != MessageType::NS_WHO_IS_REPLY) {
-    return -1;
+int WhoIs(const StaticString<NS::MAX_NAME_LEN> &name) {
+  NS::WhoIs msg{.name = name};
+  auto res = sendVariant<NS::WhoIsReply>(NAMESERVER_TID, msg);
+  if (!res) {
+    return res.error();
   }
-  return reply_msg.data.ns_who_is_reply.tid;
+  return res->tid;
 }
 
 void test_name_server() {
