@@ -17,7 +17,7 @@ bool maintainance(int tx_tid) {
   last_update = now;
 
   const int pct = kernel_idle_pct();
-  Printf(tx_tid, "\033[" IDLE_ROW ";1H\033[KIdle: %d%%", pct);
+  Printf(tx_tid, "[KERNEL] Idle: %d%%\n\r", pct);
   return false;
 }
 
