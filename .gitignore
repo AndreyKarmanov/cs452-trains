@@ -16,3 +16,4 @@ cacert.pem
 
 # notebook
 *.ipynb
+**/compile_commands.json
