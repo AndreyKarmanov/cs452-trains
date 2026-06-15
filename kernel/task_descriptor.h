@@ -1,8 +1,7 @@
 #pragma once
 
-#include <cstdint>
-
 #include "buffer.h"
+#include <cstdint>
 
 enum class TaskStatus {
   READY,

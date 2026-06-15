@@ -1,17 +1,17 @@
 #pragma once
 
-#include <cstdint>
-#include <optional>
-
 #include "allocator.h"
 #include "buffer.h"
+#include "debug.h"
 #include "idle_manager.h"
 #include "map.h"
 #include "scheduler.h"
 #include "syscall.h"
 #include "task_descriptor.h"
+#include <cstdint>
+#include <optional>
 
-#define PRIORITY_LEVELS 4
+#define PRIORITY_LEVELS 8
 #define MAX_TASKS 16
 #define TASK_STACK_SIZE 4096
 
@@ -39,6 +39,8 @@ namespace Kernel {
   inline uint64_t initalized_events{0};
 
   inline IdleManager idle_manager;
+  inline Map<Syscall, int, 32> syscall_cycle_totals;
+  inline Map<Syscall, int, 32> syscall_cycle_counts;
 
   // Make sure this lives in a separate, non-kernel section
   inline uint8_t task_stacks[MAX_TASKS][TASK_STACK_SIZE]
@@ -47,6 +49,7 @@ namespace Kernel {
   inline std::optional<TaskDescriptor *> lookup_td(int tid) {
     auto descriptor_index_opt = tid_to_descriptor.get(tid);
     if (!descriptor_index_opt.has_value()) {
+      _assert(false, "invalid tid");
       return std::nullopt;
     }
 

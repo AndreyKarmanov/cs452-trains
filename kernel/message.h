@@ -33,15 +33,18 @@ enum class MessageType {
   CS_DELAY_REPLY = 17,
   CS_TICK        = 18,
 
-  // io servers
-  TX_INTERRUPT = 19,
-  TX_SEND      = 20,
-  TX_REPLY     = 21,
+  FUT_CLIENT_PARAMS       = 19,
+  FUT_CLIENT_PARAMS_REPLY = 20,
 
-  RX_INTERRUPT       = 22,
-  RX_INTERRUPT_REPLY = 23,
-  RX_GETC            = 25,
-  RX_GETC_REPLY      = 26,
+  // io servers
+  TX_INTERRUPT = 21,
+  TX_SEND      = 22,
+  TX_REPLY     = 23,
+
+  RX_INTERRUPT       = 24,
+  RX_INTERRUPT_REPLY = 25,
+  RX_GETC            = 27,
+  RX_GETC_REPLY      = 28,
 };
 
 namespace NS {
@@ -145,6 +148,14 @@ namespace RX {
   };
 } // namespace RX
 
+namespace FUT {
+  struct ClientParamRequest {};
+  struct ClientInitMessage {
+    int delay_ticks;
+    int delay_count;
+  };
+
+} // namespace FUT
 // todo: This will grow to be the size of the largest in union
 // in future, when this has much more data, we want a smaller approach for hot
 // message types
@@ -178,5 +189,7 @@ struct Message {
     RX::GetcMessage rx_getc;
     RX::GetcReplyMessage rx_getc_reply;
 
+    FUT::ClientParamRequest fut_params_req;
+    FUT::ClientInitMessage fut_params;
   } data;
 };

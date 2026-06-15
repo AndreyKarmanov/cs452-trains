@@ -1,7 +1,5 @@
 #pragma once
 
-#include <optional>
-
 #include "allocator.h"
 #include "message.h"
 #include "name_server.h"

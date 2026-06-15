@@ -1,13 +1,14 @@
-#include <optional>
-
 #include "cache.h"
 #include "first_user_task.h"
 #include "internal_syscall.h"
 #include "kernel_state.h"
 #include "rpi.h"
 #include "scheduler.h"
+#include "tx_server.h"
 #include "uart.h"
+#include <optional>
 
+#include "io_helpers.h"
 #ifndef DATA_CACHE
 #define DATA_CACHE 1
 #endif
@@ -33,10 +34,12 @@ extern "C" int kmain() {
   instruction_cache_set(INSTRUCTION_CACHE);
 
   using namespace Kernel;
-  _create(1, first_user_task);
+  _create(0, first_user_task);
+  int tx_tid = WhoIs(TX_Server::TX_SERVER_NAME);
   for (;;) {
     auto tid = scheduler.get_task();
     if (!tid.has_value()) {
+      Printf(tx_tid, "No task to run\n\r");
       break; // error
     }
     auto active_tid = tid.value();

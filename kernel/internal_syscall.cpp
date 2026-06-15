@@ -1,16 +1,23 @@
-#include <cstdint>
-#include <optional>
-
+#include "internal_syscall.h"
+#include "debug.h"
 #include "gic.h"
 #include "idle_manager.h"
-#include "internal_syscall.h"
 #include "kernel_state.h"
+#include "map.h"
 #include "message.h"
 #include "scheduler.h"
 #include "syscall.h"
 #include "task_descriptor.h"
 #include "time.h"
 #include "uart.h"
+#include <cstdint>
+#include <optional>
+
+uint64_t get_cycle_count() {
+  uint64_t cycle_count;
+  asm volatile("mrs %0, cntvct_el0" : "=r"(cycle_count));
+  return cycle_count;
+}
 
 extern "C" void default_handler(int n) {
   uint64_t esr_el1;
@@ -43,8 +50,8 @@ int _create(int priority, void (*function)(), int parent_tid) {
   }
 
   auto descriptor_index_opt = task_allocator.allocate();
-  _assert(descriptor_index_opt != std::nullopt, "No free task descriptors");
   if (descriptor_index_opt == std::nullopt) {
+    _assert(false, "No free task descriptors");
     return -2; // no free task descriptors
   }
   auto td_idx = descriptor_index_opt.value();
@@ -71,8 +78,7 @@ int _create(int priority, void (*function)(), int parent_tid) {
                                          .state      = TaskStatus::READY,
                                          .sp_el0     = (uint64_t)tf};
 
-  _assert(tid_to_descriptor.set(tid, td_idx), "failed to register tid");
-
+  tid_to_descriptor.set(tid, td_idx);
   Kernel::scheduler.schedule(td);
   return tid;
 }
@@ -95,7 +101,7 @@ static void initalize_event(Event event) {
     set_interrupt_core_routing(0, GIC_TIMER_IRQ_C1, true);
     set_interrupt(GIC_TIMER_IRQ_C1, true);
     clear_timer_interrupt(1);
-    set_timer_interrupt(1, TIME_1MS_US);
+    set_timer_interrupt(1, TIME_10MS_US);
     break;
   }
   case Event::DELAY_5S: {
@@ -128,7 +134,7 @@ static void handle_event(Event event) {
   // one-time handling
   switch (event) {
   case Event::CLOCK_TICK_1MS: {
-    update_timer_interrupt(1, TIME_1MS_US);
+    update_timer_interrupt(1, TIME_10MS_US);
     clear_timer_interrupt(1);
     break;
   }
@@ -267,9 +273,8 @@ static void handle_interrupt() {
 
 Syscall activate(int tid) {
   auto td_opt = Kernel::lookup_td(tid);
-  _assert(td_opt.has_value(), "invalid tid");
-  auto td   = td_opt.value();
-  td->state = TaskStatus::RUNNING;
+  auto td     = td_opt.value();
+  td->state   = TaskStatus::RUNNING;
 
   // clear I and F bits in saved Pstate to allow interrupts in user mode.
   auto *user_tf         = (Kernel::TrapFrame *)td->sp_el0;
@@ -300,11 +305,11 @@ void handle(int tid, Syscall request) {
   // (e.g. for syscalls) ESR_EL1 will have exception code, holds n form svc N
 
   using namespace Kernel;
-  auto td_opt = lookup_td(tid);
-  _assert(td_opt.has_value(), "invalid tid");
+  auto td_opt   = lookup_td(tid);
   auto td       = td_opt.value();
   TrapFrame *tf = (TrapFrame *)td->sp_el0;
 
+  uint64_t start_cycle = get_cycle_count();
   switch (request) {
   case Syscall::CREATE: {
     int new_tid = _create(tf->x[0], (void (*)())tf->x[1], tid);
@@ -407,9 +412,8 @@ void handle(int tid, Syscall request) {
       int from_tid = from_tid_opt.value();
 
       auto to_td_opt = lookup_td(from_tid);
-      _assert(to_td_opt.has_value(), "sender tid missing from map");
-      auto to_td   = to_td_opt.value();
-      auto from_tf = (TrapFrame *)to_td->sp_el0;
+      auto to_td     = to_td_opt.value();
+      auto from_tf   = (TrapFrame *)to_td->sp_el0;
 
       // set who msg is from (follow int ptr)
       *(int *)tf->x[0] = from_tid;
@@ -460,16 +464,20 @@ void handle(int tid, Syscall request) {
     int len = to_tf->x[0] = tf->x[0] = std::min(reply_len, rcv_len);
     __builtin_memcpy(rcv_reply, reply, len);
 
-    _assert(to_td->state == TaskStatus::W4_REPLY,
-            "TASK NOT WAITING FOR REPLY\r\n");
-
     to_td->state = TaskStatus::READY;
     scheduler.schedule(*to_td);
     scheduler.schedule(*td);
     break;
   }
   case Syscall::AWAIT_EVENT: {
-    auto event = static_cast<Event>(tf->x[0]);
+    auto raw_event = static_cast<int>(tf->x[0]);
+    if (raw_event < 0 || raw_event > static_cast<int>(Event::EVENT_COUNT)) {
+      tf->x[0] = -1;
+      scheduler.schedule(*td);
+      break;
+    }
+
+    auto event = static_cast<Event>(raw_event);
     if (!event_buffers.contains(event)) {
       event_buffers.set(event, {});
     }
@@ -489,6 +497,16 @@ void handle(int tid, Syscall request) {
     scheduler.schedule(*td);
     break;
   }
+  }
+  uint64_t end_cycle = get_cycle_count();
+  if (syscall_cycle_counts.contains(request)) {
+    uint64_t total_cycles = syscall_cycle_totals.get(request).value();
+    uint64_t count_cycles = syscall_cycle_counts.get(request).value();
+    syscall_cycle_totals.set(request, total_cycles + 1);
+    syscall_cycle_counts.set(request, count_cycles + (end_cycle - start_cycle));
+  } else {
+    syscall_cycle_totals.set(request, 1);
+    syscall_cycle_counts.set(request, end_cycle - start_cycle);
   }
   return;
 }

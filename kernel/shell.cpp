@@ -1,7 +1,11 @@
 #include <ctype.h>
 
+#include "clock_server.h"
 #include "debug.h"
+#include "heap.h"
 #include "io_helpers.h"
+#include "kernel_state.h"
+#include "map.h"
 #include "name_server.h"
 #include "rx_server.h"
 #include "shell.h"
@@ -9,6 +13,9 @@
 #include "test.h"
 #include "tx_server.h"
 #include "util.h"
+#include <cstddef>
+#include <cstring>
+#include <ctype.h>
 
 #define BUFFER_SIZE 32
 
@@ -143,6 +150,14 @@ static void fire_command(char *buf, size_t blen, int tx_tid) {
     create(0, test_await_event_task);
   } else if (strncmp(cmd, "t clock", 7) == 0) {
     create(0, test_clock_server);
+  } else if (strncmp(cmd, "t cycles", 8) == 0) {
+    Printf(tx_tid, "Syscall cycle counts:\n\r");
+    for (const auto &[k, v] : Kernel::syscall_cycle_counts) {
+      auto total_cycles = Kernel::syscall_cycle_totals.get(k).value_or(1);
+      Printf(tx_tid, "  %d: %d cycles\n\r", k, v / total_cycles);
+    }
+  } else if (strncmp(cmd, "t ssr", 5) == 0) {
+    int timer_tid = create(1, test_timer_task);
   } else {
     Puts(tx_tid, "Unknown command. Available: q (quit), p (parent tid), "
                  "m (my tid), y (yield), c (create), d (dump memory), "

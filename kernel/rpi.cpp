@@ -1,6 +1,5 @@
-#include <cstdint>
-
 #include "rpi.h"
+#include <cstdint>
 
 static char *const GPIO_BASE = (char *)(MMIO_BASE + 0x200000);
 

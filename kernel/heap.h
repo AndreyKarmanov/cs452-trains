@@ -76,3 +76,5 @@ public:
   size_t size() const { return count; }
   bool is_empty() const { return count == 0; }
 };
+
+void test_heap();

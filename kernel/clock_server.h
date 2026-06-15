@@ -108,3 +108,6 @@ void clock_server_task();
 int Time(int tid);
 int Delay(int tid, int ticks);
 int DelayUntil(int tid, int ticks);
+
+void test_clock_server();
+void test_clock_client_task();

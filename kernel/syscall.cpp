@@ -113,10 +113,11 @@ void await_task(int tid) {
   while (true) {
     msg.type = MessageType::TASK_EXIT;
     send(tid, msg, msg);
-    _assert(msg.type == MessageType::TASK_EXIT,
-            "UNEXPECTED MESSAGE ON AWAIT TASK");
-    if (msg.type == MessageType::TASK_EXIT)
+    if (msg.type == MessageType::TASK_EXIT) {
       return;
+    } else {
+      _assert(false, "UNEXPECTED MESSAGE ON AWAIT TASK");
+    }
   }
 }
 

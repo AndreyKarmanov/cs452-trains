@@ -13,6 +13,44 @@ public:
     enum class State { EMPTY, OCCUPIED, DELETED } state = State::EMPTY;
   };
 
+  // Iterator for range-based for loops
+  class iterator {
+  private:
+    Slot *slots;
+    size_t idx;
+    size_t max_size;
+
+    constexpr void skip_empty() {
+      while (idx < max_size && slots[idx].state != Slot::State::OCCUPIED) {
+        ++idx;
+      }
+    }
+
+  public:
+    constexpr iterator(Slot *slots, size_t idx, size_t max_size)
+        : slots(slots), idx(idx), max_size(max_size) {
+      skip_empty();
+    }
+
+    constexpr std::pair<K &, V &> operator*() const {
+      return {slots[idx].key, slots[idx].value};
+    }
+
+    constexpr iterator &operator++() {
+      ++idx;
+      skip_empty();
+      return *this;
+    }
+
+    constexpr bool operator==(const iterator &other) const {
+      return idx == other.idx;
+    }
+
+    constexpr bool operator!=(const iterator &other) const {
+      return idx != other.idx;
+    }
+  };
+
 private:
   std::array<Slot, SIZE> map;
   Hasher hasher;
@@ -23,8 +61,6 @@ private:
   }
 
 public:
-  static_assert(SIZE > 0, "Map size must be greater than zero");
-
   constexpr std::optional<V> get(const K &key) const {
     auto hash = hasher(key);
     auto idx  = hash % SIZE;
@@ -113,6 +149,10 @@ public:
 
   constexpr size_t size() const { return count; }
   constexpr bool contains(const K &key) const { return get(key).has_value(); }
+
+  constexpr iterator begin() { return iterator(map.data(), 0, SIZE); }
+
+  constexpr iterator end() { return iterator(map.data(), SIZE, SIZE); }
 };
 
 void test_map();
