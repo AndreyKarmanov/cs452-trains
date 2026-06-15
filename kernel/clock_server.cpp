@@ -8,7 +8,7 @@ static void clock_notifier_task() {
   int cs_tid = WhoIs(ClockServer<>::CLOCK_SERVER_NAME);
   _assert(cs_tid >= 0, "CLOCK SERVER WHOIS FAILED");
 
-  uart_printf(CONSOLE, "STARTED CLOCK NOTIFIER");
+  uart_printf(CONSOLE, "STARTED CLOCK NOTIFIER\n\r");
 
   Message msg;
   msg.type = MessageType::CS_TICK;
