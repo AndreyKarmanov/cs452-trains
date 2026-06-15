@@ -8,9 +8,9 @@
 
 // tid should be the RX server tid
 int Getc(int tid) {
-  Message msg;
+  Message msg{};
   msg.type = MessageType::RX_GETC;
-  Message rcv_msg;
+  Message rcv_msg{};
   auto rcv_len = send(tid, msg, rcv_msg);
 
   if (rcv_len < static_cast<int>(sizeof(rcv_msg)) ||
@@ -22,11 +22,11 @@ int Getc(int tid) {
 
 // tid should be the TX server tid
 int Putc(int tid, unsigned char c) {
-  Message msg;
+  Message msg{};
   msg.type                 = MessageType::TX_SEND;
   msg.data.tx_send.len     = 1;
   msg.data.tx_send.data[0] = c;
-  Message rcv_msg;
+  Message rcv_msg{};
   auto rcv_len = send(tid, msg, rcv_msg);
 
   return rcv_len < 0 ? -1 : 0;
@@ -38,7 +38,7 @@ int Puts(int tid, const char *str) {
   size_t total_len = strlen(str);
 
   while (offset < total_len) {
-    Message msg;
+    Message msg{};
     msg.type = MessageType::TX_SEND;
 
     size_t chunk = total_len - offset;
@@ -49,7 +49,7 @@ int Puts(int tid, const char *str) {
     msg.data.tx_send.len = chunk;
     __builtin_memcpy(msg.data.tx_send.data, str + offset, chunk);
 
-    Message rcv_msg;
+    Message rcv_msg{};
     auto rcv_len = send(tid, msg, rcv_msg);
     if (rcv_len < 0) {
       return -1;

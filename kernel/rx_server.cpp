@@ -7,9 +7,9 @@ static void rx_notifier_task() {
   int rx_tid = WhoIs(RX_Server::RX_SERVER_NAME);
   _assert(rx_tid >= 0, "RX SERVER WHOIS FAILED");
 
-  Message msg;
+  Message msg{};
   msg.type = MessageType::RX_INTERRUPT;
-  Message rcv_msg;
+  Message rcv_msg{};
 
   while (true) {
     await_event(Event::UART_RX_IRQ);
@@ -35,7 +35,7 @@ void RX_Server::try_reply_getc() {
   auto c = rx_buffer.pop();
   _assert(c.has_value(), "RX SERVER: GETC POP FAILED");
 
-  Message reply_msg;
+  Message reply_msg{};
   reply_msg.type                 = MessageType::RX_GETC_REPLY;
   reply_msg.data.rx_getc_reply.c = c.value();
   reply(waiting_getc_tid, reply_msg);
@@ -44,7 +44,7 @@ void RX_Server::try_reply_getc() {
 
 void RX_Server::run() {
   int tid;
-  Message msg;
+  Message msg{};
   auto rcv_size = receive(&tid, msg);
   _assert(rcv_size == static_cast<int>(sizeof(msg)),
           "RX SERVER: RECEIVED LESS THAN MSG");
@@ -58,7 +58,7 @@ void RX_Server::run() {
     clear_uart_interrupt(UARTInterruptType::RXIM);
     clear_uart_interrupt(UARTInterruptType::RTIM);
 
-    Message reply_msg;
+    Message reply_msg{};
     reply_msg.type = MessageType::RX_INTERRUPT_REPLY;
     reply(tid, reply_msg);
 
@@ -71,7 +71,7 @@ void RX_Server::run() {
       auto c = rx_buffer.pop();
       _assert(c.has_value(), "RX SERVER: GETC POP FAILED");
 
-      Message reply_msg;
+      Message reply_msg{};
       reply_msg.type                 = MessageType::RX_GETC_REPLY;
       reply_msg.data.rx_getc_reply.c = c.value();
       reply(tid, reply_msg);

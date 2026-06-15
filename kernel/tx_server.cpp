@@ -9,9 +9,9 @@ static void tx_notifier_task() {
 
   Printf(tx_tid, "STARTED IO NOTIFIER");
 
-  Message msg;
+  Message msg{};
   msg.type = MessageType::TX_INTERRUPT;
-  Message rcv_msg;
+  Message rcv_msg{};
 
   while (true) {
     await_event(Event::UART_TX_IRQ);
@@ -53,7 +53,7 @@ void TX_Server::reply_to_notifier() {
 
 void TX_Server::run() {
   int tid;
-  Message msg;
+  Message msg{};
   auto rcv_size = receive(&tid, msg);
   _assert(rcv_size == static_cast<int>(sizeof(msg)),
           "TX SERVER: RECEIVED LESS THAN MSG");

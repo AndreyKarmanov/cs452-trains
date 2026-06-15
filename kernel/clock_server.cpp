@@ -60,10 +60,10 @@ void test_clock_server() {
   Printf(tx_tid, "Current time: %d ticks\n\r", time);
 
   time = Delay(cs_tid, 500);
-  Printf(tx_Tid, "5 second delay\n\r");
+  Printf(tx_tid, "5 second delay\n\r");
 
   time = DelayUntil(cs_tid, time + 500);
-  Printf(tx_Tid, "5 second delay until\n\r");
+  Printf(tx_tid, "5 second delay until\n\r");
 }
 
 void test_clock_client_task() {
