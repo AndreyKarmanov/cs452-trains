@@ -49,4 +49,23 @@ void test_map() {
           "Expected later colliding key to remain reachable after deletion");
   _assert(!colliding_map.get(key2).has_value(),
           "Expected removed colliding key to be absent");
+
+  // Test iterator with structured bindings
+  Map<StaticString<16>, int, 16> iter_map;
+  iter_map.set(key1, 10);
+  iter_map.set(key2, 20);
+  iter_map.set(key3, 30);
+
+  int count = 0;
+  for (const auto &[k, v] : iter_map) {
+    count++;
+    if (k == key1) {
+      _assert(v == 10, "Expected value 10 for key1");
+    } else if (k == key2) {
+      _assert(v == 20, "Expected value 20 for key2");
+    } else if (k == key3) {
+      _assert(v == 30, "Expected value 30 for key3");
+    }
+  }
+  _assert(count == 3, "Expected iterator to visit all 3 entries");
 }

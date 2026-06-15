@@ -1,5 +1,6 @@
 #include "shell.h"
 #include "debug.h"
+#include "kernel_state.h"
 #include "map.h"
 #include "syscall.h"
 #include "test.h"
@@ -142,6 +143,15 @@ void fire_command(char *buf, size_t blen, UARTNB &uart) {
     create(0, test_await_event_task);
   } else if (strncmp(cmd, "t clock", 7) == 0) {
     create(0, test_clock_server);
+  } else if (strncmp(cmd, "t cycles", 8) == 0) {
+    uart.puts("Syscall cycle counts:\n\r");
+    for (const auto &[k, v] : Kernel::syscall_cycle_counts) {
+      auto total_cycles = Kernel::syscall_cycle_totals.get(k).value_or(1);
+      uart.printf("  %d: %d cycles\n\r", k, v / total_cycles);
+    }
+  } else if (strncmp(cmd, "t ssr", 5) == 0) {
+    int timer_tid = create(1, test_timer_task);
+    await_task(timer_tid);
   } else {
     uart.puts("Unknown command. Available: q (quit), p (parent tid), "
               "m (my tid), y (yield), c (create), d (dump memory), "

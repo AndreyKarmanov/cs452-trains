@@ -38,6 +38,8 @@ namespace Kernel {
   inline uint64_t initalized_events{0};
 
   inline IdleManager idle_manager;
+  inline Map<Syscall, int, 32> syscall_cycle_totals;
+  inline Map<Syscall, int, 32> syscall_cycle_counts;
 
   // Make sure this lives in a separate, non-kernel section
   inline uint8_t task_stacks[MAX_TASKS][TASK_STACK_SIZE]

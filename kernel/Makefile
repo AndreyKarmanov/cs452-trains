@@ -18,7 +18,7 @@ DATA_CACHE?=true
 INSTRUCTION_CACHE?=true
 PERF_TEST?=false
 RPS_TEST?=false
-CLOCK_TEST?=true
+CLOCK_TEST?=false
 
 # COMPILE OPTIONS
 ifeq ($(MMU),on)

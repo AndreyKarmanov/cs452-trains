@@ -3,6 +3,7 @@
 #include "gic.h"
 #include "idle_manager.h"
 #include "kernel_state.h"
+#include "map.h"
 #include "message.h"
 #include "scheduler.h"
 #include "syscall.h"
@@ -11,6 +12,12 @@
 #include "uart.h"
 #include <cstdint>
 #include <optional>
+
+uint64_t get_cycle_count() {
+  uint64_t cycle_count;
+  asm volatile("mrs %0, cntvct_el0" : "=r"(cycle_count));
+  return cycle_count;
+}
 
 extern "C" void default_handler(int n) {
   uint64_t esr_el1;
@@ -237,6 +244,7 @@ void handle(int tid, Syscall request) {
   auto td       = td_opt.value();
   TrapFrame *tf = (TrapFrame *)td->sp_el0;
 
+  uint64_t start_cycle = get_cycle_count();
   switch (request) {
   case Syscall::CREATE: {
     int new_tid = _create(tf->x[0], (void (*)())tf->x[1], tid);
@@ -428,6 +436,16 @@ void handle(int tid, Syscall request) {
     scheduler.schedule(*td);
     break;
   }
+  }
+  uint64_t end_cycle = get_cycle_count();
+  if (syscall_cycle_counts.contains(request)) {
+    uint64_t total_cycles = syscall_cycle_totals.get(request).value();
+    uint64_t count_cycles = syscall_cycle_counts.get(request).value();
+    syscall_cycle_totals.set(request, total_cycles + 1);
+    syscall_cycle_counts.set(request, count_cycles + (end_cycle - start_cycle));
+  } else {
+    syscall_cycle_totals.set(request, 1);
+    syscall_cycle_counts.set(request, end_cycle - start_cycle);
   }
   return;
 }
