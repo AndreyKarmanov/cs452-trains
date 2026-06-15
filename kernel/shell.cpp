@@ -5,10 +5,10 @@
 #include "debug.h"
 #include "map.h"
 #include "shell.h"
-#include "util.h"
 #include "syscall.h"
 #include "test.h"
 #include "uart_non_blocking.h"
+#include "util.h"
 
 #define BUFFER_SIZE 32
 
@@ -52,8 +52,8 @@ static bool parse_count_size_t(char **cursor, size_t *value) {
 
   size_t base = 10;
   if (p[0] == '0' && (p[1] == 'x' || p[1] == 'X')) {
-    base = 16;
-    p += 2;
+    base  = 16;
+    p    += 2;
   }
 
   size_t result = 0;
@@ -139,9 +139,9 @@ void fire_command(char *buf, size_t blen, UARTNB &uart) {
     test_map();
   } else if (strncmp(cmd, "t heap", 6) == 0) {
     test_heap();
-  }else if (strncmp(cmd, "t event", 7) == 0){
+  } else if (strncmp(cmd, "t event", 7) == 0) {
     create(0, test_await_event_task);
-  } else if (strncmp(cmd, "t clock", 7) == 0){
+  } else if (strncmp(cmd, "t clock", 7) == 0) {
     create(0, test_clock_server);
   } else {
     uart.puts("Unknown command. Available: q (quit), p (parent tid), "
@@ -154,8 +154,9 @@ void shell_task() {
   char buf[BUFFER_SIZE];
   size_t buf_n = 0;
   UARTNB uart(CONSOLE);
-  uart.puts("COMMANDS: q (quit) p (parent tid) m (my tid) y (yield) c "
-            "(create) d <hex address> [count] w <hex address> <hex value>\n\r> ");
+  uart.puts(
+      "COMMANDS: q (quit) p (parent tid) m (my tid) y (yield) c "
+      "(create) d <hex address> [count] w <hex address> <hex value>\n\r> ");
   while (1) {
     if (uart.can_receive_io()) {
       char c = uart.getc();
