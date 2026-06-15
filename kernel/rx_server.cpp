@@ -1,7 +1,7 @@
 #include "rx_server.h"
 #include "message.h"
 #include "syscall.h"
-#include "uart_new.h"
+#include "uart.h"
 
 static void rx_notifier_task() {
   int rx_tid = WhoIs(RX_Server::RX_SERVER_NAME);

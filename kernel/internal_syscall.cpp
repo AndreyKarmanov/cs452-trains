@@ -11,7 +11,6 @@
 #include "task_descriptor.h"
 #include "time.h"
 #include "uart.h"
-#include "uart_new.h"
 
 extern "C" void default_handler(int n) {
   uint64_t esr_el1;
@@ -24,10 +23,10 @@ extern "C" void default_handler(int n) {
   asm volatile("mrs %0, elr_el1" : "=r"(elr_el1));
   asm volatile("mrs %0, spsr_el1" : "=r"(spsr_el1));
 
-  uart_printf(CONSOLE,
-              "DEFAULT VBAR HANDLER %u HIT ESR=%x FAR=%x ELR=%x SPSR=%x\n\r", n,
-              (unsigned int)esr_el1, (unsigned int)far_el1,
-              (unsigned int)elr_el1, (unsigned int)spsr_el1);
+  debug_printf(CONSOLE,
+               "DEFAULT VBAR HANDLER %u HIT ESR=%x FAR=%x ELR=%x SPSR=%x\n\r",
+               n, (unsigned int)esr_el1, (unsigned int)far_el1,
+               (unsigned int)elr_el1, (unsigned int)spsr_el1);
 }
 
 extern "C" void task_entry_wrapper(void (*function)()) {
@@ -252,7 +251,7 @@ static void handle_interrupt() {
       handle_event(Event::CLOCK_TICK_1MS);
       break;
     case GIC_TIMER_IRQ_C3:
-      uart_printf(CONSOLE, "5 second delay event\n\r");
+      debug_printf(CONSOLE, "5 second delay event\n\r");
       handle_event(Event::DELAY_5S);
       break;
     case GIC_UART_IRQ:

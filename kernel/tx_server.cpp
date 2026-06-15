@@ -1,12 +1,13 @@
 #include "tx_server.h"
+#include "io_helpers.h"
 #include "syscall.h"
-#include "uart_new.h"
+#include "uart.h"
 
 static void tx_notifier_task() {
   int tx_tid = WhoIs(TX_Server::TX_SERVER_NAME);
   _assert(tx_tid >= 0, "TX SERVER WHOIS FAILED");
 
-  // uart_printf(CONSOLE, "STARTED IO NOTIFIER");
+  Printf(tx_tid, "STARTED IO NOTIFIER");
 
   Message msg;
   msg.type = MessageType::TX_INTERRUPT;

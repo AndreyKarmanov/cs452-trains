@@ -1,12 +1,13 @@
 #include "idle_manager.h"
+#include "io_helpers.h"
 #include "syscall.h"
 #include "time.h"
-#include "uart.h"
+#include "tx_server.h"
 
 #define IDLE_ROW "5"
 #define IDLE_UPDATE_US 100000
 
-bool maintainance() {
+bool maintainance(int tx_tid) {
   static uint32_t last_update = 0;
   const uint32_t now          = time_get();
 
@@ -16,13 +17,16 @@ bool maintainance() {
   last_update = now;
 
   const int pct = kernel_idle_pct();
-  uart_printf(CONSOLE, "\033[" IDLE_ROW ";1H\033[KIdle: %d%%", pct);
+  Printf(tx_tid, "\033[" IDLE_ROW ";1H\033[KIdle: %d%%", pct);
   return false;
 }
 
 void idle_task() {
+  int tx_tid = WhoIs(TX_Server::TX_SERVER_NAME);
+  _assert(tx_tid >= 0, "TX SERVER WHOIS FAILED");
+
   for (;;) {
-    while (maintainance()) {
+    while (maintainance(tx_tid)) {
       yield();
     }
     park();

@@ -1,13 +1,16 @@
 #include "clock_server.h"
+#include "io_helpers.h"
 #include "message.h"
 #include "syscall.h"
-#include "uart.h"
+#include "tx_server.h"
 
 static void clock_notifier_task() {
   int cs_tid = WhoIs(ClockServer<>::CLOCK_SERVER_NAME);
+  int tx_tid = WhoIs(TX_Server::TX_SERVER_NAME);
+
   _assert(cs_tid >= 0, "CLOCK SERVER WHOIS FAILED");
 
-  uart_printf(CONSOLE, "STARTED CLOCK NOTIFIER");
+  Printf(tx_tid, "STARTED CLOCK NOTIFIER");
 
   Message msg;
   msg.type = MessageType::CS_TICK;

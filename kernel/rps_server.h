@@ -5,6 +5,7 @@
 #include "allocator.h"
 #include "message.h"
 #include "name_server.h"
+#include "tx_server.h"
 
 constexpr static char RPS_SERVER_NAME[]      = "RPS_SERVER";
 constexpr static size_t RPS_SERVER_MAX_GAMES = 32;
@@ -30,13 +31,16 @@ class RPSServer {
   Game games[RPS_SERVER_MAX_GAMES];
   Allocator<RPS_SERVER_MAX_GAMES> game_index_allocator;
   int player_to_game_ptr[RPS_SERVER_MAX_GAMES][2];
-
+  int tx_tid;
   std::optional<int> find_game_index_for_player(int tid);
 
 public:
   RPSServer() {
     // register with name server
     RegisterAs(RPS_SERVER_NAME);
+
+    tx_tid = WhoIs(TX_Server::TX_SERVER_NAME);
+    _assert(tx_tid >= 0, "TX SERVER WHOIS FAILED");
 
     // initialize players to game ptrs to -1 (no players)
     for (size_t i = 0; i < RPS_SERVER_MAX_GAMES; ++i) {

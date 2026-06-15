@@ -2,11 +2,12 @@
 
 #include "debug.h"
 #include "heap.h"
+#include "io_helpers.h"
 #include "kernel_state.h"
 #include "message.h"
 #include "name_server.h"
 #include "syscall.h"
-#include "uart.h"
+#include "tx_server.h"
 #include <cstdint>
 #include <stdint.h>
 #include <utility>
@@ -14,6 +15,7 @@
 template <size_t MAX_WAITING = MAX_TASKS> class ClockServer {
   uint32_t curr_tick{};
   Heap<std::pair<uint32_t, int>, MAX_WAITING> waiting_heap;
+  int tx_tid;
 
 public:
   static constexpr auto CLOCK_SERVER_NAME = "CLOCKSERVER";
@@ -21,6 +23,9 @@ public:
   ClockServer() {
     auto response = RegisterAs(CLOCK_SERVER_NAME);
     _assert(response == 0, "CLOCK SERVER REGISTERAS FAILED");
+
+    tx_tid = WhoIs(TX_Server::TX_SERVER_NAME);
+    _assert(tx_tid >= 0, "TX SERVER WHOIS FAILED");
   }
 
   void run() {
@@ -39,8 +44,8 @@ public:
       break;
     }
     case MessageType::CS_DELAY: {
-      uart_printf(CONSOLE, "CS DELAY RECEIVED: %d ticks\n\r",
-                  msg.data.cs_delay.ticks);
+      Printf(tx_tid, "CS DELAY RECEIVED: %d ticks\n\r",
+             msg.data.cs_delay.ticks);
       if (msg.data.cs_delay.ticks < 0) {
         reply_with_error(tid, -2);
         break;
@@ -49,8 +54,8 @@ public:
       break;
     }
     case MessageType::CS_DELAY_UNTIL: {
-      uart_printf(CONSOLE, "CS DELAY UNTIL RECEIVED: %d ticks\n\r",
-                  msg.data.cs_delay_until.ticks);
+      Printf(tx_tid, "CS DELAY UNTIL RECEIVED: %d ticks\n\r",
+             msg.data.cs_delay_until.ticks);
       if (msg.data.cs_delay_until.ticks < 0) {
         reply_with_error(tid, -2);
         break;
@@ -68,7 +73,7 @@ public:
     }
     case MessageType::CS_TICK: {
       if (curr_tick % 10000 == 0) {
-        uart_printf(CONSOLE, "CS tick\n\r");
+        Printf(tx_tid, "CS tick\n\r");
       }
       curr_tick++;
       reply(tid, msg);

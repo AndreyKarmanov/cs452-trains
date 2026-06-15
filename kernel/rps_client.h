@@ -9,6 +9,7 @@ class RPSClient {
 
 public:
   RPSClient();
+  int tx_tid;
 
   std::optional<Message> signup();
   std::optional<Message> play(RPS::PlayMessage::Choice choice);
