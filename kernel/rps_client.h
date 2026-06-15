@@ -13,3 +13,5 @@ public:
   std::optional<Message> play(RPS::PlayMessage::Choice choice);
   std::optional<Message> quit();
 };
+
+void test_rps_task();

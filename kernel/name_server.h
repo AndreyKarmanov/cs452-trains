@@ -79,3 +79,5 @@ public:
 void name_server_task();
 int RegisterAs(const char *name);
 int WhoIs(const char *name);
+
+void test_name_server();

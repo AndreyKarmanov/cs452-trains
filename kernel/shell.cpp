@@ -1,5 +1,7 @@
 #include "shell.h"
+#include "clock_server.h"
 #include "debug.h"
+#include "heap.h"
 #include "kernel_state.h"
 #include "map.h"
 #include "syscall.h"

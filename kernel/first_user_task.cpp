@@ -14,6 +14,7 @@
 #if (defined(PERF_TEST) && PERF_TEST) || (defined(RPS_TEST) && RPS_TEST) ||    \
     (defined(CLOCK_TEST) && CLOCK_TEST)
 #include "message.h"
+#include "rps_client.h"
 #include "rps_server.h"
 #include "test.h"
 #endif
