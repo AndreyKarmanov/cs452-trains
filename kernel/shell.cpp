@@ -150,6 +150,8 @@ static void fire_command(char *buf, size_t blen, int tx_tid) {
     create(0, test_await_event_task);
   } else if (strncmp(cmd, "t clock", 7) == 0) {
     create(0, test_clock_server);
+  } else if (strncmp(cmd, "t name_server", 13) == 0) {
+    create(0, test_name_server);
   } else if (strncmp(cmd, "t cycles", 8) == 0) {
     Printf(tx_tid, "Syscall cycle counts:\n\r");
     for (const auto &[k, v] : Kernel::syscall_cycle_counts) {
@@ -157,7 +159,7 @@ static void fire_command(char *buf, size_t blen, int tx_tid) {
       Printf(tx_tid, "  %d: %d cycles\n\r", k, v / total_cycles);
     }
   } else if (strncmp(cmd, "t ssr", 5) == 0) {
-    int timer_tid = create(1, test_timer_task);
+    create(1, test_timer_task);
   } else {
     Puts(tx_tid, "Unknown command. Available: q (quit), p (parent tid), "
                  "m (my tid), y (yield), c (create), d (dump memory), "

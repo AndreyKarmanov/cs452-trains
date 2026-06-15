@@ -87,8 +87,8 @@ void first_user_task() {
 #endif
 
   // Idle task
-  create(PRIORITY_LEVELS - 1, idle_task);
+  // create(PRIORITY_LEVELS - 1, idle_task);
 
   // Shell
-  // create(PRIORITY_LEVELS - 2, shell_task);
+  create(PRIORITY_LEVELS - 2, shell_task);
 }

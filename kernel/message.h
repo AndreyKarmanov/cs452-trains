@@ -1,7 +1,9 @@
 #pragma once
 
+#include "static_string.h"
 #include <cstdint>
-#define NS_MAX_NAME_LENGTH 32
+#include <type_traits>
+#include <variant>
 
 enum class MessageType {
   // error is 0, so uninitalized is an error
@@ -48,19 +50,22 @@ enum class MessageType {
 };
 
 namespace NS {
-  struct RegisterMessage {
-    char name[NS_MAX_NAME_LENGTH];
+  constexpr int NAMESERVER_TID  = 1;
+  constexpr size_t MAX_NAME_LEN = 32;
+
+  struct Register {
+    StaticString<MAX_NAME_LEN> name;
   };
 
-  struct WhoIsMessage {
-    char name[NS_MAX_NAME_LENGTH];
+  struct WhoIs {
+    StaticString<MAX_NAME_LEN> name;
   };
 
-  struct RegisterReplyMessage {
+  struct RegisterReply {
     enum class Status { SUCCESS = 0, FAILURE = -1, NAME_TOO_LONG = -2 } status;
   };
 
-  struct WhoIsReplyMessage {
+  struct WhoIsReply {
     int tid;
   };
 
@@ -109,25 +114,25 @@ namespace RPS {
 } // namespace RPS
 
 namespace CS {
-  struct TimeMessage {};
+  struct Time {};
 
-  struct TimeReplyMessage {
+  struct TimeReply {
     uint32_t ticks;
   };
 
-  struct DelayMessage {
+  struct Delay {
     uint32_t ticks;
   };
 
-  struct DelayUntilMessage {
+  struct DelayUntil {
     uint32_t ticks;
   };
 
-  struct DelayReplyMessage {
+  struct DelayReply {
     uint32_t ticks;
   };
 
-  struct TickMessage {};
+  struct Tick {};
 
 } // namespace CS
 
@@ -156,6 +161,11 @@ namespace FUT {
   };
 
 } // namespace FUT
+
+struct ErrorMessage {
+  int error_code;
+};
+
 // todo: This will grow to be the size of the largest in union
 // in future, when this has much more data, we want a smaller approach for hot
 // message types
@@ -165,10 +175,10 @@ struct Message {
   union {
     int error_code;
 
-    NS::RegisterMessage ns_register;
-    NS::WhoIsMessage ns_who_is;
-    NS::RegisterReplyMessage ns_register_reply;
-    NS::WhoIsReplyMessage ns_who_is_reply;
+    NS::Register ns_register;
+    NS::WhoIs ns_who_is;
+    NS::RegisterReply ns_register_reply;
+    NS::WhoIsReply ns_who_is_reply;
 
     RPS::SetupMessage rps_setup;
     RPS::PlayMessage rps_play;
@@ -177,12 +187,12 @@ struct Message {
     RPS::PlayResultMessage rps_play_result;
     RPS::QuitAckMessage rps_quit_ack;
 
-    CS::TimeMessage cs_time;
-    CS::TimeReplyMessage cs_time_reply;
-    CS::DelayMessage cs_delay;
-    CS::DelayUntilMessage cs_delay_until;
-    CS::DelayReplyMessage cs_delay_reply;
-    CS::TickMessage cs_tick;
+    CS::Time cs_time;
+    CS::TimeReply cs_time_reply;
+    CS::Delay cs_delay;
+    CS::DelayUntil cs_delay_until;
+    CS::DelayReply cs_delay_reply;
+    CS::Tick cs_tick;
 
     TX::SendMessage tx_send;
 
@@ -193,3 +203,14 @@ struct Message {
     FUT::ClientInitMessage fut_params;
   } data;
 };
+
+using MessageVar =
+    std::variant<NS::Register, NS::WhoIs, NS::RegisterReply, NS::WhoIsReply,
+                 RPS::SetupMessage, RPS::PlayMessage, RPS::QuitMessage,
+                 RPS::PlayReadyMessage, RPS::PlayResultMessage,
+                 RPS::QuitAckMessage, CS::Time, CS::TimeReply, CS::Delay,
+                 CS::DelayUntil, CS::DelayReply, CS::Tick,
+                 FUT::ClientParamRequest, FUT::ClientInitMessage, ErrorMessage>;
+
+static_assert(std::is_trivially_copyable<MessageVar>::value,
+              "MessageVar must be trivially copyable");
