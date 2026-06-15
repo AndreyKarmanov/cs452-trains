@@ -1,14 +1,16 @@
 #include "clock_server.h"
-#include "debug.h"
+#include "io_helpers.h"
 #include "message.h"
 #include "syscall.h"
-#include "uart.h"
+#include "tx_server.h"
 
 static void clock_notifier_task() {
   int cs_tid = WhoIs(ClockServer<>::CLOCK_SERVER_NAME);
+  int tx_tid = WhoIs(TX_Server::TX_SERVER_NAME);
+
   _assert(cs_tid >= 0, "CLOCK SERVER WHOIS FAILED");
 
-  uart_printf(CONSOLE, "STARTED CLOCK NOTIFIER\n\r");
+  Printf(tx_tid, "STARTED CLOCK NOTIFIER");
 
   Message msg;
   msg.type = MessageType::CS_TICK;
@@ -17,6 +19,7 @@ static void clock_notifier_task() {
   while (true) {
     await_event(Event::CLOCK_TICK_1MS);
     auto rcv_len = send(cs_tid, msg, rcv_msg);
+    _assert(rcv_len >= 0, "CLOCK TICK FAILED");
   }
 }
 
@@ -72,20 +75,23 @@ void test_clock_server() {
   auto cs_tid = WhoIs(ClockServer<>::CLOCK_SERVER_NAME);
   _assert(cs_tid != -1, "Clock server not found");
 
+  int tx_tid = WhoIs(TX_Server::TX_SERVER_NAME);
+
   auto time = Time(cs_tid);
-  uart_printf(CONSOLE, "Current time: %d ticks\n\r", time);
+  Printf(tx_tid, "Current time: %d ticks\n\r", time);
 
   time = Delay(cs_tid, 5000);
-  uart_puts(CONSOLE, "5 second delay\n\r");
+  Printf(tx_tid, "5 second delay\n\r");
 
   time = DelayUntil(cs_tid, time + 5000);
-  uart_puts(CONSOLE, "5 second delay until\n\r");
+  Printf(tx_tid, "5 second delay until\n\r");
 }
 
 void test_clock_client_task() {
 
-  int tid   = my_tid();
-  int p_tid = my_parent_tid();
+  int tid    = my_tid();
+  int p_tid  = my_parent_tid();
+  int tx_tid = WhoIs(TX_Server::TX_SERVER_NAME);
   Message msg;
   msg.type = MessageType::FUT_CLIENT_PARAMS;
   Message rcv_msg;
@@ -103,8 +109,8 @@ void test_clock_client_task() {
   for (int delays_complete = 0; delays_complete < delay_count;
        ++delays_complete) {
     auto time = Delay(cs_tid, delay_ticks);
-    uart_printf(CONSOLE,
-                "T %d delay_ticks: %d delay_count: %d delays_complete: %d\n\r",
-                tid, delay_ticks, delay_count, delays_complete);
+    Printf(tx_tid,
+           "T %d delay_ticks: %d delay_count: %d delays_complete: %d\n\r", tid,
+           delay_ticks, delay_count, delays_complete);
   }
 }

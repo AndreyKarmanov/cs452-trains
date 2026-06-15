@@ -12,33 +12,33 @@
 #define N_ITERATIONS 100000
 
 void test_k1() {
-  uart_puts(CONSOLE, "\n\rTesting K1\n\r");
+  debug_puts(CONSOLE, "\n\rTesting K1\n\r");
   create(1, test_k1_child);
-  uart_puts(CONSOLE, "Created child 1\n\r");
+  debug_puts(CONSOLE, "Created child 1\n\r");
   create(1, test_k1_child);
-  uart_puts(CONSOLE, "Created child 2\n\r");
+  debug_puts(CONSOLE, "Created child 2\n\r");
   create(3, test_k1_child);
-  uart_puts(CONSOLE, "Created child 3\n\r");
+  debug_puts(CONSOLE, "Created child 3\n\r");
   create(3, test_k1_child);
-  uart_puts(CONSOLE, "Created child 4\n\r");
+  debug_puts(CONSOLE, "Created child 4\n\r");
 
   // end
-  uart_puts(CONSOLE, "FirstUserTask: Exiting\n\r");
+  debug_puts(CONSOLE, "FirstUserTask: Exiting\n\r");
 }
 
 void test_k1_child() {
-  uart_printf(CONSOLE, "Child tid: %d, Parent tid: %d\n\r", my_tid(),
-              my_parent_tid());
+  debug_printf(CONSOLE, "Child tid: %d, Parent tid: %d\n\r", my_tid(),
+               my_parent_tid());
   yield();
-  uart_printf(CONSOLE, "Child tid: %d, Parent tid: %d\n\r", my_tid(),
-              my_parent_tid());
+  debug_printf(CONSOLE, "Child tid: %d, Parent tid: %d\n\r", my_tid(),
+               my_parent_tid());
 }
 
 void test_timer_a_task() {
   RegisterAs("test_timer_a_task");
   int other = WhoIs("test_timer_b_task");
 
-  uart_puts(CONSOLE, "A sending\n\r");
+  debug_puts(CONSOLE, "A sending\n\r");
 
   char msg_buf_4[4];
   char reply_buf_4[4];
@@ -47,8 +47,8 @@ void test_timer_a_task() {
     send(other, msg_buf_4, sizeof(msg_buf_4), reply_buf_4, sizeof(reply_buf_4));
   }
   auto delta = (time_get() - start) / (N_ITERATIONS / 10);
-  uart_puts(CONSOLE, "4 byte / 64 byte / 256 byte (us)\n\r");
-  uart_printf(CONSOLE, "%u.%uus ", delta / 10, delta % 10);
+  debug_puts(CONSOLE, "4 byte / 64 byte / 256 byte (us)\n\r");
+  debug_printf(CONSOLE, "%u.%uus ", delta / 10, delta % 10);
 
   char msg_buf_64[64];
   char reply_buf_64[64];
@@ -58,7 +58,7 @@ void test_timer_a_task() {
          sizeof(reply_buf_64));
   }
   delta = (time_get() - start) / (N_ITERATIONS / 10);
-  uart_printf(CONSOLE, "%u.%uus ", delta / 10, delta % 10);
+  debug_printf(CONSOLE, "%u.%uus ", delta / 10, delta % 10);
 
   char msg_buf_256[256];
   char reply_buf_256[256];
@@ -68,9 +68,9 @@ void test_timer_a_task() {
          sizeof(reply_buf_256));
   }
   delta = (time_get() - start) / (N_ITERATIONS / 10);
-  uart_printf(CONSOLE, "%u.%uus\n\r", delta / 10, delta % 10);
+  debug_printf(CONSOLE, "%u.%uus\n\r", delta / 10, delta % 10);
 
-  uart_puts(CONSOLE, "A recieving\n\r");
+  debug_puts(CONSOLE, "A recieving\n\r");
 
   char rcv_buf_4[4];
   char reply_msg_buf_4[4];
@@ -80,8 +80,8 @@ void test_timer_a_task() {
     reply(other, reply_msg_buf_4, sizeof(reply_msg_buf_4));
   }
   delta = (time_get() - start) / (N_ITERATIONS / 10);
-  uart_puts(CONSOLE, "4 byte / 64 byte / 256 byte (us)\n\r");
-  uart_printf(CONSOLE, "%u.%uus ", delta / 10, delta % 10);
+  debug_puts(CONSOLE, "4 byte / 64 byte / 256 byte (us)\n\r");
+  debug_printf(CONSOLE, "%u.%uus ", delta / 10, delta % 10);
 
   char rcv_buf_64[64]{1};
   char reply_msg_buf_64[64]{1};
@@ -91,7 +91,7 @@ void test_timer_a_task() {
     reply(other, reply_msg_buf_64, sizeof(reply_msg_buf_64));
   }
   delta = (time_get() - start) / (N_ITERATIONS / 10);
-  uart_printf(CONSOLE, "%u.%uus ", delta / 10, delta % 10);
+  debug_printf(CONSOLE, "%u.%uus ", delta / 10, delta % 10);
 
   char rcv_buf_256[256];
   char reply_msg_buf_256[256];
@@ -101,14 +101,14 @@ void test_timer_a_task() {
     reply(other, reply_msg_buf_256, sizeof(reply_msg_buf_256));
   }
   delta = (time_get() - start) / (N_ITERATIONS / 10);
-  uart_printf(CONSOLE, "%u.%uus \n\r", delta / 10, delta % 10);
+  debug_printf(CONSOLE, "%u.%uus \n\r", delta / 10, delta % 10);
 }
 
 void test_timer_b_task() {
   RegisterAs("test_timer_b_task");
   int other = WhoIs("test_timer_a_task");
 
-  uart_puts(CONSOLE, "B recieving\n\r");
+  debug_puts(CONSOLE, "B recieving\n\r");
 
   char rcv_buf_4[4];
   char reply_msg_buf_4[4];
@@ -130,7 +130,7 @@ void test_timer_b_task() {
     reply(other, reply_msg_buf_256, sizeof(reply_msg_buf_256));
   }
 
-  uart_puts(CONSOLE, "B sending \n\r");
+  debug_puts(CONSOLE, "B sending \n\r");
 
   char msg_buf_4[4];
   char reply_buf_4[4];
@@ -154,14 +154,14 @@ void test_timer_b_task() {
 }
 
 void test_timer_task() {
-  uart_printf(CONSOLE, "test timer task start\n\r");
+  debug_printf(CONSOLE, "test timer task start\n\r");
   auto tid_a = create(1, test_timer_a_task);
-  uart_printf(CONSOLE, "tid a: %d ", tid_a);
+  debug_printf(CONSOLE, "tid a: %d ", tid_a);
   auto tid_b = create(1, test_timer_b_task);
-  uart_printf(CONSOLE, "tid b: %d\n\r", tid_b);
+  debug_printf(CONSOLE, "tid b: %d\n\r", tid_b);
 }
 
 void test_await_event_task() {
   await_event(Event::DELAY_5S);
-  uart_puts(CONSOLE, "5 second delay task");
+  debug_puts(CONSOLE, "5 second delay task");
 }

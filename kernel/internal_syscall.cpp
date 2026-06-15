@@ -30,10 +30,10 @@ extern "C" void default_handler(int n) {
   asm volatile("mrs %0, elr_el1" : "=r"(elr_el1));
   asm volatile("mrs %0, spsr_el1" : "=r"(spsr_el1));
 
-  uart_printf(CONSOLE,
-              "DEFAULT VBAR HANDLER %u HIT ESR=%x FAR=%x ELR=%x SPSR=%x\n\r", n,
-              (unsigned int)esr_el1, (unsigned int)far_el1,
-              (unsigned int)elr_el1, (unsigned int)spsr_el1);
+  debug_printf(CONSOLE,
+               "DEFAULT VBAR HANDLER %u HIT ESR=%x FAR=%x ELR=%x SPSR=%x\n\r",
+               n, (unsigned int)esr_el1, (unsigned int)far_el1,
+               (unsigned int)elr_el1, (unsigned int)spsr_el1);
 }
 
 extern "C" void task_entry_wrapper(void (*function)()) {
@@ -83,6 +83,11 @@ int _create(int priority, void (*function)(), int parent_tid) {
   return tid;
 }
 
+static void uninitialize_event(Event event) {
+  using namespace Kernel;
+  initalized_events &= ~(1u << static_cast<int>(event));
+}
+
 static void initalize_event(Event event) {
   using namespace Kernel;
 
@@ -106,6 +111,17 @@ static void initalize_event(Event event) {
     set_timer_interrupt(3, TIME_1S_US * 5);
     break;
   }
+  case Event::UART_RX_IRQ: {
+    // unmask rtim and rxim
+    enable_uart_interrupt(UARTInterruptType::RTIM);
+    enable_uart_interrupt(UARTInterruptType::RXIM);
+    break;
+  }
+  case Event::UART_TX_IRQ: {
+    enable_uart_interrupt(UARTInterruptType::TXIM);
+    enable_uart_interrupt(UARTInterruptType::CTSMIM);
+    break;
+  }
   default: {
     break;
   }
@@ -124,7 +140,21 @@ static void handle_event(Event event) {
   }
   case Event::DELAY_5S: {
     clear_timer_interrupt(3);
-    initalized_events &= ~(1u << static_cast<int>(event));
+    uninitialize_event(event);
+    break;
+  }
+  case Event::UART_RX_IRQ: {
+    // mask so no RX IRQ fires until notifier re-await_event
+    disable_uart_interrupt(UARTInterruptType::RXIM);
+    disable_uart_interrupt(UARTInterruptType::RTIM);
+    uninitialize_event(event);
+    break;
+  }
+  case Event::UART_TX_IRQ: {
+    // immediately disable after firing as they will keep firing
+    disable_uart_interrupt(UARTInterruptType::TXIM);
+    disable_uart_interrupt(UARTInterruptType::CTSMIM);
+    uninitialize_event(event);
     break;
   }
   default: {
@@ -164,12 +194,47 @@ static void handle_event(Event event) {
       }
       return; // return if only the first should wake
     }
+    case Event::UART_RX_IRQ: {
+      scheduler.schedule(*td.value());
+      break;
+    }
+    case Event::UART_TX_IRQ: {
+      scheduler.schedule(*td.value());
+      break;
+    }
     default: {
       return;
     }
     }
 
     tid_opt = event_buf->pop();
+  }
+}
+
+// Wake the TX notifier only when FR says we can send (!TXFF and CTS up).
+// If not ready, mask/clear the firing source without waking; the other
+// interrupt (still armed from await_event) covers the remaining condition.
+static void handle_uart_irq() {
+  // if rx is a cause of interrupt
+  if (is_uart_mis_rx_pending()) {
+    handle_event(Event::UART_RX_IRQ);
+  }
+
+  // handling tx interrupts
+  if (!is_uart_mis_tx_pending() && !is_uart_mis_cts_pending()) {
+    return;
+  }
+
+  if (can_transmit_io()) {
+    handle_event(Event::UART_TX_IRQ);
+    return;
+  }
+
+  if (is_uart_mis_tx_pending()) {
+    disable_uart_interrupt(UARTInterruptType::TXIM);
+  }
+  if (is_uart_mis_cts_pending()) {
+    clear_uart_interrupt(UARTInterruptType::CTSMIM);
   }
 }
 
@@ -192,8 +257,11 @@ static void handle_interrupt() {
       handle_event(Event::CLOCK_TICK_1MS);
       break;
     case GIC_TIMER_IRQ_C3:
-      uart_printf(CONSOLE, "5 second delay event\n\r");
+      debug_printf(CONSOLE, "5 second delay event\n\r");
       handle_event(Event::DELAY_5S);
+      break;
+    case GIC_UART_IRQ:
+      handle_uart_irq();
       break;
     default:
       break;

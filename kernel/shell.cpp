@@ -1,12 +1,17 @@
-#include "shell.h"
+#include <ctype.h>
+
 #include "clock_server.h"
 #include "debug.h"
 #include "heap.h"
+#include "io_helpers.h"
 #include "kernel_state.h"
 #include "map.h"
+#include "name_server.h"
+#include "rx_server.h"
+#include "shell.h"
 #include "syscall.h"
 #include "test.h"
-#include "uart_non_blocking.h"
+#include "tx_server.h"
 #include "util.h"
 #include <cstddef>
 #include <cstring>
@@ -78,7 +83,7 @@ static bool parse_count_size_t(char **cursor, size_t *value) {
   return true;
 }
 
-void fire_command(char *buf, size_t blen, UARTNB &uart) {
+static void fire_command(char *buf, size_t blen, int tx_tid) {
   char *cmd = skip_ws(buf);
 
   if (blen == 0)
@@ -90,27 +95,27 @@ void fire_command(char *buf, size_t blen, UARTNB &uart) {
     exit();
   } else if (strncmp(cmd, "p", 1) == 0) {
     int parent_tid = my_parent_tid();
-    uart.printf("My parent tid is %d\n\r", parent_tid);
+    Printf(tx_tid, "My parent tid is %d\n\r", parent_tid);
   } else if (strncmp(cmd, "m", 1) == 0) {
     int tid = my_tid();
-    uart.printf("My tid is %d\n\r", tid);
+    Printf(tx_tid, "My tid is %d\n\r", tid);
   } else if (strncmp(cmd, "y", 1) == 0) {
     yield();
-    uart.puts("Yielded\n\r");
+    Puts(tx_tid, "Yielded\n\r");
   } else if (strncmp(cmd, "c", 1) == 0) {
     int tid = create(3, shell_task);
-    uart.printf("Created new shell %u", tid);
+    Printf(tx_tid, "Created new shell %u", tid);
   } else if (strncmp(cmd, "d", 1) == 0) {
     char *cursor = cmd + 1;
     size_t address;
     size_t count = 16;
 
     if (!parse_hex_size_t(&cursor, &address)) {
-      uart.puts("Usage: d <hex address> [count]\n\r");
+      Puts(tx_tid, "Usage: d <hex address> [count]\n\r");
     } else {
       cursor = skip_ws(cursor);
       if (*cursor != '\0' && !parse_count_size_t(&cursor, &count)) {
-        uart.puts("Usage: d <hex address> [count]\n\r");
+        Puts(tx_tid, "Usage: d <hex address> [count]\n\r");
       } else {
         dump_memory_region(address, count);
       }
@@ -121,22 +126,22 @@ void fire_command(char *buf, size_t blen, UARTNB &uart) {
     size_t value;
 
     if (!parse_hex_size_t(&cursor, &address)) {
-      uart.puts("Usage: w <hex address> <hex value>\n\r");
+      Puts(tx_tid, "Usage: w <hex address> <hex value>\n\r");
     } else {
       cursor = skip_ws(cursor);
       if (!parse_hex_size_t(&cursor, &value)) {
-        uart.puts("Usage: w <hex address> <hex value>\n\r");
+        Puts(tx_tid, "Usage: w <hex address> <hex value>\n\r");
       } else {
         write_memory_word(address, value);
-        uart.puts("Wrote ");
-        uart.printf("0x%x", static_cast<unsigned int>(value));
-        uart.puts(" to ");
-        uart.printf("0x%x\n\r", static_cast<unsigned int>(address));
+        Puts(tx_tid, "Wrote ");
+        Printf(tx_tid, "0x%x", static_cast<unsigned int>(value));
+        Puts(tx_tid, " to ");
+        Printf(tx_tid, "0x%x\n\r", static_cast<unsigned int>(address));
       }
     }
   } else if (strncmp(cmd, "t k1", 4) == 0) {
     int tid = create(2, test_k1);
-    uart.printf("Created tid %u", tid);
+    Printf(tx_tid, "Created tid %u", tid);
   } else if (strncmp(cmd, "t map", 5) == 0) {
     test_map();
   } else if (strncmp(cmd, "t heap", 6) == 0) {
@@ -146,46 +151,47 @@ void fire_command(char *buf, size_t blen, UARTNB &uart) {
   } else if (strncmp(cmd, "t clock", 7) == 0) {
     create(0, test_clock_server);
   } else if (strncmp(cmd, "t cycles", 8) == 0) {
-    uart.puts("Syscall cycle counts:\n\r");
+    Printf(tx_tid, "Syscall cycle counts:\n\r");
     for (const auto &[k, v] : Kernel::syscall_cycle_counts) {
       auto total_cycles = Kernel::syscall_cycle_totals.get(k).value_or(1);
-      uart.printf("  %d: %d cycles\n\r", k, v / total_cycles);
+      Printf(tx_tid, "  %d: %d cycles\n\r", k, v / total_cycles);
     }
   } else if (strncmp(cmd, "t ssr", 5) == 0) {
     int timer_tid = create(1, test_timer_task);
   } else {
-    uart.puts("Unknown command. Available: q (quit), p (parent tid), "
-              "m (my tid), y (yield), c (create), d (dump memory), "
-              "w (write memory), t k1, t map, t heap\n\r");
+    Puts(tx_tid, "Unknown command. Available: q (quit), p (parent tid), "
+                 "m (my tid), y (yield), c (create), d (dump memory), "
+                 "w (write memory), t k1, t map, t heap\n\r");
   }
 }
 
 void shell_task() {
+  int rx_tid = WhoIs(RX_Server::RX_SERVER_NAME);
+  int tx_tid = WhoIs(TX_Server::TX_SERVER_NAME);
+  _assert(rx_tid >= 0, "SHELL: RX SERVER WHOIS FAILED");
+  _assert(tx_tid >= 0, "SHELL: TX SERVER WHOIS FAILED");
+
   char buf[BUFFER_SIZE];
   size_t buf_n = 0;
-  UARTNB uart(CONSOLE);
-  uart.puts(
-      "COMMANDS: q (quit) p (parent tid) m (my tid) y (yield) c "
-      "(create) d <hex address> [count] w <hex address> <hex value>\n\r> ");
+  Puts(tx_tid,
+       "COMMANDS: q (quit) p (parent tid) m (my tid) y (yield) c "
+       "(create) d <hex address> [count] w <hex address> <hex value>\n\r> ");
   while (1) {
-    if (uart.can_receive_io()) {
-      char c = uart.getc();
-      if (isprint(c) && buf_n < BUFFER_SIZE - 1) {
-        buf[buf_n++] = c;
-        uart.putc(c);
-      } else if ((c == 0x08 || c == 0x7f) && buf_n > 0) { // backspace
-        uart.puts("\b \b"); // move back, print space, move back again
-        --buf_n;
-      } else if (c == '\r') { // enter
-        buf[buf_n] = '\0';
-        uart.puts("\n\r");
-        fire_command(buf, buf_n, uart);
-        uart.puts("> ");
-        buf_n = 0;
-      }
-    } else {
-      yield();
+    int rc = Getc(rx_tid);
+    _assert(rc >= 0, "SHELL: GETC FAILED");
+    char c = static_cast<char>(rc);
+    if (isprint(c) && buf_n < BUFFER_SIZE - 1) {
+      buf[buf_n++] = c;
+      Putc(tx_tid, c);
+    } else if ((c == 0x08 || c == 0x7f) && buf_n > 0) { // backspace
+      Puts(tx_tid, "\b \b"); // move back, print space, move back again
+      --buf_n;
+    } else if (c == '\r') { // enter
+      buf[buf_n] = '\0';
+      Puts(tx_tid, "\n\r");
+      fire_command(buf, buf_n, tx_tid);
+      Puts(tx_tid, "> ");
+      buf_n = 0;
     }
-    uart.send_io();
   }
 }

@@ -1,10 +1,9 @@
 
 #include "rps_server.h"
 #include "debug.h"
+#include "io_helpers.h"
 #include "message.h"
 #include "syscall.h"
-#include "uart.h"
-#include <optional>
 
 void RPSServer::run() {
   int sender_tid;
@@ -52,10 +51,9 @@ void RPSServer::run() {
       // reset waitng
       waiting.reset();
 
-      uart_printf(
-          CONSOLE,
-          "RPS server: Game started between player %d and player %d\r\n", p1,
-          p2);
+      Printf(tx_tid,
+             "RPS server: Game started between player %d and player %d\r\n", p1,
+             p2);
 
       // tell them they are both ready to play
       Message p1_ready{};
@@ -84,9 +82,9 @@ void RPSServer::run() {
     if (game->game_state == Game::GameState::PartnerHasQuit) {
       game_index_allocator.free(game_index.value());
       player_to_game_ptr[game_index.value()][1 - partner_index] = -1;
-      uart_printf(CONSOLE,
-                  "RPS server: Game ended between player %d and player %d\r\n",
-                  sender_tid, partner_tid);
+      Printf(tx_tid,
+             "RPS server: Game ended between player %d and player %d\r\n",
+             sender_tid, partner_tid);
       Message msg{};
       msg.type = MessageType::RPS_PLAY_RESULT;
       msg.data.rps_play_result.result =
@@ -161,10 +159,9 @@ void RPSServer::run() {
       p2_msg.data.rps_play_result.result = p2_result;
 
       // print game result
-      uart_printf(CONSOLE,
-                  "RPS server: Game result: player %d %s, player %d %s\r\n",
-                  game->player1_tid, RPS::result_str(p1_result),
-                  game->player2_tid, RPS::result_str(p2_result));
+      Printf(tx_tid, "RPS server: Game result: player %d %s, player %d %s\r\n",
+             game->player1_tid, RPS::result_str(p1_result), game->player2_tid,
+             RPS::result_str(p2_result));
 
       // reset game state for next game
       game->game_state = Game::GameState::WaitingForBothPlayers;
@@ -232,10 +229,9 @@ void RPSServer::run() {
         player_to_game_ptr[game->game_index][0] = -1;
         player_to_game_ptr[game->game_index][1] = -1;
         game_index_allocator.free(game->game_index);
-        uart_printf(
-            CONSOLE,
-            "RPS server: Game ended between player %d and player %d\r\n",
-            sender_tid, partner_tid);
+        Printf(tx_tid,
+               "RPS server: Game ended between player %d and player %d\r\n",
+               sender_tid, partner_tid);
       }
 
       Message reply_msg{};

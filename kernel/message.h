@@ -36,6 +36,15 @@ enum class MessageType {
   FUT_CLIENT_PARAMS       = 19,
   FUT_CLIENT_PARAMS_REPLY = 20,
 
+  // io servers
+  TX_INTERRUPT = 21,
+  TX_SEND      = 22,
+  TX_REPLY     = 23,
+
+  RX_INTERRUPT       = 24,
+  RX_INTERRUPT_REPLY = 25,
+  RX_GETC            = 27,
+  RX_GETC_REPLY      = 28,
 };
 
 namespace NS {
@@ -122,6 +131,23 @@ namespace CS {
 
 } // namespace CS
 
+namespace TX {
+  constexpr int MAX_DATA_LENGTH = 256;
+
+  struct SendMessage {
+    int len;
+    char data[MAX_DATA_LENGTH];
+  };
+} // namespace TX
+
+namespace RX {
+  struct GetcMessage {};
+
+  struct GetcReplyMessage {
+    char c;
+  };
+} // namespace RX
+
 namespace FUT {
   struct ClientParamRequest {};
   struct ClientInitMessage {
@@ -157,6 +183,11 @@ struct Message {
     CS::DelayUntilMessage cs_delay_until;
     CS::DelayReplyMessage cs_delay_reply;
     CS::TickMessage cs_tick;
+
+    TX::SendMessage tx_send;
+
+    RX::GetcMessage rx_getc;
+    RX::GetcReplyMessage rx_getc_reply;
 
     FUT::ClientParamRequest fut_params_req;
     FUT::ClientInitMessage fut_params;

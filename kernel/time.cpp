@@ -67,7 +67,7 @@ const char *format_time(uint32_t time_us) {
   return buf;
 }
 
-void print_time(const uint32_t time_us) {
-  uart_puts(CONSOLE, "\033[" TIME_ROW ";" TIME_COL "H");
-  uart_puts(CONSOLE, format_time(time_us));
-}
+// void print_time(const uint32_t time_us) {
+//   uart_puts(CONSOLE, "\033[" TIME_ROW ";" TIME_COL "H");
+//   uart_puts(CONSOLE, format_time(time_us));
+// }

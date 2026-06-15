@@ -1,6 +1,5 @@
 #include "cache.h"
-#include "debug.h"
-#include "uart.h"
+#include "io_helpers.h"
 #include <cstdint>
 
 // void flush_cache() {
@@ -22,7 +21,7 @@
 //   uint64_t num_sets  = ((ccsidr_el1 >> 13) & 0xFFFFFF) + 1;
 //   uint64_t num_ways  = ((ccsidr_el1 >> 3) & 0x1FFFF) + 1;
 //   uint64_t line_size = (1 << ((ccsidr_el1 & 0b111) + 4));
-//     uart_printf(CONSOLE, "LEVEL: %u, SETS: %u WAYS %u LINE_SIZE: %u\n\r", 0,
+//     Printf(CONSOLE, "LEVEL: %u, SETS: %u WAYS %u LINE_SIZE: %u\n\r", 0,
 //                 num_sets, num_ways, line_size);
 // }
 
@@ -34,11 +33,11 @@ bool data_cache_set(bool enabled) {
   bool prev_state = SCTLR_EL1 & (1 << 2);
 
   if (enabled == prev_state) {
-    // uart_printf(CONSOLE, "Data cache already in desired state: %s\n\r",
+    // Printf(CONSOLE, "Data cache already in desired state: %s\n\r",
     //             enabled ? "enabled" : "disabled");
     return false;
   }
-  // uart_printf(CONSOLE, "Setting Data cache state: %s\n\r",
+  // Printf(CONSOLE, "Setting Data cache state: %s\n\r",
   //             enabled ? "enabled" : "disabled");
 
   if (enabled) {
@@ -65,12 +64,12 @@ bool instruction_cache_set(bool enabled) {
   bool prev_state = SCTLR_EL1 & (1 << 12);
 
   if (enabled == prev_state) {
-    // uart_printf(CONSOLE, "Instruction cache already in desired state:
+    // Printf(CONSOLE, "Instruction cache already in desired state:
     // %s\n\r",
     //             enabled ? "enabled" : "disabled");
     return false;
   }
-  // uart_printf(CONSOLE, "Setting Instruction cache state: %s\n\r",
+  // Printf(CONSOLE, "Setting Instruction cache state: %s\n\r",
   // enabled ? "enabled" : "disabled");
 
   if (enabled) {
