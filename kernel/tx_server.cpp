@@ -59,8 +59,10 @@ void TX_Server::run() {
 
   switch (msg.type) {
   case MessageType::TX_SEND: {
-    auto c = msg.data.tx_send.c;
-    tx_buffer.push(c);
+    auto &tx_send = msg.data.tx_send;
+    for (int i = 0; i < tx_send.len; ++i) {
+      tx_buffer.push(tx_send.data[i]);
+    }
     drain();
 
     // reply to sender
@@ -91,5 +93,25 @@ void TX_Server::run() {
   default: {
     break;
   }
+  }
+}
+
+int Putc(int tid, unsigned char c) {
+  Message msg;
+  msg.type                 = MessageType::TX_SEND;
+  msg.data.tx_send.len     = 1;
+  msg.data.tx_send.data[0] = c;
+  Message rcv_msg;
+  auto rcv_len = send(tid, msg, rcv_msg);
+
+  return rcv_len < 0 ? -1 : 0;
+}
+
+static void tx_client_task() {
+  int tx_tid = WhoIs(TX_Server::TX_SERVER_NAME);
+  _assert(tx_tid >= 0, "TX SERVER WHOIS FAILED");
+
+  while (true) {
+    await_event(Event::UART_TX_IRQ);
   }
 }

@@ -40,6 +40,8 @@ enum class MessageType {
 
   RX_INTERRUPT       = 22,
   RX_INTERRUPT_REPLY = 23,
+  RX_GETC            = 25,
+  RX_GETC_REPLY      = 26,
 };
 
 namespace NS {
@@ -127,10 +129,21 @@ namespace CS {
 } // namespace CS
 
 namespace TX {
+  static constexpr int TX_MAX_DATA_LENGTH = 256;
+
   struct SendMessage {
-    char c;
+    int len;
+    char data[TX_MAX_DATA_LENGTH];
   };
 } // namespace TX
+
+namespace RX {
+  struct GetcMessage {};
+
+  struct GetcReplyMessage {
+    char c;
+  };
+} // namespace RX
 
 // todo: This will grow to be the size of the largest in union
 // in future, when this has much more data, we want a smaller approach for hot
@@ -161,6 +174,9 @@ struct Message {
     CS::TickMessage cs_tick;
 
     TX::SendMessage tx_send;
+
+    RX::GetcMessage rx_getc;
+    RX::GetcReplyMessage rx_getc_reply;
 
   } data;
 };

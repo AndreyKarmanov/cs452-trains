@@ -1,11 +1,11 @@
 #include "rx_server.h"
+#include "message.h"
+#include "syscall.h"
 #include "uart_new.h"
 
 static void rx_notifier_task() {
   int rx_tid = WhoIs(RX_Server::RX_SERVER_NAME);
   _assert(rx_tid >= 0, "RX SERVER WHOIS FAILED");
-
-  // uart_printf(CONSOLE, "STARTED IO NOTIFIER");
 
   Message msg;
   msg.type = MessageType::RX_INTERRUPT;
@@ -27,6 +27,21 @@ void rx_server_task() {
   }
 }
 
+void RX_Server::try_reply_getc() {
+  if (waiting_getc_tid < 0 || rx_buffer.is_empty()) {
+    return;
+  }
+
+  auto c = rx_buffer.pop();
+  _assert(c.has_value(), "RX SERVER: GETC POP FAILED");
+
+  Message reply_msg;
+  reply_msg.type                 = MessageType::RX_GETC_REPLY;
+  reply_msg.data.rx_getc_reply.c = c.value();
+  reply(waiting_getc_tid, reply_msg);
+  waiting_getc_tid = -1;
+}
+
 void RX_Server::run() {
   int tid;
   Message msg;
@@ -34,21 +49,54 @@ void RX_Server::run() {
   _assert(rcv_size == static_cast<int>(sizeof(msg)),
           "RX SERVER: RECEIVED LESS THAN MSG");
 
-  _assert(msg.type == MessageType::RX_INTERRUPT,
-          "RX SERVER: UNEXPECTED MESSAGE TYPE");
+  switch (msg.type) {
+  case MessageType::RX_INTERRUPT: {
+    while (can_receive_io()) {
+      _assert(rx_buffer.push(getc()), "RX SERVER: BUFFER FULL");
+    }
 
-  while (can_receive_io()) {
-    char c = getc();
-    // do stuff with char
-    // todo; send to tx buffer
+    clear_uart_interrupt(UARTInterruptType::RXIM);
+    clear_uart_interrupt(UARTInterruptType::RTIM);
+
+    Message reply_msg;
+    reply_msg.type = MessageType::RX_INTERRUPT_REPLY;
+    reply(tid, reply_msg);
+
+    try_reply_getc();
+    break;
   }
 
-  // clear interrupt icr after reading rx
-  clear_uart_interrupt(UARTInterruptType::RXIM);
-  clear_uart_interrupt(UARTInterruptType::RTIM);
+  case MessageType::RX_GETC: {
+    if (!rx_buffer.is_empty()) {
+      auto c = rx_buffer.pop();
+      _assert(c.has_value(), "RX SERVER: GETC POP FAILED");
 
-  // reply
-  Message reply_msg;
-  reply_msg.type = MessageType::RX_INTERRUPT_REPLY;
-  reply(tid, reply_msg);
+      Message reply_msg;
+      reply_msg.type                 = MessageType::RX_GETC_REPLY;
+      reply_msg.data.rx_getc_reply.c = c.value();
+      reply(tid, reply_msg);
+    } else {
+      waiting_getc_tid = tid;
+    }
+    break;
+  }
+
+  default: {
+    _assert(false, "RX SERVER: UNEXPECTED MESSAGE TYPE");
+    break;
+  }
+  }
+}
+
+int Getc(int tid) {
+  Message msg;
+  msg.type = MessageType::RX_GETC;
+  Message rcv_msg;
+  auto rcv_len = send(tid, msg, rcv_msg);
+
+  if (rcv_len < static_cast<int>(sizeof(rcv_msg)) ||
+      rcv_msg.type != MessageType::RX_GETC_REPLY) {
+    return -1;
+  }
+  return static_cast<int>(rcv_msg.data.rx_getc_reply.c);
 }

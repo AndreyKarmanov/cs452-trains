@@ -1,18 +1,26 @@
 #pragma once
 
+#include "buffer.h"
 #include "debug.h"
 #include "name_server.h"
 
 class RX_Server {
 public:
   static constexpr auto RX_SERVER_NAME = "RXSERVER";
+  static constexpr size_t RX_BUFFER_SIZE = 1024;
 
   RX_Server() {
     auto response = RegisterAs(RX_SERVER_NAME);
     _assert(response == 0, "RX SERVER REGISTERAS FAILED");
   }
 
+  Buffer<char, RX_BUFFER_SIZE> rx_buffer;
+  int waiting_getc_tid = -1;
+
+  void try_reply_getc();
   void run();
 };
 
 void rx_server_task();
+
+int Getc(int tid);
