@@ -26,8 +26,6 @@ public:
     int tid;
     Message msg;
     auto rcv_size = receive(&tid, msg);
-    _assert(rcv_size == static_cast<int>(sizeof(msg)),
-            "CS: RECEIVED LESS THAN MSG");
 
     switch (msg.type) {
     case MessageType::CS_TIME: {

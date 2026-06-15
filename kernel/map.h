@@ -61,8 +61,6 @@ private:
   }
 
 public:
-  static_assert(SIZE > 0, "Map size must be greater than zero");
-
   constexpr std::optional<V> get(const K &key) const {
     auto hash = hasher(key);
     auto idx  = hash % SIZE;

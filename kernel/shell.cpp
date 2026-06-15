@@ -151,7 +151,6 @@ void fire_command(char *buf, size_t blen, UARTNB &uart) {
     }
   } else if (strncmp(cmd, "t ssr", 5) == 0) {
     int timer_tid = create(1, test_timer_task);
-    await_task(timer_tid);
   } else {
     uart.puts("Unknown command. Available: q (quit), p (parent tid), "
               "m (my tid), y (yield), c (create), d (dump memory), "

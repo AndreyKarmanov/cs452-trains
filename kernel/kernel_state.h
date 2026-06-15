@@ -2,6 +2,7 @@
 
 #include "allocator.h"
 #include "buffer.h"
+#include "debug.h"
 #include "idle_manager.h"
 #include "map.h"
 #include "scheduler.h"
@@ -48,6 +49,7 @@ namespace Kernel {
   inline std::optional<TaskDescriptor *> lookup_td(int tid) {
     auto descriptor_index_opt = tid_to_descriptor.get(tid);
     if (!descriptor_index_opt.has_value()) {
+      _assert(false, "invalid tid");
       return std::nullopt;
     }
 

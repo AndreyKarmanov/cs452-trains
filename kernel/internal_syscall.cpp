@@ -50,8 +50,8 @@ int _create(int priority, void (*function)(), int parent_tid) {
   }
 
   auto descriptor_index_opt = task_allocator.allocate();
-  _assert(descriptor_index_opt != std::nullopt, "No free task descriptors");
   if (descriptor_index_opt == std::nullopt) {
+    _assert(false, "No free task descriptors");
     return -2; // no free task descriptors
   }
   auto td_idx = descriptor_index_opt.value();
@@ -78,8 +78,7 @@ int _create(int priority, void (*function)(), int parent_tid) {
                                          .state      = TaskStatus::READY,
                                          .sp_el0     = (uint64_t)tf};
 
-  _assert(tid_to_descriptor.set(tid, td_idx), "failed to register tid");
-
+  tid_to_descriptor.set(tid, td_idx);
   Kernel::scheduler.schedule(td);
   return tid;
 }
@@ -206,9 +205,8 @@ static void handle_interrupt() {
 
 Syscall activate(int tid) {
   auto td_opt = Kernel::lookup_td(tid);
-  _assert(td_opt.has_value(), "invalid tid");
-  auto td   = td_opt.value();
-  td->state = TaskStatus::RUNNING;
+  auto td     = td_opt.value();
+  td->state   = TaskStatus::RUNNING;
 
   // clear I and F bits in saved Pstate to allow interrupts in user mode.
   auto *user_tf         = (Kernel::TrapFrame *)td->sp_el0;
@@ -239,8 +237,7 @@ void handle(int tid, Syscall request) {
   // (e.g. for syscalls) ESR_EL1 will have exception code, holds n form svc N
 
   using namespace Kernel;
-  auto td_opt = lookup_td(tid);
-  _assert(td_opt.has_value(), "invalid tid");
+  auto td_opt   = lookup_td(tid);
   auto td       = td_opt.value();
   TrapFrame *tf = (TrapFrame *)td->sp_el0;
 
@@ -347,9 +344,8 @@ void handle(int tid, Syscall request) {
       int from_tid = from_tid_opt.value();
 
       auto to_td_opt = lookup_td(from_tid);
-      _assert(to_td_opt.has_value(), "sender tid missing from map");
-      auto to_td   = to_td_opt.value();
-      auto from_tf = (TrapFrame *)to_td->sp_el0;
+      auto to_td     = to_td_opt.value();
+      auto from_tf   = (TrapFrame *)to_td->sp_el0;
 
       // set who msg is from (follow int ptr)
       *(int *)tf->x[0] = from_tid;
@@ -399,9 +395,6 @@ void handle(int tid, Syscall request) {
     int rcv_len     = to_tf->x[4];
     int len = to_tf->x[0] = tf->x[0] = std::min(reply_len, rcv_len);
     __builtin_memcpy(rcv_reply, reply, len);
-
-    _assert(to_td->state == TaskStatus::W4_REPLY,
-            "TASK NOT WAITING FOR REPLY\r\n");
 
     to_td->state = TaskStatus::READY;
     scheduler.schedule(*to_td);

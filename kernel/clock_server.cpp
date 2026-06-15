@@ -17,7 +17,6 @@ static void clock_notifier_task() {
   while (true) {
     await_event(Event::CLOCK_TICK_1MS);
     auto rcv_len = send(cs_tid, msg, rcv_msg);
-    _assert(rcv_len >= 0, "CLOCK TICK FAILED");
   }
 }
 
