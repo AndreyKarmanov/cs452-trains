@@ -337,6 +337,8 @@ void handle(int tid, Syscall request) {
     tid_to_descriptor.remove(tid);
     task_allocator.free(td->td_idx);
 
+    TaskExitMsg msg{};
+
     // wake sender queue to alert of task exist
     auto to_tid_opt = td->sender_queue.pop();
     while (to_tid_opt.has_value()) {
@@ -348,9 +350,6 @@ void handle(int tid, Syscall request) {
       }
       auto to_td = to_td_opt.value();
       auto to_tf = (TrapFrame *)to_td->sp_el0;
-
-      Message msg{};
-      msg.type = MessageType::TASK_EXIT;
 
       char *rcv_reply = (char *)to_tf->x[3];
       int rcv_len     = to_tf->x[4];

@@ -19,8 +19,8 @@ class RPSServer {
     } game_state;
     int player1_tid;
     int player2_tid;
-    RPS::PlayMessage::Choice player1_choice;
-    RPS::PlayMessage::Choice player2_choice;
+    RPS::PlayMsg::Choice player1_choice;
+    RPS::PlayMsg::Choice player2_choice;
     int game_index;
   };
 
@@ -31,6 +31,13 @@ class RPSServer {
   int player_to_game_ptr[RPS_SERVER_MAX_GAMES][2];
   int tx_tid;
   std::optional<int> find_game_index_for_player(int tid);
+
+  void handle(const int tid, const RPS::SetupMsg &);
+  void handle(const int tid, const RPS::PlayMsg &);
+  void handle(const int tid, const RPS::QuitMsg &);
+  template <class T> void handle(int tid, const T &) {
+    reply_with_error_var(tid);
+  }
 
 public:
   RPSServer() {

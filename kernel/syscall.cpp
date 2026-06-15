@@ -49,11 +49,6 @@ void yield() { asm volatile("svc %0" : : "i"(Syscall::YIELD) : "memory"); }
 
 void exit() { asm volatile("svc %0" : : "i"(Syscall::EXIT) : "memory"); }
 
-int send(int tid, const Message msg, Message &reply_msg) {
-  return send(tid, (const char *)&msg, sizeof(msg), (char *)&reply_msg,
-              sizeof(reply_msg));
-}
-
 int send(int tid, const char *msg, int msg_len, char *reply, int reply_len) {
   register int r0 asm("x0")         = tid;
   register const char *r1 asm("x1") = msg;
@@ -68,12 +63,8 @@ int send(int tid, const char *msg, int msg_len, char *reply, int reply_len) {
   return r0;
 }
 
-void receive(int *tid, MessageVar &msg) {
+void receive(int *tid, Message &msg) {
   receive(tid, (char *)&msg, sizeof(msg));
-}
-
-int receive(int *tid, Message &msg) {
-  return receive(tid, (char *)&msg, sizeof(msg));
 }
 
 int receive(int *tid, char *msg, int msg_len) {
@@ -89,13 +80,9 @@ int receive(int *tid, char *msg, int msg_len) {
   return r0_out;
 }
 
-void reply(int tid, const MessageVar &msg) {
+void reply(int tid, const Message &msg) {
   reply(tid, (const char *)&msg, sizeof(msg));
 }
-
-int reply(int tid, Message msg) {
-  return reply(tid, (const char *)&msg, sizeof(msg));
-};
 
 int reply(int tid, const char *reply, int reply_len) {
   register int r0 asm("x0")         = tid;
@@ -110,23 +97,15 @@ int reply(int tid, const char *reply, int reply_len) {
 }
 
 void reply_with_error_var(int tid, int error_code) {
-  auto msg = ErrorMessage{.error_code = error_code};
+  auto msg = ErrorMsg{.error_code = error_code};
   reply(tid, reinterpret_cast<const char *>(&msg), sizeof(msg));
 }
 
-int reply_with_error(int tid, int error_code) {
-  Message msg{};
-  msg.type            = MessageType::ERROR;
-  msg.data.error_code = error_code;
-  return reply(tid, msg);
-}
-
 void await_task(int tid) {
-  Message msg{};
+  TaskExitMsg msg{};
   while (true) {
-    msg.type = MessageType::TASK_EXIT;
-    send(tid, msg, msg);
-    if (msg.type == MessageType::TASK_EXIT) {
+    auto rcv_msg = send<TaskExitMsg>(tid, Message{msg});
+    if (rcv_msg.has_value()) {
       return;
     } else {
       _assert(false, "UNEXPECTED MESSAGE ON AWAIT TASK");

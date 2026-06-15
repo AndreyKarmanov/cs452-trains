@@ -53,164 +53,138 @@ namespace NS {
   constexpr int NAMESERVER_TID  = 1;
   constexpr size_t MAX_NAME_LEN = 32;
 
-  struct Register {
+  struct RegisterMsg {
     StaticString<MAX_NAME_LEN> name;
   };
 
-  struct WhoIs {
+  struct WhoIsMsg {
     StaticString<MAX_NAME_LEN> name;
   };
 
-  struct RegisterReply {
+  struct RegisterReplyMsg {
     enum class Status { SUCCESS = 0, FAILURE = -1, NAME_TOO_LONG = -2 } status;
   };
 
-  struct WhoIsReply {
+  struct WhoIsReplyMsg {
     int tid;
   };
 
 } // namespace NS
 
 namespace RPS {
-  struct SetupMessage {};
-  struct PlayMessage {
+  struct SetupMsg {};
+  struct PlayMsg {
     enum class Choice { ROCK, PAPER, SCISSORS } choice;
   };
 
-  inline const char *choice_str(PlayMessage::Choice choice) {
+  inline const char *choice_str(PlayMsg::Choice choice) {
     switch (choice) {
-    case PlayMessage::Choice::ROCK:
+    case PlayMsg::Choice::ROCK:
       return "rock";
-    case PlayMessage::Choice::PAPER:
+    case PlayMsg::Choice::PAPER:
       return "paper";
-    case PlayMessage::Choice::SCISSORS:
+    case PlayMsg::Choice::SCISSORS:
       return "scissors";
     }
     return "?";
   }
 
-  struct QuitMessage {};
+  struct QuitMsg {};
 
-  struct PlayReadyMessage {};
-  struct PlayResultMessage {
+  struct PlayReadyMsg {};
+  struct PlayResultMsg {
     enum class Result { WIN, LOSE, TIE, PLAYER_QUIT } result;
   };
 
-  inline const char *result_str(PlayResultMessage::Result result) {
+  inline const char *result_str(PlayResultMsg::Result result) {
     switch (result) {
-    case PlayResultMessage::Result::WIN:
+    case PlayResultMsg::Result::WIN:
       return "win";
-    case PlayResultMessage::Result::LOSE:
+    case PlayResultMsg::Result::LOSE:
       return "lose";
-    case PlayResultMessage::Result::TIE:
+    case PlayResultMsg::Result::TIE:
       return "tie";
-    case PlayResultMessage::Result::PLAYER_QUIT:
+    case PlayResultMsg::Result::PLAYER_QUIT:
       return "partner quit";
     }
     return "?";
   }
 
-  struct QuitAckMessage {};
+  struct QuitAckMsg {};
 } // namespace RPS
 
 namespace CS {
-  struct Time {};
+  struct TimeMsg {};
 
-  struct TimeReply {
+  struct TimeReplyMsg {
     uint32_t ticks;
   };
 
-  struct Delay {
+  struct DelayMsg {
     uint32_t ticks;
   };
 
-  struct DelayUntil {
+  struct DelayUntilMsg {
     uint32_t ticks;
   };
 
-  struct DelayReply {
+  struct DelayReplyMsg {
     uint32_t ticks;
   };
 
-  struct Tick {};
+  struct TickMsg {};
 
 } // namespace CS
 
 namespace TX {
   constexpr int MAX_DATA_LENGTH = 256;
 
-  struct SendMessage {
+  struct SendMsg {
     int len;
     char data[MAX_DATA_LENGTH];
   };
+
+  struct InterruptMsg {};
+
+  struct ReplyMsg {};
 } // namespace TX
 
 namespace RX {
-  struct GetcMessage {};
+  struct GetcMsg {};
 
-  struct GetcReplyMessage {
+  struct GetcReplyMsg {
     char c;
   };
+
+  struct InterruptMsg {};
+
+  struct InterruptReplyMsg {};
 } // namespace RX
 
 namespace FUT {
-  struct ClientParamRequest {};
-  struct ClientInitMessage {
+  struct ClientParamRequestMsg {};
+  struct ClientInitMsg {
     int delay_ticks;
     int delay_count;
   };
 
 } // namespace FUT
 
-struct ErrorMessage {
+struct ErrorMsg {
   int error_code;
 };
 
-// todo: This will grow to be the size of the largest in union
-// in future, when this has much more data, we want a smaller approach for hot
-// message types
-struct Message {
-  MessageType type;
+struct TaskExitMsg {};
 
-  union {
-    int error_code;
+using Message =
+    std::variant<NS::RegisterMsg, NS::WhoIsMsg, NS::RegisterReplyMsg,
+                 NS::WhoIsReplyMsg, RPS::SetupMsg, RPS::PlayMsg, RPS::QuitMsg,
+                 RPS::PlayReadyMsg, RPS::PlayResultMsg, RPS::QuitAckMsg,
+                 CS::TimeMsg, CS::TimeReplyMsg, CS::DelayMsg, CS::DelayUntilMsg,
+                 CS::DelayReplyMsg, CS::TickMsg, FUT::ClientParamRequestMsg,
+                 FUT::ClientInitMsg, TX::SendMsg, TX::InterruptMsg,
+                 TX::ReplyMsg, RX::GetcMsg, RX::GetcReplyMsg, RX::InterruptMsg,
+                 RX::InterruptReplyMsg, ErrorMsg, TaskExitMsg>;
 
-    NS::Register ns_register;
-    NS::WhoIs ns_who_is;
-    NS::RegisterReply ns_register_reply;
-    NS::WhoIsReply ns_who_is_reply;
-
-    RPS::SetupMessage rps_setup;
-    RPS::PlayMessage rps_play;
-    RPS::QuitMessage rps_quit;
-    RPS::PlayReadyMessage rps_play_ready;
-    RPS::PlayResultMessage rps_play_result;
-    RPS::QuitAckMessage rps_quit_ack;
-
-    CS::Time cs_time;
-    CS::TimeReply cs_time_reply;
-    CS::Delay cs_delay;
-    CS::DelayUntil cs_delay_until;
-    CS::DelayReply cs_delay_reply;
-    CS::Tick cs_tick;
-
-    TX::SendMessage tx_send;
-
-    RX::GetcMessage rx_getc;
-    RX::GetcReplyMessage rx_getc_reply;
-
-    FUT::ClientParamRequest fut_params_req;
-    FUT::ClientInitMessage fut_params;
-  } data;
-};
-
-using MessageVar =
-    std::variant<NS::Register, NS::WhoIs, NS::RegisterReply, NS::WhoIsReply,
-                 RPS::SetupMessage, RPS::PlayMessage, RPS::QuitMessage,
-                 RPS::PlayReadyMessage, RPS::PlayResultMessage,
-                 RPS::QuitAckMessage, CS::Time, CS::TimeReply, CS::Delay,
-                 CS::DelayUntil, CS::DelayReply, CS::Tick,
-                 FUT::ClientParamRequest, FUT::ClientInitMessage, ErrorMessage>;
-
-static_assert(std::is_trivially_copyable<MessageVar>::value,
+static_assert(std::is_trivially_copyable<Message>::value,
               "MessageVar must be trivially copyable");

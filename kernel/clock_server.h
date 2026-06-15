@@ -27,11 +27,11 @@ public:
     _assert(tx_tid >= 0, "TX SERVER WHOIS FAILED");
   }
 
-  void handle(const int tid, const CS::Time &) {
-    reply(tid, CS::TimeReply{.ticks = curr_tick});
+  void handle(const int tid, const CS::TimeMsg &) {
+    reply(tid, CS::TimeReplyMsg{.ticks = curr_tick});
   }
 
-  void handle(const int tid, const CS::Delay &msg) {
+  void handle(const int tid, const CS::DelayMsg &msg) {
     if (msg.ticks < 0) {
       reply_with_error_var(tid, -2);
       return;
@@ -40,22 +40,22 @@ public:
     waiting_heap.push({msg.ticks + curr_tick, tid});
   }
 
-  void handle(const int tid, const CS::DelayUntil &msg) {
+  void handle(const int tid, const CS::DelayUntilMsg &msg) {
     if (msg.ticks < 0) {
       reply_with_error_var(tid, -2);
       return;
     }
 
     if (msg.ticks <= curr_tick) {
-      reply(tid, CS::DelayReply{.ticks = curr_tick});
+      reply(tid, CS::DelayReplyMsg{.ticks = curr_tick});
     } else {
       waiting_heap.push({msg.ticks, tid});
     }
   }
 
-  void handle(const int tid, const CS::Tick &) {
+  void handle(const int tid, const CS::TickMsg &) {
     curr_tick++;
-    reply(tid, CS::Tick{});
+    reply(tid, CS::TickMsg{});
 
     while (true) {
       auto waiting_val_opt = waiting_heap.peek();
@@ -69,7 +69,7 @@ public:
       }
 
       waiting_heap.pop();
-      reply(waiting_tid, CS::DelayReply{.ticks = curr_tick});
+      reply(waiting_tid, CS::DelayReplyMsg{.ticks = curr_tick});
     }
   }
 
@@ -79,7 +79,7 @@ public:
 
   void run() {
     int sender_tid;
-    MessageVar msg;
+    Message msg;
     receive(&sender_tid, msg);
     std::visit([&](auto &&arg) { handle(sender_tid, arg); }, msg);
   }

@@ -12,8 +12,8 @@ void name_server_task() {
 }
 
 int RegisterAs(const StaticString<NS::MAX_NAME_LEN> &name) {
-  NS::Register msg{.name = name};
-  auto res = sendVariant<NS::RegisterReply>(NAMESERVER_TID, msg);
+  NS::RegisterMsg msg{.name = name};
+  auto res = send<NS::RegisterReplyMsg>(NAMESERVER_TID, Message{msg});
   if (!res) {
     return res.error();
   }
@@ -21,8 +21,8 @@ int RegisterAs(const StaticString<NS::MAX_NAME_LEN> &name) {
 }
 
 int WhoIs(const StaticString<NS::MAX_NAME_LEN> &name) {
-  NS::WhoIs msg{.name = name};
-  auto res = sendVariant<NS::WhoIsReply>(NAMESERVER_TID, msg);
+  NS::WhoIsMsg msg{.name = name};
+  auto res = send<NS::WhoIsReplyMsg>(NAMESERVER_TID, Message{msg});
   if (!res) {
     return res.error();
   }

@@ -22,6 +22,13 @@ public:
   void drain();
   void reply_to_notifier();
   void run();
+
+private:
+  void handle(const int tid, const TX::SendMsg &);
+  void handle(const int tid, const TX::InterruptMsg &);
+  template <class T> void handle(int tid, const T &) {
+    reply_with_error_var(tid);
+  }
 };
 
 void tx_server_task();

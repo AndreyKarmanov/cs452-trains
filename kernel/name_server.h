@@ -18,14 +18,15 @@ private:
   Map<name_t, Buffer<int, MAX_NAMES>, MAX_NAMES> waiting_who_is;
 
 public:
-  void handle(const int sender_tid, const NS::Register &m) {
-    NS::RegisterReply reply_msg{.status = NS::RegisterReply::Status::SUCCESS};
+  void handle(const int sender_tid, const NS::RegisterMsg &m) {
+    NS::RegisterReplyMsg reply_msg{.status =
+                                       NS::RegisterReplyMsg::Status::SUCCESS};
     name_to_tid.set(m.name, sender_tid);
     reply(sender_tid, reply_msg);
 
     if (auto *buffer = waiting_who_is.get_ref(m.name)) {
       auto waiting_tid_opt = buffer->pop();
-      NS::WhoIsReply who_is_reply_msg{.tid = sender_tid};
+      NS::WhoIsReplyMsg who_is_reply_msg{.tid = sender_tid};
       while (waiting_tid_opt.has_value()) {
         int waiting_tid = waiting_tid_opt.value();
         reply(waiting_tid, who_is_reply_msg);
@@ -35,10 +36,10 @@ public:
     }
   };
 
-  void handle(const int sender_tid, const NS::WhoIs &m) {
+  void handle(const int sender_tid, const NS::WhoIsMsg &m) {
     auto tid_opt = name_to_tid.get(m.name);
     if (tid_opt.has_value()) {
-      NS::WhoIsReply reply_msg{.tid = tid_opt.value()};
+      NS::WhoIsReplyMsg reply_msg{.tid = tid_opt.value()};
       reply(sender_tid, reply_msg);
     } else {
       if (auto *buffer = waiting_who_is.get_ref(m.name)) {
@@ -57,7 +58,7 @@ public:
 
   void run() {
     int sender_tid;
-    MessageVar msg;
+    Message msg;
     receive(&sender_tid, msg);
     std::visit([&](auto &&arg) { handle(sender_tid, arg); }, msg);
   };

@@ -1,18 +1,13 @@
 
 #include "first_user_task.h"
 #include "clock_server.h"
-#include "debug.h"
-#include "idle_manager.h"
 #include "io_helpers.h"
 #include "kernel_state.h"
-#include "message.h"
 #include "name_server.h"
 #include "rx_server.h"
 #include "shell.h"
 #include "syscall.h"
-#include "test.h"
 #include "tx_server.h"
-#include "uart.h"
 
 #if (defined(PERF_TEST) && PERF_TEST) || (defined(RPS_TEST) && RPS_TEST) ||    \
     (defined(CLOCK_TEST) && CLOCK_TEST)
@@ -57,32 +52,30 @@ void first_user_task() {
          p5_tid, p6_tid);
 
   int rcv_tid;
-  Message rcv_msg;
-  Message reply_msg;
-  reply_msg.type  = MessageType::FUT_CLIENT_PARAMS_REPLY;
+  MessageVar rcv_msg;
   auto initalized = 0;
   while (initalized < 4) {
-    int rcv_len = receive(&rcv_tid, rcv_msg);
-    _assert(rcv_msg.type == MessageType::FUT_CLIENT_PARAMS &&
-                rcv_len == static_cast<int>(sizeof(rcv_msg)),
-            "FUT received invalid message");
+    receive(&rcv_tid, rcv_msg);
+    if (!std::holds_alternative<FUT::ClientParamRequest>(rcv_msg)) {
+      _assert(false, "FUT received invalid message");
+    }
+
     if (rcv_tid == p3_tid) {
-      reply_msg.data.fut_params.delay_ticks = 10;
-      reply_msg.data.fut_params.delay_count = 20;
+      reply(rcv_tid,
+            FUT::ClientInitMessage{.delay_ticks = 10, .delay_count = 20});
     } else if (rcv_tid == p4_tid) {
-      reply_msg.data.fut_params.delay_ticks = 23;
-      reply_msg.data.fut_params.delay_count = 9;
+      reply(rcv_tid,
+            FUT::ClientInitMessage{.delay_ticks = 23, .delay_count = 9});
     } else if (rcv_tid == p5_tid) {
-      reply_msg.data.fut_params.delay_ticks = 33;
-      reply_msg.data.fut_params.delay_count = 6;
+      reply(rcv_tid,
+            FUT::ClientInitMessage{.delay_ticks = 33, .delay_count = 6});
     } else if (rcv_tid == p6_tid) {
-      reply_msg.data.fut_params.delay_ticks = 71;
-      reply_msg.data.fut_params.delay_count = 3;
+      reply(rcv_tid,
+            FUT::ClientInitMessage{.delay_ticks = 71, .delay_count = 3});
     } else {
       continue;
     }
     initalized++;
-    reply(rcv_tid, reply_msg);
   }
 #endif
 

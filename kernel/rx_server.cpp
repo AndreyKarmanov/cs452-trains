@@ -7,14 +7,10 @@ static void rx_notifier_task() {
   int rx_tid = WhoIs(RX_Server::RX_SERVER_NAME);
   _assert(rx_tid >= 0, "RX SERVER WHOIS FAILED");
 
-  Message msg{};
-  msg.type = MessageType::RX_INTERRUPT;
-  Message rcv_msg{};
-
   while (true) {
     await_event(Event::UART_RX_IRQ);
-    auto rcv_len = send(rx_tid, msg, rcv_msg);
-    _assert(rcv_len >= 0, "RX INTERRUPT FAILED");
+    auto rcv_msg = send<RX::InterruptReplyMsg>(rx_tid, RX::InterruptMsg{});
+    _assert(rcv_msg.has_value(), "RX INTERRUPT FAILED");
   }
 }
 
@@ -35,55 +31,37 @@ void RX_Server::try_reply_getc() {
   auto c = rx_buffer.pop();
   _assert(c.has_value(), "RX SERVER: GETC POP FAILED");
 
-  Message reply_msg{};
-  reply_msg.type                 = MessageType::RX_GETC_REPLY;
-  reply_msg.data.rx_getc_reply.c = c.value();
-  reply(waiting_getc_tid, reply_msg);
+  reply(waiting_getc_tid, RX::GetcReplyMsg{.c = c.value()});
   waiting_getc_tid = -1;
+}
+
+void RX_Server::handle(const int tid, const RX::InterruptMsg &) {
+  while (can_receive_io()) {
+    _assert(rx_buffer.push(getc()), "RX SERVER: BUFFER FULL");
+  }
+
+  clear_uart_interrupt(UARTInterruptType::RXIM);
+  clear_uart_interrupt(UARTInterruptType::RTIM);
+
+  reply(tid, RX::InterruptReplyMsg{});
+
+  try_reply_getc();
+}
+
+void RX_Server::handle(const int tid, const RX::GetcMsg &) {
+  if (!rx_buffer.is_empty()) {
+    auto c = rx_buffer.pop();
+    _assert(c.has_value(), "RX SERVER: GETC POP FAILED");
+
+    reply(tid, RX::GetcReplyMsg{.c = c.value()});
+  } else {
+    waiting_getc_tid = tid;
+  }
 }
 
 void RX_Server::run() {
   int tid;
   Message msg{};
-  auto rcv_size = receive(&tid, msg);
-  _assert(rcv_size == static_cast<int>(sizeof(msg)),
-          "RX SERVER: RECEIVED LESS THAN MSG");
-
-  switch (msg.type) {
-  case MessageType::RX_INTERRUPT: {
-    while (can_receive_io()) {
-      _assert(rx_buffer.push(getc()), "RX SERVER: BUFFER FULL");
-    }
-
-    clear_uart_interrupt(UARTInterruptType::RXIM);
-    clear_uart_interrupt(UARTInterruptType::RTIM);
-
-    Message reply_msg{};
-    reply_msg.type = MessageType::RX_INTERRUPT_REPLY;
-    reply(tid, reply_msg);
-
-    try_reply_getc();
-    break;
-  }
-
-  case MessageType::RX_GETC: {
-    if (!rx_buffer.is_empty()) {
-      auto c = rx_buffer.pop();
-      _assert(c.has_value(), "RX SERVER: GETC POP FAILED");
-
-      Message reply_msg{};
-      reply_msg.type                 = MessageType::RX_GETC_REPLY;
-      reply_msg.data.rx_getc_reply.c = c.value();
-      reply(tid, reply_msg);
-    } else {
-      waiting_getc_tid = tid;
-    }
-    break;
-  }
-
-  default: {
-    _assert(false, "RX SERVER: UNEXPECTED MESSAGE TYPE");
-    break;
-  }
-  }
+  receive(&tid, msg);
+  std::visit([&](auto &&arg) { handle(tid, arg); }, msg);
 }

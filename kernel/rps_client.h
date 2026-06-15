@@ -11,7 +11,7 @@ public:
   int tx_tid;
 
   std::optional<Message> signup();
-  std::optional<Message> play(RPS::PlayMessage::Choice choice);
+  std::optional<Message> play(RPS::PlayMsg::Choice choice);
   std::optional<Message> quit();
 };
 
