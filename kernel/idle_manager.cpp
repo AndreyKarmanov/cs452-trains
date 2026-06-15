@@ -17,7 +17,7 @@ bool maintainance() {
   last_update = now;
 
   const int pct = kernel_idle_pct();
-  uart_printf(CONSOLE, "\033[" IDLE_ROW ";" IDLE_COL "H\033[KIdle: %d%%", pct);
+  uart_printf(CONSOLE, "Idle: %d%%\n\r", pct);
   return false;
 }
 
