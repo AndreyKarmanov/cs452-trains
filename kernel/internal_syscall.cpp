@@ -78,18 +78,21 @@ int _create(int priority, void (*function)(), int parent_tid) {
   return tid;
 }
 
+static void uninitialize_event(Event event) {
+  using namespace Kernel;
+  initalized_events &= ~(1u << static_cast<int>(event));
+}
+
 static void initalize_event(Event event) {
   using namespace Kernel;
 
   // check if we've already initalized this event
-  bool is_initialized =
-      (initalized_events & (1u << static_cast<int>(event))) != 0;
+  if (initalized_events & (1u << static_cast<int>(event)))
+    return;
   initalized_events |= (1u << static_cast<int>(event));
 
   switch (event) {
   case Event::CLOCK_TICK_1MS: {
-    if (is_initialized)
-      return;
     set_interrupt_core_routing(0, GIC_TIMER_IRQ_C1, true);
     set_interrupt(GIC_TIMER_IRQ_C1, true);
     clear_timer_interrupt(1);
@@ -97,8 +100,6 @@ static void initalize_event(Event event) {
     break;
   }
   case Event::DELAY_5S: {
-    if (is_initialized)
-      return;
     set_interrupt_core_routing(0, GIC_TIMER_IRQ_C3, true);
     set_interrupt(GIC_TIMER_IRQ_C3, true);
     clear_timer_interrupt(3);
@@ -134,19 +135,21 @@ static void handle_event(Event event) {
   }
   case Event::DELAY_5S: {
     clear_timer_interrupt(3);
-    initalized_events &= ~(1u << static_cast<int>(event));
+    uninitialize_event(event);
     break;
   }
   case Event::UART_RX_IRQ: {
     // mask so no RX IRQ fires until notifier re-await_event
     disable_uart_interrupt(UARTInterruptType::RXIM);
     disable_uart_interrupt(UARTInterruptType::RTIM);
+    uninitialize_event(event);
     break;
   }
   case Event::UART_TX_IRQ: {
     // immediately disable after firing as they will keep firing
     disable_uart_interrupt(UARTInterruptType::TXIM);
     disable_uart_interrupt(UARTInterruptType::CTSMIM);
+    uninitialize_event(event);
     break;
   }
   default: {

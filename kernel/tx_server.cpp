@@ -96,17 +96,6 @@ void TX_Server::run() {
   }
 }
 
-int Putc(int tid, unsigned char c) {
-  Message msg;
-  msg.type                 = MessageType::TX_SEND;
-  msg.data.tx_send.len     = 1;
-  msg.data.tx_send.data[0] = c;
-  Message rcv_msg;
-  auto rcv_len = send(tid, msg, rcv_msg);
-
-  return rcv_len < 0 ? -1 : 0;
-}
-
 static void tx_client_task() {
   int tx_tid = WhoIs(TX_Server::TX_SERVER_NAME);
   _assert(tx_tid >= 0, "TX SERVER WHOIS FAILED");

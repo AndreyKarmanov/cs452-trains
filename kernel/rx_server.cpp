@@ -87,16 +87,3 @@ void RX_Server::run() {
   }
   }
 }
-
-int Getc(int tid) {
-  Message msg;
-  msg.type = MessageType::RX_GETC;
-  Message rcv_msg;
-  auto rcv_len = send(tid, msg, rcv_msg);
-
-  if (rcv_len < static_cast<int>(sizeof(rcv_msg)) ||
-      rcv_msg.type != MessageType::RX_GETC_REPLY) {
-    return -1;
-  }
-  return static_cast<int>(rcv_msg.data.rx_getc_reply.c);
-}

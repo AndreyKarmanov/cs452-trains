@@ -129,11 +129,11 @@ namespace CS {
 } // namespace CS
 
 namespace TX {
-  static constexpr int TX_MAX_DATA_LENGTH = 256;
+  constexpr int MAX_DATA_LENGTH = 256;
 
   struct SendMessage {
     int len;
-    char data[TX_MAX_DATA_LENGTH];
+    char data[MAX_DATA_LENGTH];
   };
 } // namespace TX
 

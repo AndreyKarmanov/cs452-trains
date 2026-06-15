@@ -1,17 +1,18 @@
-#include <cstddef>
 #include <cstdarg>
+#include <cstddef>
 #include <cstring>
 #include <ctype.h>
 
 #include "debug.h"
+#include "io_helpers.h"
 #include "map.h"
-#include "shell_new.h"
-#include "util.h"
-#include "syscall.h"
-#include "test.h"
 #include "name_server.h"
 #include "rx_server.h"
+#include "shell_new.h"
+#include "syscall.h"
+#include "test.h"
 #include "tx_server.h"
+#include "util.h"
 
 #define BUFFER_SIZE 32
 
@@ -55,8 +56,8 @@ static bool parse_count_size_t(char **cursor, size_t *value) {
 
   size_t base = 10;
   if (p[0] == '0' && (p[1] == 'x' || p[1] == 'X')) {
-    base = 16;
-    p += 2;
+    base  = 16;
+    p    += 2;
   }
 
   size_t result = 0;
@@ -142,14 +143,15 @@ static void fire_command(char *buf, size_t blen, int tx_tid) {
     test_map();
   } else if (strncmp(cmd, "t heap", 6) == 0) {
     test_heap();
-  }else if (strncmp(cmd, "t event", 7) == 0){
+  } else if (strncmp(cmd, "t event", 7) == 0) {
     create(0, test_await_event_task);
-  } else if (strncmp(cmd, "t clock", 7) == 0){
+  } else if (strncmp(cmd, "t clock", 7) == 0) {
     create(0, test_clock_server);
   } else {
-    console_puts(tx_tid, "Unknown command. Available: q (quit), p (parent tid), "
-                         "m (my tid), y (yield), c (create), d (dump memory), "
-                         "w (write memory), t k1, t map, t heap\n\r");
+    console_puts(tx_tid,
+                 "Unknown command. Available: q (quit), p (parent tid), "
+                 "m (my tid), y (yield), c (create), d (dump memory), "
+                 "w (write memory), t k1, t map, t heap\n\r");
   }
 }
 
@@ -161,8 +163,10 @@ void shell_new_task() {
 
   char buf[BUFFER_SIZE];
   size_t buf_n = 0;
-  console_puts(tx_tid, "COMMANDS: q (quit) p (parent tid) m (my tid) y (yield) c "
-                        "(create) d <hex address> [count] w <hex address> <hex value>\n\r> ");
+  console_puts(
+      tx_tid,
+      "COMMANDS: q (quit) p (parent tid) m (my tid) y (yield) c "
+      "(create) d <hex address> [count] w <hex address> <hex value>\n\r> ");
   while (1) {
     int rc = Getc(rx_tid);
     _assert(rc >= 0, "SHELL: GETC FAILED");

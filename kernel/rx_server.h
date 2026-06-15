@@ -6,7 +6,7 @@
 
 class RX_Server {
 public:
-  static constexpr auto RX_SERVER_NAME = "RXSERVER";
+  static constexpr auto RX_SERVER_NAME   = "RXSERVER";
   static constexpr size_t RX_BUFFER_SIZE = 1024;
 
   RX_Server() {
@@ -22,5 +22,3 @@ public:
 };
 
 void rx_server_task();
-
-int Getc(int tid);

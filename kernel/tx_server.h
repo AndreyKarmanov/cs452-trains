@@ -25,5 +25,3 @@ public:
 };
 
 void tx_server_task();
-
-int Putc(int tid, unsigned char c);
