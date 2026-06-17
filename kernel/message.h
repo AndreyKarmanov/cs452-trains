@@ -5,50 +5,6 @@
 #include <type_traits>
 #include <variant>
 
-enum class MessageType {
-  // error is 0, so uninitalized is an error
-  ERROR     = 0,
-  TASK_EXIT = 1,
-
-  // name server
-  NS_REGISTER_AS    = 2,
-  NS_WHO_IS         = 3,
-  NS_REGISTER_REPLY = 4,
-  NS_WHO_IS_REPLY   = 5,
-
-  // to rps server
-  RPS_SIGNUP = 6, // client asks to join a game
-  RPS_PLAY   = 7, // client sends RPS choice
-  RPS_QUIT   = 8, // client quits game
-
-  // to rps client
-  RPS_PLAY_READY  = 9,  // server notifies of game start
-  RPS_PLAY_RESULT = 10, // server returns game result
-  RPS_PLAYER_QUIT = 11, // server notifies other player quit
-  RPS_QUIT_ACK    = 12, // server confirms player quit
-
-  // clock server
-  CS_TIME        = 13,
-  CS_TIME_REPLY  = 14,
-  CS_DELAY       = 15,
-  CS_DELAY_UNTIL = 16,
-  CS_DELAY_REPLY = 17,
-  CS_TICK        = 18,
-
-  FUT_CLIENT_PARAMS       = 19,
-  FUT_CLIENT_PARAMS_REPLY = 20,
-
-  // io servers
-  TX_INTERRUPT = 21,
-  TX_SEND      = 22,
-  TX_REPLY     = 23,
-
-  RX_INTERRUPT       = 24,
-  RX_INTERRUPT_REPLY = 25,
-  RX_GETC            = 27,
-  RX_GETC_REPLY      = 28,
-};
-
 namespace NS {
   constexpr int NAMESERVER_TID  = 1;
   constexpr size_t MAX_NAME_LEN = 32;
