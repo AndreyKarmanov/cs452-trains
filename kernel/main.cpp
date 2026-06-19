@@ -2,10 +2,12 @@
 #include "first_user_task.h"
 #include "internal_syscall.h"
 #include "kernel_state.h"
+#include "mcp2515.h"
 #include "rpi.h"
 #include "scheduler.h"
 #include "uart.h"
 #include <optional>
+
 #ifndef DATA_CACHE
 #define DATA_CACHE 1
 #endif
@@ -25,6 +27,8 @@ extern "C" int kmain() {
   setup_mmu();
 #endif
   gpio_init();
+  gpio_init_interrupt();
+  mcp2515_init();
   uart_config_and_enable(CONSOLE);
 
   data_cache_set(DATA_CACHE);

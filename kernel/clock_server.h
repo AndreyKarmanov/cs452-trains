@@ -19,6 +19,7 @@ template <size_t MAX_WAITING = MAX_TASKS> class ClockServer {
 public:
   static constexpr auto CLOCK_SERVER_NAME = "CLOCKSERVER";
 
+  // perhaps make hte clock server self-sufficient? run the notifier from this.
   ClockServer() {
     auto response = RegisterAs(CLOCK_SERVER_NAME);
     _assert(response == 0, "CLOCK SERVER REGISTERAS FAILED");
