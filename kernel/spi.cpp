@@ -1,8 +1,9 @@
 #include "spi.h"
 #include "rpi.h"
 
-static const char *SPI0_BASE = MMIO_BASE + 0x204000;
-#define SPI0_REG(offset) (*(volatile uint32_t *)(SPI0_BASE + offset))
+static char *const SPI0_BASE = MMIO_BASE + 0x204000;
+#define SPI0_REG(offset)                                                       \
+  (*reinterpret_cast<volatile uint32_t *>(SPI0_BASE + (offset)))
 
 // SPI register offsets
 static const uintptr_t SPI_CS   = 0x00;

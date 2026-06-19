@@ -170,7 +170,7 @@ int mcp2515_fakerecv() {
 }
 
 void *memset(void *s, int c, size_t n) {
-  for (char *it = (char *)s; n > 0; --n)
+  for (char *it = reinterpret_cast<char *>(s); n > 0; --n)
     *it++ = c;
   return s;
 }
@@ -197,7 +197,8 @@ bool mcp2515_send(const TXBnFrame frame) {
 
   uint16_t buffer = txb == 0 ? TXB0SIDH : (txb == 1 ? TXB1SIDH : TXB2SIDH);
 
-  mcp2515_write_regs(buffer, (const uint8_t *)&frame, sizeof(TXBnFrame));
+  mcp2515_write_regs(buffer, reinterpret_cast<const uint8_t *>(&frame),
+                     sizeof(TXBnFrame));
 
   mcp2515_rts(txb == 0, txb == 1, txb == 2);
 
@@ -249,7 +250,8 @@ bool mcp2515_recieve_RXn(bool rx0, CANFRAME &frame) {
   RXBnFRAME mcp_frame;
 
   // note this also clears the respective interrupt flag
-  mcp2515_read_RXn(rx0, (uint8_t *)&mcp_frame, sizeof(RXBnFRAME));
+  mcp2515_read_RXn(rx0, reinterpret_cast<uint8_t *>(&mcp_frame),
+                   sizeof(RXBnFRAME));
 
   frame.prio  = (mcp_frame.SIDH & 0xF0) >> 4;
   frame.cmdid = ((mcp_frame.SIDH & 0x0F) << 4) |

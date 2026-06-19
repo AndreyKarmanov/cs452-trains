@@ -7,7 +7,7 @@
 #define TIME_COL "1"
 #define TIME_ROW "2"
 
-static char *const TIME_BASE = (char *)(MMIO_BASE + 0x3000);
+static char *const TIME_BASE = reinterpret_cast<char *>(MMIO_BASE + 0x3000);
 
 // TIME register offsets
 static const uint32_t TIME_CS  = 0x00;
@@ -16,7 +16,8 @@ static const uint32_t TIME_CHI = 0x08;
 static const uint32_t TIME_C1  = 0x10;
 static const uint32_t TIME_C3  = 0x18;
 
-#define SYSTIME_REG(reg) *(volatile uint32_t *)(TIME_BASE + reg)
+#define SYSTIME_REG(reg)                                                       \
+  *reinterpret_cast<volatile uint32_t *>(TIME_BASE + (reg))
 
 void set_timer_interrupt(uint32_t timer, uint32_t delay_us) {
   if (timer == 1) {

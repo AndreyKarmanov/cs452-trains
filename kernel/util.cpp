@@ -20,7 +20,7 @@ char a2ui(char ch, char **src, unsigned int base, unsigned int *nump) {
   p   = *src;
   num = 0;
   while ((digit = a2d(ch)) >= 0) {
-    if ((unsigned int)digit > base)
+    if (static_cast<unsigned int>(digit) > base)
       break;
     num = num * base + digit;
     ch  = *p++;

@@ -7,9 +7,10 @@
 #include <cstdint>
 
 // we only use uart0
-static char *const UART_BASE = (char *)(MMIO_BASE + 0x201000);
+#define UART_BASE reinterpret_cast<char *>(MMIO_BASE + 0x201000)
 #define UART_REG(line, offset)                                                 \
-  (*(volatile uint32_t *)(UART_BASE + line * 0x200 + offset))
+  (*reinterpret_cast<volatile uint32_t *>(UART_BASE + (line) * 0x200 +         \
+                                          (offset)))
 
 // UART register offsets
 static const uint32_t UART_DR   = 0x00;

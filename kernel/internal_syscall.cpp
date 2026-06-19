@@ -32,10 +32,10 @@ extern "C" void default_handler(int n) {
   asm volatile("mrs %0, elr_el1" : "=r"(elr_el1));
   asm volatile("mrs %0, spsr_el1" : "=r"(spsr_el1));
 
-  debug_printf(CONSOLE,
-               "DEFAULT VBAR HANDLER %u HIT ESR=%x FAR=%x ELR=%x SPSR=%x\n\r",
-               n, (unsigned int)esr_el1, (unsigned int)far_el1,
-               (unsigned int)elr_el1, (unsigned int)spsr_el1);
+  debug_printf(
+      CONSOLE, "DEFAULT VBAR HANDLER %u HIT ESR=%x FAR=%x ELR=%x SPSR=%x\n\r",
+      n, static_cast<unsigned int>(esr_el1), static_cast<unsigned int>(far_el1),
+      static_cast<unsigned int>(elr_el1), static_cast<unsigned int>(spsr_el1));
 }
 
 extern "C" void task_entry_wrapper(void (*function)()) {
@@ -60,25 +60,29 @@ int _create(int priority, void (*function)(), int parent_tid) {
   auto tid    = next_tid++;
 
   // define task stack (grows downwards)
-  uint64_t task_stack_base = (uint64_t)&task_stacks[td_idx][TASK_STACK_SIZE];
-  uint64_t task_stack_end  = task_stack_base - TASK_STACK_SIZE;
+  uint64_t task_stack_base =
+      reinterpret_cast<uint64_t>(&task_stacks[td_idx][TASK_STACK_SIZE]);
+  uint64_t task_stack_end = task_stack_base - TASK_STACK_SIZE;
 
   // clear stack memory (not required but helpful)
-  __builtin_memset((void *)(task_stack_end), 0, TASK_STACK_SIZE);
+  __builtin_memset(reinterpret_cast<void *>(task_stack_end), 0,
+                   TASK_STACK_SIZE);
 
   // build & push inital trapframe
-  TrapFrame *tf    = (TrapFrame *)(task_stack_base - sizeof(TrapFrame));
-  tf->elr_el1      = (uint64_t)task_entry_wrapper;
-  tf->x[0]         = (uint64_t)function;
+  TrapFrame *tf =
+      reinterpret_cast<TrapFrame *>(task_stack_base - sizeof(TrapFrame));
+  tf->elr_el1      = reinterpret_cast<uint64_t>(task_entry_wrapper);
+  tf->x[0]         = reinterpret_cast<uint64_t>(function);
   tf->spsr_el1     = 0;
   tf->is_interrupt = 0;
 
-  auto &td = task_descriptors[td_idx] = {.td_idx     = td_idx,
-                                         .tid        = tid,
-                                         .parent_tid = parent_tid,
-                                         .priority   = priority,
-                                         .state      = TaskStatus::READY,
-                                         .sp_el0     = (uint64_t)tf};
+  auto &td =
+      task_descriptors[td_idx] = {.td_idx     = td_idx,
+                                  .tid        = tid,
+                                  .parent_tid = parent_tid,
+                                  .priority   = priority,
+                                  .state      = TaskStatus::READY,
+                                  .sp_el0     = reinterpret_cast<uint64_t>(tf)};
 
   tid_to_descriptor.set(tid, td_idx);
   Kernel::scheduler.schedule(td);
@@ -335,14 +339,14 @@ Syscall activate(int tid) {
   td->state   = TaskStatus::RUNNING;
 
   // clear I and F bits in saved Pstate to allow interrupts in user mode.
-  auto *user_tf         = (Kernel::TrapFrame *)td->sp_el0;
+  auto *user_tf         = reinterpret_cast<Kernel::TrapFrame *>(td->sp_el0);
   uint64_t pstate_mask  = 0x3 << 6;
   user_tf->spsr_el1    &= ~pstate_mask;
 
   // switch to user mode
   // this will return when task makes a syscall
   Kernel::TrapFrame *tf = _switch_to_user(td->sp_el0);
-  td->sp_el0            = (uint64_t)tf;
+  td->sp_el0            = reinterpret_cast<uint64_t>(tf);
 
   // check if interrupt
   if (tf->is_interrupt) {
@@ -365,13 +369,14 @@ void handle(int tid, Syscall request) {
   using namespace Kernel;
   auto td_opt   = lookup_td(tid);
   auto td       = td_opt.value();
-  TrapFrame *tf = (TrapFrame *)td->sp_el0;
+  TrapFrame *tf = reinterpret_cast<TrapFrame *>(td->sp_el0);
 
   uint64_t start_cycle = get_cycle_count();
   switch (request) {
   case Syscall::CREATE: {
-    int new_tid = _create(tf->x[0], (void (*)())tf->x[1], tid);
-    tf->x[0]    = new_tid;
+    int new_tid =
+        _create(tf->x[0], reinterpret_cast<void (*)()>(tf->x[1]), tid);
+    tf->x[0] = new_tid;
     scheduler.schedule(*td);
     break;
   }
@@ -407,9 +412,9 @@ void handle(int tid, Syscall request) {
         continue;
       }
       auto to_td = to_td_opt.value();
-      auto to_tf = (TrapFrame *)to_td->sp_el0;
+      auto to_tf = reinterpret_cast<TrapFrame *>(to_td->sp_el0);
 
-      char *rcv_reply = (char *)to_tf->x[3];
+      char *rcv_reply = reinterpret_cast<char *>(to_tf->x[3]);
       int rcv_len     = to_tf->x[4];
 
       __builtin_memcpy(rcv_reply, &msg, rcv_len);
@@ -437,10 +442,10 @@ void handle(int tid, Syscall request) {
     }
 
     if (to_td->state == TaskStatus::W4_SEND) {
-      auto to_tf = (TrapFrame *)to_td->sp_el0;
+      auto to_tf = reinterpret_cast<TrapFrame *>(to_td->sp_el0);
 
       // set the sender tid (x0 is a pointer to a int)
-      *(int *)to_tf->x[0] = tid;
+      *reinterpret_cast<int *>(to_tf->x[0]) = tid;
 
       // overwrite x0 to return value of message length
       int msg_len = tf->x[2];
@@ -448,8 +453,8 @@ void handle(int tid, Syscall request) {
       int len = to_tf->x[0] = std::min(msg_len, rcv_len);
 
       // copy message from sender to receiver
-      const char *msg = (const char *)tf->x[1];
-      char *rcv_buf   = (char *)to_tf->x[1];
+      const char *msg = reinterpret_cast<const char *>(tf->x[1]);
+      char *rcv_buf   = reinterpret_cast<char *>(to_tf->x[1]);
       __builtin_memcpy(rcv_buf, msg, len);
 
       // skip the W4_RECEIVE state, someone was already waiting
@@ -470,10 +475,10 @@ void handle(int tid, Syscall request) {
 
       auto to_td_opt = lookup_td(from_tid);
       auto to_td     = to_td_opt.value();
-      auto from_tf   = (TrapFrame *)to_td->sp_el0;
+      auto from_tf   = reinterpret_cast<TrapFrame *>(to_td->sp_el0);
 
       // set who msg is from (follow int ptr)
-      *(int *)tf->x[0] = from_tid;
+      *reinterpret_cast<int *>(tf->x[0]) = from_tid;
 
       // set msg length (overwrite x0 / arg0)
       int msg_len = from_tf->x[2];
@@ -481,8 +486,8 @@ void handle(int tid, Syscall request) {
       int len = tf->x[0] = std::min(msg_len, rcv_len);
 
       // copy over buffer
-      const char *msg = (const char *)from_tf->x[1];
-      char *rcv_buf   = (char *)tf->x[1];
+      const char *msg = reinterpret_cast<const char *>(from_tf->x[1]);
+      char *rcv_buf   = reinterpret_cast<char *>(tf->x[1]);
       __builtin_memcpy(rcv_buf, msg, len);
 
       // update sender task to waiting for reply
@@ -512,11 +517,11 @@ void handle(int tid, Syscall request) {
       break;
     }
 
-    auto to_tf        = (TrapFrame *)to_td->sp_el0;
-    const char *reply = (const char *)tf->x[1];
+    auto to_tf        = reinterpret_cast<TrapFrame *>(to_td->sp_el0);
+    const char *reply = reinterpret_cast<const char *>(tf->x[1]);
     int reply_len     = tf->x[2];
 
-    char *rcv_reply = (char *)to_tf->x[3];
+    char *rcv_reply = reinterpret_cast<char *>(to_tf->x[3]);
     int rcv_len     = to_tf->x[4];
     int len = to_tf->x[0] = tf->x[0] = std::min(reply_len, rcv_len);
     __builtin_memcpy(rcv_reply, reply, len);

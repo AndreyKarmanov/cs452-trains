@@ -1,12 +1,15 @@
 #include "rpi.h"
 #include <cstdint>
 
-#define GPFSEL_REG(reg) (*(volatile uint32_t *)(GPIO_BASE + reg * 4))
+#define GPFSEL_REG(reg)                                                        \
+  (*reinterpret_cast<volatile uint32_t *>(GPIO_BASE + (reg) * 4))
 #define GPIO_PUP_PDN_CNTRL_REG(reg)                                            \
-  (*(volatile uint32_t *)(GPIO_BASE + 0xe4 + reg * 4))
+  (*reinterpret_cast<volatile uint32_t *>(GPIO_BASE + 0xe4 + (reg) * 4))
 
-#define GPEDS_REG(reg) (*(volatile uint32_t *)(GPIO_BASE + 0x40 + reg * 4))
-#define GPLEN_REG(reg) (*(volatile uint32_t *)(GPIO_BASE + 0x70 + reg * 4))
+#define GPEDS_REG(reg)                                                         \
+  (*reinterpret_cast<volatile uint32_t *>(GPIO_BASE + 0x40 + (reg) * 4))
+#define GPLEN_REG(reg)                                                         \
+  (*reinterpret_cast<volatile uint32_t *>(GPIO_BASE + 0x70 + (reg) * 4))
 
 // function control settings for GPIO pins
 static const uint32_t GPIO_INPUT  = 0x00;

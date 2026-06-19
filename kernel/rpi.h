@@ -2,8 +2,8 @@
 
 #include <cstdint>
 
-static char *const MMIO_BASE = (char *)0xFE000000;
-static char *const GPIO_BASE = (char *)(MMIO_BASE + 0x200000);
+static char *const MMIO_BASE = reinterpret_cast<char *>(0xFE000000);
+static char *const GPIO_BASE = reinterpret_cast<char *>(MMIO_BASE + 0x200000);
 
 void gpio_init();
 

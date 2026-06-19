@@ -64,7 +64,7 @@ int send(int tid, const char *msg, int msg_len, char *reply, int reply_len) {
 }
 
 void receive(int *tid, Message &msg) {
-  receive(tid, (char *)&msg, sizeof(msg));
+  receive(tid, reinterpret_cast<char *>(&msg), sizeof(msg));
 }
 
 int receive(int *tid, char *msg, int msg_len) {
@@ -81,7 +81,7 @@ int receive(int *tid, char *msg, int msg_len) {
 }
 
 void reply(int tid, const Message &msg) {
-  reply(tid, (const char *)&msg, sizeof(msg));
+  reply(tid, reinterpret_cast<const char *>(&msg), sizeof(msg));
 }
 
 int reply(int tid, const char *reply, int reply_len) {
