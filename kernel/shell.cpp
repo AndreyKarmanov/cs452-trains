@@ -12,6 +12,7 @@
 #include "shell.h"
 #include "syscall.h"
 #include "test.h"
+#include "train_ui_server.h"
 #include "tx_server.h"
 #include "util.h"
 #include <cstddef>
@@ -171,6 +172,11 @@ static void fire_command(char *buf, size_t blen, int tx_tid) {
     create(1, test_can_tx_irq_task);
   } else if (strncmp(cmd, "t can", 5) == 0) {
     create(1, test_can_rx_irq_task);
+  } else if (strncmp(cmd, "train", 5) == 0) {
+    create(1, train_controller_program_task);
+    await_event(Event::NEVER);
+  } else if (strncmp(cmd, "state", 5) == 0) {
+    print_state(tx_tid, State{});
   } else {
     Puts(tx_tid, "Unknown command. Available: q (quit), p (parent tid), "
                  "m (my tid), y (yield), c (create), d (dump memory), "

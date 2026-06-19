@@ -55,10 +55,6 @@ public:
     data[len] = '\0';
   }
 
-  template <typename... Args> StaticString(const Args &...args) {
-    set(args...);
-  }
-
   void clear() {
     len     = 0;
     data[0] = '\0';
@@ -120,8 +116,17 @@ public:
 
   bool append(long long value) { return append_signed(value); }
 
-  template <typename... Args> bool append(const Args &...args) {
-    return (append(args) && ...);
+  bool append() { return true; }
+
+  template <typename First, typename Second, typename... Rest>
+  bool append(const First &first, const Second &second, const Rest &...rest) {
+    if (!append(first))
+      return false;
+    if constexpr (sizeof...(Rest) == 0) {
+      return append(second);
+    } else {
+      return append(second, rest...);
+    }
   }
 
   const char *c_str() const { return data; }

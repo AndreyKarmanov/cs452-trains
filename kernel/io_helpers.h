@@ -1,5 +1,6 @@
 #pragma once
 
+#include "message.h"
 #include "static_string.h"
 
 int Getc(int tid);
@@ -9,4 +10,10 @@ int Printf(int tid, const char *fmt, ...);
 
 template <size_t SIZE> int Puts(int tid, const StaticString<SIZE> &str) {
   return Puts(tid, str.c_str());
+}
+
+template <typename... Args> int Puts(int tid, const Args &...args) {
+  StaticString<TX::MAX_DATA_LENGTH> str;
+  str.set(args...);
+  return Puts(tid, str);
 }

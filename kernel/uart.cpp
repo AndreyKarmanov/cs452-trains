@@ -227,6 +227,7 @@ void debug_puts(size_t line, const char *buf) {
 }
 
 void debug_printf(size_t line, const char *fmt, ...) {
+  return;
   va_list va;
   char ch, buf[12];
 

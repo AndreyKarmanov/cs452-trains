@@ -1,6 +1,8 @@
 #pragma once
 
+#include "mrk.h"
 #include "static_string.h"
+#include "train_state.h"
 #include <cstdint>
 #include <type_traits>
 #include <variant>
@@ -93,7 +95,7 @@ namespace CS {
 } // namespace CS
 
 namespace TX {
-  constexpr int MAX_DATA_LENGTH = 256;
+  constexpr int MAX_DATA_LENGTH = 64;
 
   struct SendMsg {
     int len;
@@ -126,6 +128,35 @@ namespace FUT {
 
 } // namespace FUT
 
+namespace TC {
+  struct UIReady {};
+  struct UIUpdate {
+    State state;
+  };
+
+  struct TXReady {};
+  struct TX {
+    MRKCmd mrk;
+  };
+
+  struct RX {
+    MRKCmd mrk;
+  };
+
+  struct CLIInput {
+    char c;
+  };
+
+  struct CLICmdReady {};
+
+  struct CLICmd {
+    UserCmd cmd;
+  };
+
+  struct Ack {};
+  struct Quit {};
+} // namespace TC
+
 struct ErrorMsg {
   int error_code;
 };
@@ -140,7 +171,9 @@ using Message =
                  CS::DelayReplyMsg, CS::TickMsg, FUT::ClientParamRequestMsg,
                  FUT::ClientInitMsg, TX::SendMsg, TX::InterruptMsg,
                  TX::ReplyMsg, RX::GetcMsg, RX::GetcReplyMsg, RX::InterruptMsg,
-                 RX::InterruptReplyMsg, ErrorMsg, TaskExitMsg>;
+                 RX::InterruptReplyMsg, ErrorMsg, TaskExitMsg, TC::UIReady,
+                 TC::UIUpdate, TC::CLICmdReady, TC::CLICmd, TC::CLIInput,
+                 TC::TX, TC::RX, TC::TXReady, TC::Ack>;
 
 static_assert(std::is_trivially_copyable<Message>::value,
               "MessageVar must be trivially copyable");

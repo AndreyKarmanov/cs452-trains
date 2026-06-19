@@ -30,6 +30,7 @@ enum class Event {
   UART_TX_IRQ,
   CAN_RX_IRQ,
   CAN_TX_IRQ,
+  NEVER,
   EVENT_COUNT
 };
 constexpr auto TOTAL_EVENT_TYPES = static_cast<size_t>(Event::EVENT_COUNT);

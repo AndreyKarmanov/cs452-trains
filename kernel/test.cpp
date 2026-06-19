@@ -162,7 +162,7 @@ void test_await_event_task() {
 }
 
 void test_can_tx_irq_task() {
-  LightCommand cmd(1234, true);
+  LightCmd cmd(1234, true);
   debug_printf(CONSOLE, "Sent CAN frame!\n\r");
 
   for (size_t i = 0; i < 5; ++i) {

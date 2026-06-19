@@ -283,7 +283,6 @@ static void handle_mcp2515_irq() {
     debug_printf(CONSOLE, "GPIO 17 event detect not set\n\r");
     return;
   }
-  debug_printf(CONSOLE, "MCP2515 IRQ %b\n\r", source);
   disable_mcp2515_interrupt(source);
   if (source.rxi0ie || source.rxi1e) {
     handle_event(Event::CAN_RX_IRQ);

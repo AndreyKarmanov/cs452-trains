@@ -35,15 +35,15 @@ struct CANFRAME {
   }
 };
 
-struct LightCommand {
+struct LightCmd {
   static constexpr uint8_t cmdid = 0x06;
 
   uint32_t loco_id;
   bool value;
 
-  LightCommand(uint32_t loco_id, bool value) : loco_id(loco_id), value(value) {}
+  LightCmd(uint32_t loco_id, bool value) : loco_id(loco_id), value(value) {}
 
-  LightCommand(const CANFRAME &frame)
+  LightCmd(const CANFRAME &frame)
       : loco_id(frame.decode_data_0_4()), value(frame.data[5] != 0) {}
 
   CANFRAME to_frame() const {
@@ -59,16 +59,15 @@ struct LightCommand {
   }
 };
 
-struct SpeedCommand {
+struct SpeedCmd {
   static constexpr uint8_t cmdid = 0x04;
 
   uint32_t loco_id;
   uint16_t speed;
 
-  SpeedCommand(uint32_t loco_id, uint16_t speed)
-      : loco_id(loco_id), speed(speed) {}
+  SpeedCmd(uint32_t loco_id, uint16_t speed) : loco_id(loco_id), speed(speed) {}
 
-  SpeedCommand(const CANFRAME &frame)
+  SpeedCmd(const CANFRAME &frame)
       : loco_id(frame.decode_data_0_4()),
         speed((frame.data[4] << 8) | frame.data[5]) {}
 
@@ -85,16 +84,16 @@ struct SpeedCommand {
   }
 };
 
-struct DirectionCommand {
+struct DirectionCmd {
   static constexpr uint8_t cmdid = 0x05;
 
   uint32_t loco_id;
   bool backward;
 
-  DirectionCommand(uint32_t loco_id, bool backward)
+  DirectionCmd(uint32_t loco_id, bool backward)
       : loco_id(loco_id), backward(backward) {}
 
-  DirectionCommand(const CANFRAME &frame)
+  DirectionCmd(const CANFRAME &frame)
       : loco_id(frame.decode_data_0_4()), backward(frame.data[4] != 1) {}
 
   CANFRAME to_frame() const {
@@ -109,16 +108,15 @@ struct DirectionCommand {
   }
 };
 
-struct SwitchCommand {
+struct SwitchCmd {
   static constexpr uint8_t cmdid = 0x0B;
 
   uint16_t sw_id;
   bool straight;
 
-  SwitchCommand(uint16_t sw_id, bool straight)
-      : sw_id(sw_id), straight(straight) {}
+  SwitchCmd(uint16_t sw_id, bool straight) : sw_id(sw_id), straight(straight) {}
 
-  SwitchCommand(const CANFRAME &frame)
+  SwitchCmd(const CANFRAME &frame)
       : sw_id(uint16_t(frame.decode_data_0_4() - 0x3000 + 1)),
         straight(frame.data[4] != 0) {}
 
@@ -154,18 +152,19 @@ struct SensorData {
     bank   = (sensor_id / 16);
     number = (sensor_id % 16);
   }
+  CANFRAME to_frame() const { return {}; }
 };
 
-struct ControlCommand {
+struct ControlCmd {
   static constexpr uint8_t cmdid = 0x00;
 
-  typedef enum { CMD_STOP = 0x00, CMD_GO = 0x01, CMD_HALT = 0x02 } CommandType;
+  typedef enum { CMD_STOP = 0x00, CMD_GO = 0x01, CMD_HALT = 0x02 } CmdType;
 
-  CommandType type;
+  CmdType type;
 
-  ControlCommand(CommandType type) : type(type) {}
-  ControlCommand(const CANFRAME &frame)
-      : type(static_cast<CommandType>(frame.data[4])) {}
+  ControlCmd(CmdType type) : type(type) {}
+  ControlCmd(const CANFRAME &frame)
+      : type(static_cast<CmdType>(frame.data[4])) {}
 
   CANFRAME to_frame() const {
     CANFRAME frame;
@@ -183,33 +182,59 @@ struct ControlCommand {
   }
 };
 
-struct UnknownCommand {
+struct UnknownCmd {
   CANFRAME frame;
-  UnknownCommand() = default;
-  UnknownCommand(const CANFRAME &frame) : frame(frame) {};
+  UnknownCmd() = default;
+  UnknownCmd(const CANFRAME &frame) : frame(frame) {}
+  CANFRAME to_frame() const { return {}; }
 };
 
-using MRKCommand =
-    std::variant<UnknownCommand, LightCommand, SpeedCommand, DirectionCommand,
-                 SwitchCommand, SensorData, ControlCommand>;
+struct UserCmd {
+  enum class Type {
+    Invalid,
+    Quit,
+    Light,
+    Speed,
+    Direction,
+    Switch,
+    Reverse,
+    Stop,
+    Go,
+    Reset,
+  };
 
-constexpr size_t MRK_CMD_COUNT = std::variant_size<MRKCommand>::value;
+  Type type{Type::Invalid};
+  uint32_t id{0};
+  uint32_t value{0};
+  bool flag{false};
+};
 
-inline MRKCommand decode_frame(const CANFRAME &frame) {
+using MRKCmd = std::variant<UnknownCmd, LightCmd, SpeedCmd, DirectionCmd,
+                            SwitchCmd, SensorData, ControlCmd>;
+
+constexpr size_t MRK_CMD_COUNT = std::variant_size<MRKCmd>::value;
+
+inline CANFRAME encode_frame(const MRKCmd &cmd) {
+  CANFRAME frame{};
+  std::visit([&](auto &&arg) { frame = arg.to_frame(); }, cmd);
+  return frame;
+};
+
+inline MRKCmd decode_frame(const CANFRAME &frame) {
   switch (frame.cmdid) {
-  case LightCommand::cmdid:
-    return LightCommand(frame);
-  case SpeedCommand::cmdid:
-    return SpeedCommand(frame);
-  case DirectionCommand::cmdid:
-    return DirectionCommand(frame);
-  case SwitchCommand::cmdid:
-    return SwitchCommand(frame);
+  case LightCmd::cmdid:
+    return LightCmd(frame);
+  case SpeedCmd::cmdid:
+    return SpeedCmd(frame);
+  case DirectionCmd::cmdid:
+    return DirectionCmd(frame);
+  case SwitchCmd::cmdid:
+    return SwitchCmd(frame);
   case SensorData::cmdid:
     return SensorData(frame);
-  case ControlCommand::cmdid:
-    return ControlCommand(frame);
+  case ControlCmd::cmdid:
+    return ControlCmd(frame);
   default:
-    return UnknownCommand(frame);
+    return UnknownCmd(frame);
   }
 }

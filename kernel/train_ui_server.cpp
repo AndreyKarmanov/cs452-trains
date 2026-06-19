@@ -1,0 +1,324 @@
+#include "train_ui_server.h"
+#include "rx_server.h"
+#include "train_control.h"
+#include "uart.h"
+
+namespace {
+
+  const char *skip_ws(const char *p, const char *end) {
+    while (p < end && isspace(static_cast<unsigned char>(*p)))
+      ++p;
+    return p;
+  }
+
+  bool parse_uint(const char *&cursor, const char *end, uint32_t &value) {
+    cursor = skip_ws(cursor, end);
+    if (cursor >= end || !isdigit(static_cast<unsigned char>(*cursor)))
+      return false;
+
+    uint32_t result = 0;
+    while (cursor < end && isdigit(static_cast<unsigned char>(*cursor))) {
+      result = result * 10 + static_cast<uint32_t>(*cursor - '0');
+      ++cursor;
+    }
+
+    if (cursor < end && !isspace(static_cast<unsigned char>(*cursor)))
+      return false;
+
+    value = result;
+    return true;
+  }
+
+  bool done_parse(const char *cursor, const char *end) {
+    return skip_ws(cursor, end) == end;
+  }
+
+} // namespace
+
+template <> UserCmd TrainUIServer<>::parse_command() {
+  UserCmd out{};
+
+  const char *begin = buf.data;
+  const char *end   = buf.data + buf.len;
+  const char *cmd   = skip_ws(begin, end);
+  if (cmd == end) {
+    return out;
+  }
+
+  const char *cur = cmd;
+  while (cur < end && !isspace(static_cast<unsigned char>(*cur)))
+    ++cur;
+  size_t cmd_len = static_cast<size_t>(cur - cmd);
+
+  if (cmd_len == 1 && (cmd[0] == 'q' || cmd[0] == 'Q') &&
+      done_parse(cur, end)) {
+    buf.set("Success: q (quit)");
+    return UserCmd{.type = UserCmd::Type::Quit};
+  }
+
+  if (cmd_len == 2 && strncmp(cmd, "tr", 2) == 0) {
+    uint32_t loco_id      = 0;
+    uint32_t speed        = 0;
+    const char *parse_cur = cur;
+    if (parse_uint(parse_cur, end, loco_id) &&
+        parse_uint(parse_cur, end, speed) && done_parse(parse_cur, end)) {
+      out = UserCmd{UserCmd::Type::Speed, loco_id, speed, false};
+      buf.set("Success: tr ", loco_id, ' ', speed);
+    } else {
+      out.type = UserCmd::Type::Invalid;
+      buf.set("Error: Format is tr <train number> <train speed>");
+    }
+    return out;
+  }
+
+  if (cmd_len == 2 && strncmp(cmd, "lr", 2) == 0) {
+    uint32_t loco_id         = 0;
+    uint32_t light           = 0;
+    const char *parse_cursor = cur;
+    if (parse_uint(parse_cursor, end, loco_id) &&
+        parse_uint(parse_cursor, end, light) && done_parse(parse_cursor, end)) {
+      out = UserCmd{UserCmd::Type::Light, loco_id, 0, light != 0};
+      buf.set("Success: lr ", loco_id, ' ', light);
+    } else {
+      out.type = UserCmd::Type::Invalid;
+      buf.set("Error: Format is lr <train number> <light state>");
+    }
+    return out;
+  }
+
+  if (cmd_len == 2 && strncmp(cmd, "sw", 2) == 0) {
+    uint32_t sw_id           = 0;
+    char dir                 = '\0';
+    const char *parse_cursor = cur;
+    if (parse_uint(parse_cursor, end, sw_id)) {
+      parse_cursor = skip_ws(parse_cursor, end);
+      if (parse_cursor < end) {
+        dir = *parse_cursor++;
+      }
+    }
+    if (sw_id != 0 && (dir == 'S' || dir == 's' || dir == 'C' || dir == 'c') &&
+        done_parse(parse_cursor, end)) {
+      out = UserCmd{UserCmd::Type::Switch, sw_id, 0, dir == 'S' || dir == 's'};
+      buf.set("Success: sw ", sw_id, ' ', dir);
+    } else {
+      out.type = UserCmd::Type::Invalid;
+      buf.set("Error: Format is sw <switch number> <switch direction>");
+    }
+    return out;
+  }
+
+  if (cmd_len == 2 && strncmp(cmd, "rv", 2) == 0) {
+    uint32_t loco_id         = 0;
+    const char *parse_cursor = cur;
+    if (parse_uint(parse_cursor, end, loco_id) &&
+        done_parse(parse_cursor, end)) {
+      out = UserCmd{UserCmd::Type::Reverse, loco_id};
+      buf.set("Success: rv ", loco_id, " (stopping)");
+    } else {
+      out.type = UserCmd::Type::Invalid;
+      buf.set("Error: Format is rv <train number>");
+    }
+    return out;
+  }
+
+  if (cmd_len == 4 && strncmp(cmd, "stop", 4) == 0 && done_parse(cur, end)) {
+    out.type = UserCmd::Type::Stop;
+    buf.set("Success: stop (stopping)");
+    return out;
+  }
+
+  if (cmd_len == 2 && strncmp(cmd, "go", 2) == 0 && done_parse(cur, end)) {
+    out.type = UserCmd::Type::Go;
+    buf.set("Success: go (starting)");
+    return out;
+  }
+
+  if (cmd_len == 5 && strncmp(cmd, "reset", 5) == 0 && done_parse(cur, end)) {
+    out.type = UserCmd::Type::Reset;
+    buf.set("Success: reset (resetting all state)");
+    return out;
+  }
+
+  out.type = UserCmd::Type::Invalid;
+  buf.set("Error: Unknown command. Available: q, tr, sw, rv, lr, stop, go, "
+          "reset, redraw");
+  return out;
+}
+
+#define STATE_ROW "6"
+#define STATE_ROW_INT 7
+#define STATUS_ROW (STATE_ROW_INT + 1)
+#define TRAIN_ROW (STATE_ROW_INT + 3)
+#define SENSOR_ROW (TRAIN_ROW + MAX_TRAINS + 2)
+#define SWITCH_ROW (SENSOR_ROW + 3)
+#define TIMING_ROW (SWITCH_ROW + 8)
+
+uint32_t print_state(int tx_tid, const State &state) {
+  uint32_t draws = 0;
+  StaticString<512> line;
+
+  if (state.status_dirty) {
+    line.set("\033[", STATUS_ROW, ";2HTrack ",
+             state.stopped ? "Stopped" : "Active", "  \n\r");
+    Puts(tx_tid, line);
+    ++draws;
+  }
+
+  if (state.trains_dirty) {
+    line.set("\033[", TRAIN_ROW, ";2HTrain | Dir | Lamp | Speed \n\r");
+    for (const Train &train : state.trains) {
+      line.append("\033[K   ", train.loco_id, "  | ",
+                  train.backward ? "Rev" : "Fwd", " | ",
+                  train.light_on ? " On " : " Off", " | ",
+                  train.requested_speed, "\n\r");
+    }
+    Puts(tx_tid, line);
+    ++draws;
+  }
+
+  if (state.sensors_dirty) {
+    line.set("\033[", SENSOR_ROW, ";2HRecent Sensors \n\r\033[K   ");
+    for (size_t i = state.sensors.size(); i-- > 0;) {
+      uint16_t s_id = state.sensors[i].value();
+      char bank     = 'A' + (s_id / 16);
+      int number    = (s_id % 16) + 1;
+      line.append(bank, number, ' ');
+    }
+    line.append("\n\r");
+    Puts(tx_tid, line);
+    ++draws;
+  }
+
+  if (state.switches_dirty) {
+    line.set("\033[", SWITCH_ROW, ";2HSwitches\n\r");
+    for (int sw_id = 0; sw_id < 22; ++sw_id) {
+      const char c =
+          state.is_switch_straight(State::switch_id(sw_id)) ? 'S' : 'C';
+
+      if (sw_id < 9) {
+        line.append("   ", sw_id + 1, "  : ", c);
+      } else if (sw_id < 18) {
+        line.append("   ", sw_id + 1, " : ", c);
+      } else {
+        line.append("   ", sw_id + 135, ": ", c);
+      }
+      if (sw_id % 4 == 3) {
+        line.append("\n\r");
+      }
+    }
+    Puts(tx_tid, line);
+    ++draws;
+  }
+
+  if (state.timings_dirty) {
+    line.set("\033[", TIMING_ROW, ";2HCommand Timings\n\r");
+    const char *cmd_names[] = {"Unknown ", "Light   ", "Speed   ", "Dir ",
+                               "Switch  ", "Sensor  ", "Control "};
+    for (size_t i = 0; i < MRK_CMD_COUNT; ++i) {
+      if (state.command_timings[i] > 0) {
+        line.append("   ", cmd_names[i], ": ", state.command_timings[i],
+                    " us (", state.command_timings[i] / 1000, " ms)\n\r");
+      }
+    }
+    Puts(tx_tid, line);
+    ++draws;
+  }
+
+  return draws;
+}
+
+template <> void TrainUIServer<>::ui_update_worker() {
+  auto cans_tid = WhoIs(TrainControlServer<>::TC_SERVER_NAME);
+  _assert(cans_tid >= 0, "TC SERVER NOT FOUND");
+
+  auto uis_tid = WhoIs(TrainUIServer<>::TC_UI_SERVER_NAME);
+  _assert(uis_tid >= 0, "TC SERVER NOT FOUND");
+
+  debug_printf(CONSOLE, "UI UPDATE WORKER STARTED\n\r");
+
+  while (true) {
+    debug_printf(CONSOLE, "UI UPDATE WORKER requesting state\n\r");
+    auto cans_reply = send<TC::UIUpdate>(cans_tid, TC::UIReady{});
+    if (!cans_reply.has_value()) {
+      debug_printf(CONSOLE, "UI UPDATE WORKER send error %d\n\r",
+                   cans_reply.error());
+      break;
+    }
+    debug_printf(CONSOLE, "UI UPDATE WORKER got state, forwarding\n\r");
+    auto uis_reply = send<TC::Ack>(uis_tid, cans_reply.value());
+    if (!uis_reply.has_value()) {
+      debug_printf(CONSOLE, "UI UPDATE WORKER forward error\n\r");
+      break;
+    }
+  }
+}
+
+template <> void TrainUIServer<>::cli_worker() {
+  auto rx_tid = WhoIs(RX_Server::RX_SERVER_NAME);
+  _assert(rx_tid >= 0, "SHELL: RX SERVER WHOIS FAILED");
+
+  auto uis_tid = WhoIs(TrainUIServer<>::TC_UI_SERVER_NAME);
+  _assert(uis_tid >= 0, "TC SERVER NOT FOUND");
+
+  debug_printf(CONSOLE, "CLI WORKER STARTED\n\r");
+
+  TC::CLIInput msg{};
+  while (true) {
+    debug_printf(CONSOLE, "CLI WORKER waiting for input\n\r");
+    msg.c = Getc(rx_tid);
+    debug_printf(CONSOLE, "CLI WORKER got input %d\n\r",
+                 static_cast<int>(msg.c));
+    auto uis_reply = send<TC::Ack>(uis_tid, msg);
+    if (!uis_reply.has_value()) {
+      debug_printf(CONSOLE, "CLI WORKER send error\n\r");
+      break;
+    }
+  }
+}
+
+template <> void TrainUIServer<>::command_worker() {
+  auto cans_tid = WhoIs(TrainControlServer<>::TC_SERVER_NAME);
+  _assert(cans_tid >= 0, "TC SERVER NOT FOUND");
+
+  auto uis_tid = WhoIs(TrainUIServer<>::TC_UI_SERVER_NAME);
+  _assert(uis_tid >= 0, "TC SERVER NOT FOUND");
+
+  debug_printf(CONSOLE, "COMMAND WORKER STARTED\n\r");
+
+  TC::CLICmdReady msg{};
+  while (true) {
+    debug_printf(CONSOLE, "COMMAND WORKER requesting command\n\r");
+    auto uis_reply = send<TC::CLICmd>(uis_tid, msg);
+    if (!uis_reply.has_value()) {
+      debug_printf(CONSOLE, "COMMAND WORKER send error\n\r");
+      break;
+    }
+    debug_printf(CONSOLE, "GOT COMMAND\n\r");
+
+    auto cans_reply = send<TC::Ack>(cans_tid, uis_reply.value());
+    if (!cans_reply.has_value()) {
+      debug_printf(CONSOLE, "COMMAND WORKER CAN send error\n\r");
+      break;
+    }
+    debug_printf(CONSOLE, "SENT COMMAND\n\r");
+  }
+}
+
+static void train_ui_server_task() {
+  debug_printf(CONSOLE, "train_ui_server_task entry\n\r");
+  TrainUIServer<> server;
+  for (;;) {
+    debug_printf(CONSOLE, "train_ui_server_task loop\n\r");
+    server.run();
+  }
+}
+
+void train_controller_program_task() {
+  debug_printf(CONSOLE, "train_controller_program_task entry\n\r");
+  TrainControlServer<> server;
+  create(5, train_ui_server_task);
+  for (;;) {
+    debug_printf(CONSOLE, "train_controller_program_task loop\n\r");
+    server.run();
+  }
+}

@@ -15,7 +15,7 @@ template <> void ClockServer<>::clock_tick_task() {
   while (true) {
     await_event(Event::CLOCK_TICK_1MS);
     auto rcv_msg = send<CS::TickMsg>(cs_tid, CS::TickMsg{});
-    if (rcv_msg.error()) {
+    if (!rcv_msg.has_value()) {
       break;
     }
   }

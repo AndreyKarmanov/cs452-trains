@@ -278,7 +278,7 @@ bool mcp2515_rx_pending() {
 }
 
 void enable_mcp2515_interrupt(const CANINT &interrupts) {
-  mcp2515_modify_reg(CANINTE, static_cast<uint8_t>(interrupts), 1);
+  mcp2515_modify_reg(CANINTE, static_cast<uint8_t>(interrupts), 0xff);
 }
 
 void disable_mcp2515_interrupt(const CANINT &interrupts) {

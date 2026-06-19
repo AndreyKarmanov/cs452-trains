@@ -38,7 +38,7 @@ int Puts(int tid, const char *str) {
     send_msg.len = static_cast<int>(chunk);
     __builtin_memcpy(send_msg.data, str + offset, chunk);
     auto rcv_msg = send<TX::ReplyMsg>(tid, send_msg);
-    if (rcv_msg.error()) {
+    if (!rcv_msg.has_value()) {
       return -1;
     }
 
