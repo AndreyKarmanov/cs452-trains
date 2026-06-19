@@ -140,8 +140,7 @@ template <> UserCmd TrainUIServer<>::parse_command() {
   }
 
   out.type = UserCmd::Type::Invalid;
-  buf.set("Error: Unknown command. Available: q, tr, sw, rv, lr, stop, go, "
-          "reset, redraw");
+  buf.set("Error: cmds: q, tr, sw, rv, lr, stop, go, reset");
   return out;
 }
 

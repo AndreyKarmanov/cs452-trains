@@ -13,11 +13,6 @@
 #include <cstddef>
 #include <ctype.h>
 
-struct FireCommandResult {
-  UserCmd cmd{};
-  bool quit{false};
-};
-
 size_t expand_user_command(const State &state, const UserCmd &command,
                            std::array<MRKCmd, 64> &commands);
 uint32_t print_state(int tx_tid, const State &state);
