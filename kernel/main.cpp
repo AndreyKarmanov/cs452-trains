@@ -4,11 +4,8 @@
 #include "kernel_state.h"
 #include "rpi.h"
 #include "scheduler.h"
-#include "tx_server.h"
 #include "uart.h"
 #include <optional>
-
-#include "io_helpers.h"
 #ifndef DATA_CACHE
 #define DATA_CACHE 1
 #endif
@@ -35,11 +32,9 @@ extern "C" int kmain() {
 
   using namespace Kernel;
   _create(0, first_user_task);
-  int tx_tid = WhoIs(TX_Server::TX_SERVER_NAME);
   for (;;) {
     auto tid = scheduler.get_task();
     if (!tid.has_value()) {
-      Printf(tx_tid, "No task to run\n\r");
       break; // error
     }
     auto active_tid = tid.value();
