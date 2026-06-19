@@ -4,7 +4,7 @@
 #include "syscall.h"
 #include "tx_server.h"
 
-static void clock_notifier_task() {
+template <> void ClockServer<>::clock_tick_task() {
   int cs_tid = WhoIs(ClockServer<>::CLOCK_SERVER_NAME);
   int tx_tid = WhoIs(TX_Server::TX_SERVER_NAME);
 
@@ -14,13 +14,15 @@ static void clock_notifier_task() {
 
   while (true) {
     await_event(Event::CLOCK_TICK_1MS);
-    [[maybe_unused]] auto rcv_msg = send<CS::TickMsg>(cs_tid, CS::TickMsg{});
+    auto rcv_msg = send<CS::TickMsg>(cs_tid, CS::TickMsg{});
+    if (rcv_msg.error()) {
+      break;
+    }
   }
 }
 
 void clock_server_task() {
   ClockServer<> clock_server;
-  create(2, clock_notifier_task);
   while (true) {
     clock_server.run();
     yield();

@@ -16,6 +16,8 @@ template <size_t MAX_WAITING = MAX_TASKS> class ClockServer {
   Heap<std::pair<uint32_t, int>, MAX_WAITING> waiting_heap;
   int tx_tid;
 
+  static void clock_tick_task();
+
 public:
   static constexpr auto CLOCK_SERVER_NAME = "CLOCKSERVER";
 
@@ -26,6 +28,8 @@ public:
 
     tx_tid = WhoIs(TX_Server::TX_SERVER_NAME);
     _assert(tx_tid >= 0, "TX SERVER WHOIS FAILED");
+
+    create(2, clock_tick_task);
   }
 
   void handle(const int tid, const CS::TimeMsg &) {
