@@ -125,3 +125,15 @@ int kernel_idle_pct() {
   asm volatile("svc %1" : "=r"(r0) : "i"(Syscall::KERNEL_IDLE_PCT) : "memory");
   return r0;
 }
+
+bool tx_can(const CANFRAME &frame) {
+  register const CANFRAME *r0 asm("x0") = &frame;
+  asm volatile("svc %1" : : "r"(r0), "i"(Syscall::TX_CAN) : "memory");
+  return r0;
+}
+
+bool rx_can(CANFRAME &frame) {
+  register CANFRAME *r0 asm("x0") = &frame;
+  asm volatile("svc %1" : : "r"(r0), "i"(Syscall::RX_CAN) : "memory");
+  return r0;
+}

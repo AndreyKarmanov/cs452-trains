@@ -96,6 +96,10 @@ int Printf(int tid, const char *fmt, ...) {
         temp_buffer[1] = '\0';
         str            = temp_buffer;
         break;
+      case 'b':
+        ui2a(va_arg(va, unsigned int), 2, temp_buffer);
+        str = temp_buffer;
+        break;
       case '%':
         temp_buffer[0] = '%';
         temp_buffer[1] = '\0';

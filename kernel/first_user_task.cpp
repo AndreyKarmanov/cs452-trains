@@ -31,15 +31,15 @@ void first_user_task() {
 
 #if defined(RPS_TEST) && RPS_TEST
   int rps_tid = create(1, rps_server_task);
-  uart_printf(CONSOLE, "RPS Server %d\n\r", rps_tid);
+  Printf(tx_tid, "RPS Server %d\n\r", rps_tid);
   int rps_task_tid = create(2, test_rps_task);
-  uart_printf(CONSOLE, "RPS Test Client %d\n\r", rps_tid);
+  Printf(tx_tid, "RPS Test Client %d\n\r", rps_tid);
   await_task(rps_task_tid);
 #endif
 
 #if defined(PERF_TEST) && PERF_TEST
   int timer_tid = create(1, test_timer_task);
-  uart_printf(CONSOLE, "Timer Test %d\n\r", timer_tid);
+  Printf(tx_tid, "Timer Test %d\n\r", timer_tid);
 #endif
 
 #if defined(CLOCK_TEST) && CLOCK_TEST
@@ -80,7 +80,7 @@ void first_user_task() {
 #endif
 
   // Idle task
-  // create(PRIORITY_LEVELS - 1, idle_task);
+  create(PRIORITY_LEVELS - 1, idle_task);
 
   // Shell
   create(PRIORITY_LEVELS - 2, shell_task);

@@ -1,6 +1,7 @@
 #pragma once
 
 #include "message.h"
+#include "mrk.h"
 #include <cstddef>
 #include <expected>
 
@@ -16,6 +17,8 @@ enum class Syscall {
   AWAIT_EVENT     = 8,
   PARK            = 9,
   KERNEL_IDLE_PCT = 10,
+  TX_CAN          = 11,
+  RX_CAN          = 12,
 };
 
 // make sure that event count is the last event!!
@@ -25,9 +28,11 @@ enum class Event {
   DELAY_5S,
   UART_RX_IRQ,
   UART_TX_IRQ,
+  CAN_RX_IRQ,
+  CAN_TX_IRQ,
   EVENT_COUNT
 };
-constexpr auto TOTAL_EVENT_TYPES = static_cast<size_t>(Event::EVENT_COUNT) + 1;
+constexpr auto TOTAL_EVENT_TYPES = static_cast<size_t>(Event::EVENT_COUNT);
 
 int create(int priority, void (*function)());
 int my_tid();
@@ -64,3 +69,6 @@ void reply_with_error_var(int tid, int error_code = 0);
 
 void await_task(int tid);
 void await_event(Event event);
+
+bool tx_can(const CANFRAME &frame);
+bool rx_can(CANFRAME &frame);

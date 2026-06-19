@@ -254,6 +254,10 @@ void debug_printf(size_t line, const char *fmt, ...) {
       case 'c':
         debug_putc(line, va_arg(va, int));
         break;
+      case 'b':
+        ui2a(va_arg(va, unsigned int), 2, buf);
+        debug_puts(line, buf);
+        break;
       case '%':
         debug_putc(line, ch);
         break;

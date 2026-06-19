@@ -160,3 +160,12 @@ void test_await_event_task() {
   await_event(Event::DELAY_5S);
   debug_puts(CONSOLE, "5 second delay task");
 }
+
+void test_can_interrupt_task() {
+  CANFRAME frame;
+  for (size_t i = 0; i < 5; ++i) {
+    await_event(Event::CAN_RX_IRQ);
+    rx_can(frame);
+    debug_printf(CONSOLE, "Received CAN frame!\n\r");
+  }
+}

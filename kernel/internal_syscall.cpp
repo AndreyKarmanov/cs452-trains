@@ -4,7 +4,9 @@
 #include "idle_manager.h"
 #include "kernel_state.h"
 #include "map.h"
+#include "mcp2515.h"
 #include "message.h"
+#include "rpi.h"
 #include "scheduler.h"
 #include "syscall.h"
 #include "task_descriptor.h"
@@ -88,6 +90,8 @@ static void uninitialize_event(Event event) {
   initalized_events &= ~(1u << static_cast<int>(event));
 }
 
+static void handle_event(Event event);
+
 static void initalize_event(Event event) {
   using namespace Kernel;
 
@@ -120,6 +124,42 @@ static void initalize_event(Event event) {
   case Event::UART_TX_IRQ: {
     enable_uart_interrupt(UARTInterruptType::TXIM);
     enable_uart_interrupt(UARTInterruptType::CTSMIM);
+    break;
+  }
+  case Event::CAN_RX_IRQ: {
+    auto active = mcp2515_get_active_irq();
+    if (active.rxi0ie || active.rxi1e) {
+      // short circuit, handle them if they're already active
+      handle_event(Event::CAN_RX_IRQ);
+    } else {
+      // set up interrupts
+      set_interrupt_core_routing(0, GIC_MCP2515_IRQ, true);
+      set_interrupt(GIC_MCP2515_IRQ, true);
+      clear_mcp2515_interrupt(CANINT{.rxi1e = true, .rxi0ie = true});
+      enable_mcp2515_interrupt(CANINT{.rxi1e = true, .rxi0ie = true});
+    }
+    break;
+  }
+  case Event::CAN_TX_IRQ: {
+    auto active = mcp2515_get_active_irq();
+    if (active.tx0ie || active.tx1ie || active.tx2ie) {
+      // short circuit, handle them if they're already active
+      handle_event(Event::CAN_TX_IRQ);
+    } else {
+      // set up interrupts
+      set_interrupt_core_routing(0, GIC_MCP2515_IRQ, true);
+      set_interrupt(GIC_MCP2515_IRQ, true);
+      clear_mcp2515_interrupt(CANINT{
+          .tx2ie = true,
+          .tx1ie = true,
+          .tx0ie = true,
+      });
+      enable_mcp2515_interrupt(CANINT{
+          .tx2ie = true,
+          .tx1ie = true,
+          .tx0ie = true,
+      });
+    }
     break;
   }
   default: {
@@ -157,6 +197,14 @@ static void handle_event(Event event) {
     uninitialize_event(event);
     break;
   }
+  case Event::CAN_RX_IRQ: {
+    uninitialize_event(event);
+    break;
+  }
+  case Event::CAN_TX_IRQ: {
+    uninitialize_event(event);
+    break;
+  }
   default: {
     break;
   }
@@ -181,10 +229,6 @@ static void handle_event(Event event) {
     }
 
     switch (event) {
-    case Event::CLOCK_TICK_1MS: {
-      scheduler.schedule(*td.value());
-      break;
-    }
     case Event::DELAY_5S: {
       scheduler.schedule(*td.value());
 
@@ -194,16 +238,13 @@ static void handle_event(Event event) {
       }
       return; // return if only the first should wake
     }
-    case Event::UART_RX_IRQ: {
+    case Event::CAN_RX_IRQ: {
       scheduler.schedule(*td.value());
-      break;
-    }
-    case Event::UART_TX_IRQ: {
-      scheduler.schedule(*td.value());
-      break;
+      return;
     }
     default: {
-      return;
+      scheduler.schedule(*td.value());
+      break;
     }
     }
 
@@ -238,6 +279,24 @@ static void handle_uart_irq() {
   }
 }
 
+static void handle_mcp2515_irq() {
+  auto source = mcp2515_get_irq_source();
+  if (!gpio_get_event_detect_status(17)) {
+    debug_printf(CONSOLE, "GPIO 17 event detect not set\n\r");
+    return;
+  }
+  disable_mcp2515_interrupt(source);
+  if (source.rxi0ie || source.rxi1e) {
+    handle_event(Event::CAN_RX_IRQ);
+  } else if (source.tx0ie || source.tx1ie || source.tx2ie) {
+    handle_event(Event::CAN_TX_IRQ);
+  } else {
+    debug_printf(CONSOLE, "Unhandled MCP2515 IRQ\n\r");
+  }
+
+  gpio_clr_event_detect_status(17);
+}
+
 static void handle_interrupt() {
   // choose next task to run
   // restore chosen task context, return from exeption with eret
@@ -263,6 +322,10 @@ static void handle_interrupt() {
     case GIC_UART_IRQ:
       handle_uart_irq();
       break;
+    case GIC_MCP2515_IRQ: {
+      handle_mcp2515_irq();
+      break;
+    }
     default:
       break;
     }
@@ -493,6 +556,18 @@ void handle(int tid, Syscall request) {
   }
   case Syscall::KERNEL_IDLE_PCT: {
     tf->x[0] = idle_manager.get_idle_time_percentage();
+    scheduler.schedule(*td);
+    break;
+  }
+  case Syscall::TX_CAN: {
+    const CANFRAME &frame = (const CANFRAME &)tf->x[0];
+    tf->x[0]              = mcp2515_send(frame);
+    scheduler.schedule(*td);
+    break;
+  }
+  case Syscall::RX_CAN: {
+    CANFRAME &frame = (CANFRAME &)tf->x[0];
+    tf->x[0]        = mcp2515_recieve(frame);
     scheduler.schedule(*td);
     break;
   }

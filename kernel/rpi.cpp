@@ -1,11 +1,12 @@
 #include "rpi.h"
 #include <cstdint>
 
-static char *const GPIO_BASE = (char *)(MMIO_BASE + 0x200000);
-
 #define GPFSEL_REG(reg) (*(volatile uint32_t *)(GPIO_BASE + reg * 4))
 #define GPIO_PUP_PDN_CNTRL_REG(reg)                                            \
   (*(volatile uint32_t *)(GPIO_BASE + 0xe4 + reg * 4))
+
+#define GPEDS_REG(reg) (*(volatile uint32_t *)(GPIO_BASE + 0x40 + reg * 4))
+#define GPLEN_REG(reg) (*(volatile uint32_t *)(GPIO_BASE + 0x70 + reg * 4))
 
 // function control settings for GPIO pins
 static const uint32_t GPIO_INPUT  = 0x00;
@@ -47,4 +48,37 @@ void gpio_init() {
 
   setup_gpio(14, GPIO_ALTFN0, GPIO_NONE); // UART TXD0
   setup_gpio(15, GPIO_ALTFN0, GPIO_NONE); // UART RXD0
+}
+
+static void gpio_set_pin_low_detect(uint32_t pin, int enable) {
+  uint32_t reg   = pin / 32;
+  uint32_t shift = pin % 32;
+  if (enable) {
+    GPLEN_REG(reg) |= (1 << shift); // enable pin low detect
+  } else {
+    GPLEN_REG(reg) &= ~(1 << shift); // disable pin low detect
+  }
+}
+
+// Get event detect status for GPIO pin.
+uint32_t gpio_get_event_detect_status(uint32_t pin) {
+  uint32_t reg   = pin / 32;
+  uint32_t shift = pin % 32;
+
+  // return the bit corresponding to the pin
+  return (GPEDS_REG(reg) >> shift) & 0x01;
+}
+
+// Clear event detect status for GPIO pin.
+void gpio_clr_event_detect_status(uint32_t pin) {
+  uint32_t reg   = pin / 32;
+  uint32_t shift = pin % 32;
+  // clear the event detect status for the pin
+  GPEDS_REG(reg) = (1 << shift);
+}
+
+void gpio_init_interrupt() {
+  setup_gpio(17, GPIO_INPUT, GPIO_NONE); // configure MCP2515_INT pin
+  gpio_set_pin_low_detect(17, 1);
+  // enable low detect on MCP2515_INT pin
 }
