@@ -265,6 +265,12 @@ bool mcp2515_recieve_RXn(bool rx0, CANFRAME &frame) {
   return true;
 };
 
+bool mcp2515_tx_ready() {
+  auto status = mcp2515_read_status();
+  return !(status & STATUS_TX0) || !(status & STATUS_TX1) ||
+         !(status & STATUS_TX2);
+}
+
 bool mcp2515_rx_pending() {
   return mcp2515_read_status() & (STATUS_RX0 | STATUS_RX1);
 }

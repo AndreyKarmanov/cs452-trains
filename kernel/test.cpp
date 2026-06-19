@@ -161,7 +161,18 @@ void test_await_event_task() {
   debug_puts(CONSOLE, "5 second delay task");
 }
 
-void test_can_interrupt_task() {
+void test_can_tx_irq_task() {
+  LightCommand cmd(1234, true);
+  debug_printf(CONSOLE, "Sent CAN frame!\n\r");
+
+  for (size_t i = 0; i < 5; ++i) {
+    await_event(Event::CAN_TX_IRQ);
+    tx_can(cmd.to_frame());
+    debug_printf(CONSOLE, "Sent CAN frame!\n\r");
+  }
+}
+
+void test_can_rx_irq_task() {
   CANFRAME frame;
   for (size_t i = 0; i < 5; ++i) {
     await_event(Event::CAN_RX_IRQ);

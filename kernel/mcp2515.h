@@ -115,6 +115,7 @@ bool mcp2515_recieve_RXn(bool rx0, CANFRAME &frame);
 bool mcp2515_send(const TXBnFrame frame);
 void mcp2515_send(const TXBnFrame frame, uint32_t delay_us);
 void mcp2515_send_pending();
+bool mcp2515_tx_ready();
 bool mcp2515_rx_pending();
 
 struct CANINT {

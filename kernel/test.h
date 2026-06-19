@@ -6,4 +6,6 @@ void test_k1_child();
 void test_timer_task();
 
 void test_await_event_task();
-void test_can_interrupt_task();
+
+void test_can_tx_irq_task();
+void test_can_rx_irq_task();

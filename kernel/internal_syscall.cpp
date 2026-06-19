@@ -135,25 +135,19 @@ static void initalize_event(Event event) {
       // set up interrupts
       set_interrupt_core_routing(0, GIC_MCP2515_IRQ, true);
       set_interrupt(GIC_MCP2515_IRQ, true);
-      clear_mcp2515_interrupt(CANINT{.rxi1e = true, .rxi0ie = true});
       enable_mcp2515_interrupt(CANINT{.rxi1e = true, .rxi0ie = true});
     }
     break;
   }
   case Event::CAN_TX_IRQ: {
     auto active = mcp2515_get_active_irq();
-    if (active.tx0ie || active.tx1ie || active.tx2ie) {
+    if (active.tx0ie || active.tx1ie || active.tx2ie || mcp2515_tx_ready()) {
       // short circuit, handle them if they're already active
       handle_event(Event::CAN_TX_IRQ);
     } else {
       // set up interrupts
       set_interrupt_core_routing(0, GIC_MCP2515_IRQ, true);
       set_interrupt(GIC_MCP2515_IRQ, true);
-      clear_mcp2515_interrupt(CANINT{
-          .tx2ie = true,
-          .tx1ie = true,
-          .tx0ie = true,
-      });
       enable_mcp2515_interrupt(CANINT{
           .tx2ie = true,
           .tx1ie = true,
@@ -285,6 +279,7 @@ static void handle_mcp2515_irq() {
     debug_printf(CONSOLE, "GPIO 17 event detect not set\n\r");
     return;
   }
+  debug_printf(CONSOLE, "MCP2515 IRQ %b\n\r", source);
   disable_mcp2515_interrupt(source);
   if (source.rxi0ie || source.rxi1e) {
     handle_event(Event::CAN_RX_IRQ);
@@ -560,14 +555,15 @@ void handle(int tid, Syscall request) {
     break;
   }
   case Syscall::TX_CAN: {
-    const CANFRAME &frame = (const CANFRAME &)tf->x[0];
-    tf->x[0]              = mcp2515_send(frame);
+    const CANFRAME *frame_ptr = reinterpret_cast<const CANFRAME *>(tf->x[0]);
+    CANFRAME frame            = *frame_ptr;
+    tf->x[0]                  = mcp2515_send(frame);
     scheduler.schedule(*td);
     break;
   }
   case Syscall::RX_CAN: {
-    CANFRAME &frame = (CANFRAME &)tf->x[0];
-    tf->x[0]        = mcp2515_recieve(frame);
+    CANFRAME *frame_ptr = reinterpret_cast<CANFRAME *>(tf->x[0]);
+    tf->x[0]            = mcp2515_recieve(*frame_ptr);
     scheduler.schedule(*td);
     break;
   }
