@@ -96,7 +96,7 @@ int reply(int tid, const char *reply, int reply_len) {
   return r0;
 }
 
-void reply_with_error_var(int tid, int error_code) {
+void reply_with_error(int tid, int error_code) {
   auto msg = ErrorMsg{.error_code = error_code};
   reply(tid, reinterpret_cast<const char *>(&msg), sizeof(msg));
 }

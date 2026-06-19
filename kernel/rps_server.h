@@ -35,9 +35,7 @@ class RPSServer {
   void handle(const int tid, const RPS::SetupMsg &);
   void handle(const int tid, const RPS::PlayMsg &);
   void handle(const int tid, const RPS::QuitMsg &);
-  template <class T> void handle(int tid, const T &) {
-    reply_with_error_var(tid);
-  }
+  template <class T> void handle(int tid, const T &) { reply_with_error(tid); }
 
 public:
   RPSServer() {

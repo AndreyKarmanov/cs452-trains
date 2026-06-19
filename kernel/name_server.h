@@ -53,7 +53,7 @@ public:
   };
 
   template <class T> void handle(int sender_tid, const T &) {
-    reply_with_error_var(sender_tid);
+    reply_with_error(sender_tid);
   }
 
   void run() {

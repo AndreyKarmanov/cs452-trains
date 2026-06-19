@@ -7,7 +7,7 @@
 void RPSServer::handle(const int sender_tid, const RPS::SetupMsg &) {
   if (find_game_index_for_player(sender_tid).has_value() ||
       (waiting.has_value() && waiting.value() == sender_tid)) {
-    reply_with_error_var(sender_tid);
+    reply_with_error(sender_tid);
     return;
   }
 
@@ -22,7 +22,7 @@ void RPSServer::handle(const int sender_tid, const RPS::SetupMsg &) {
 
   auto game_index = game_index_allocator.allocate();
   if (!game_index.has_value()) {
-    reply_with_error_var(p2);
+    reply_with_error(p2);
     return;
   }
 
@@ -46,7 +46,7 @@ void RPSServer::handle(const int sender_tid, const RPS::SetupMsg &) {
 void RPSServer::handle(const int sender_tid, const RPS::PlayMsg &arg) {
   auto game_index = find_game_index_for_player(sender_tid);
   if (!game_index.has_value()) {
-    reply_with_error_var(sender_tid);
+    reply_with_error(sender_tid);
     return;
   }
 
@@ -69,7 +69,7 @@ void RPSServer::handle(const int sender_tid, const RPS::PlayMsg &arg) {
   auto choice  = arg.choice;
   if (choice != Choice::ROCK && choice != Choice::PAPER &&
       choice != Choice::SCISSORS) {
-    reply_with_error_var(sender_tid);
+    reply_with_error(sender_tid);
     return;
   }
 
@@ -81,7 +81,7 @@ void RPSServer::handle(const int sender_tid, const RPS::PlayMsg &arg) {
       game->player1_choice = choice;
       game->game_state     = Game::GameState::Finished;
     } else {
-      reply_with_error_var(sender_tid);
+      reply_with_error(sender_tid);
       return;
     }
   } else {
@@ -92,7 +92,7 @@ void RPSServer::handle(const int sender_tid, const RPS::PlayMsg &arg) {
       game->player2_choice = choice;
       game->game_state     = Game::GameState::Finished;
     } else {
-      reply_with_error_var(sender_tid);
+      reply_with_error(sender_tid);
       return;
     }
   }
@@ -128,7 +128,7 @@ void RPSServer::handle(const int sender_tid, const RPS::PlayMsg &arg) {
 void RPSServer::handle(const int sender_tid, const RPS::QuitMsg &) {
   auto game_index = find_game_index_for_player(sender_tid);
   if (!game_index.has_value()) {
-    reply_with_error_var(sender_tid);
+    reply_with_error(sender_tid);
     return;
   }
 
@@ -159,7 +159,7 @@ void RPSServer::handle(const int sender_tid, const RPS::QuitMsg &) {
     deallocate_game = true;
     break;
   default:
-    reply_with_error_var(sender_tid);
+    reply_with_error(sender_tid);
     return;
   }
 

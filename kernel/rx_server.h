@@ -23,9 +23,7 @@ public:
 private:
   void handle(const int tid, const RX::InterruptMsg &);
   void handle(const int tid, const RX::GetcMsg &);
-  template <class T> void handle(int tid, const T &) {
-    reply_with_error_var(tid);
-  }
+  template <class T> void handle(int tid, const T &) { reply_with_error(tid); }
 };
 
 void rx_server_task();

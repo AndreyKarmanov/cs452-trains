@@ -65,7 +65,7 @@ int receive(int *tid, char *msg, int msglen);
 
 void reply(int tid, const Message &msg);
 int reply(int tid, const char *reply, int rplen);
-void reply_with_error_var(int tid, int error_code = 0);
+void reply_with_error(int tid, int error_code = 0);
 
 void await_task(int tid);
 void await_event(Event event);

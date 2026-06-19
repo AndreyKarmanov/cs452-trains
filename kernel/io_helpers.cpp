@@ -1,10 +1,9 @@
 #include "io_helpers.h"
 #include "message.h"
 #include "syscall.h"
+#include "util.h"
 #include <cstdarg>
 #include <cstring>
-
-#include "util.h"
 
 // tid should be the RX server tid
 int Getc(int tid) {
@@ -39,7 +38,7 @@ int Puts(int tid, const char *str) {
     send_msg.len = static_cast<int>(chunk);
     __builtin_memcpy(send_msg.data, str + offset, chunk);
     auto rcv_msg = send<TX::ReplyMsg>(tid, send_msg);
-    if (!rcv_msg.has_value()) {
+    if (rcv_msg.error()) {
       return -1;
     }
 

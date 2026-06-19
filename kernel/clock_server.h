@@ -38,7 +38,7 @@ public:
 
   void handle(const int tid, const CS::DelayMsg &msg) {
     if (msg.ticks < 0) {
-      reply_with_error_var(tid, -2);
+      reply_with_error(tid, -2);
       return;
     }
 
@@ -47,7 +47,7 @@ public:
 
   void handle(const int tid, const CS::DelayUntilMsg &msg) {
     if (msg.ticks < 0) {
-      reply_with_error_var(tid, -2);
+      reply_with_error(tid, -2);
       return;
     }
 
@@ -79,7 +79,7 @@ public:
   }
 
   template <class T> void handle(const int tid, const T &) {
-    reply_with_error_var(tid);
+    reply_with_error(tid);
   }
 
   void run() {
