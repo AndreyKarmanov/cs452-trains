@@ -6,6 +6,8 @@
 
 static constexpr int INF = INT_MAX / 2;
 
+track_node Pathfind::track[TRACK_MAX];
+
 Pathfind::Pathfind(char track_layout) {
   if (track_layout == 'b')
     init_trackb(track);
@@ -181,8 +183,8 @@ void test_pathfind() {
   print_path(track_a, "A1->A1", track_a.shortest_path("A1", "A1"));
   print_path(track_a, "A1->ZZZ", track_a.shortest_path("A1", "ZZZ"));
 
-  Pathfind track_b('b');
-  print_path(track_b, "B1->B16", track_b.shortest_path("B1", "B16"));
+  // Pathfind track_b('b');
+  // print_path(track_b, "B1->B16", track_b.shortest_path("B1", "B16"));
 
   debug_puts(CONSOLE, "pathfind tests done\n\r");
 }

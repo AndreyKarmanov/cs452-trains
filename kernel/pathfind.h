@@ -15,7 +15,7 @@ struct PathResult {
 };
 
 class Pathfind {
-  track_node track[TRACK_MAX];
+  static track_node track[TRACK_MAX];
   Map<StaticString<8>, int, TRACK_MAX> node_to_idx;
 
   int node_index(const track_node *node) const {

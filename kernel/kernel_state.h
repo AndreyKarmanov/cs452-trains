@@ -13,7 +13,7 @@
 
 #define PRIORITY_LEVELS 8
 #define MAX_TASKS 16
-#define TASK_STACK_SIZE 4096
+#define TASK_STACK_SIZE 12288
 
 namespace Kernel {
   struct alignas(16) TrapFrame {
