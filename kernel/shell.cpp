@@ -189,6 +189,8 @@ void shell_task() {
   int tx_tid = WhoIs(TX_Server::TX_SERVER_NAME);
   _assert(rx_tid >= 0, "SHELL: RX SERVER WHOIS FAILED");
   _assert(tx_tid >= 0, "SHELL: TX SERVER WHOIS FAILED");
+  Puts(tx_tid, "\033[2J\033[?25l\033[2;1H" __DATE__ " / " __TIME__
+               " / Andrey Karmanov / Anthony Ho\n\r");
 
   char buf[BUFFER_SIZE];
   size_t buf_n = 0;

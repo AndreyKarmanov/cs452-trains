@@ -24,10 +24,6 @@ void first_user_task() {
   create(2, tx_server_task);
   create(2, rx_server_task);
 
-  auto tx_tid = WhoIs(TX_Server::TX_SERVER_NAME);
-  Puts(tx_tid, "\033[2J\033[?25l\033[1;1H" __DATE__ " / " __TIME__
-               " / Andrey Karmanov / Anthony Ho\n\r");
-
 #if defined(RPS_TEST) && RPS_TEST
   int rps_tid = create(1, rps_server_task);
   Printf(tx_tid, "RPS Server %d\n\r", rps_tid);
@@ -85,5 +81,5 @@ void first_user_task() {
   create(PRIORITY_LEVELS - 2, sysinfo_task);
 
   // Shell
-  create(PRIORITY_LEVELS - 2, shell_task);
+  create(PRIORITY_LEVELS - 3, shell_task);
 }
