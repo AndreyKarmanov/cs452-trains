@@ -21,7 +21,6 @@ void clock_server_task() {
   ClockServer<> clock_server;
   while (true) {
     clock_server.run();
-    yield();
   }
 }
 

@@ -1,4 +1,5 @@
 #include "can_server.h"
+#include "clock_server.h"
 
 template <> void CanServer<>::tx_can_worker() {
   auto can_tid = WhoIs(CanServer<>::CAN_SERVER_NAME);
@@ -19,11 +20,12 @@ template <> void CanServer<>::tick_can_worker() {
   int can_tid = WhoIs(CanServer<>::CAN_SERVER_NAME);
   _assert(can_tid >= 0, "CAN SERVER WHOIS FAILED");
 
-  while (true) {
-    for (int i = 0; i < 10; ++i) {
-      await_event(Event::CLOCK_TICK);
-    }
+  int cs_tid = WhoIs(ClockServer<>::CLOCK_SERVER_NAME);
+  _assert(cs_tid >= 0, "CLOCK SERVER WHOIS FAILED");
+  auto curr_tick = Time(cs_tid);
 
+  while (true) {
+    curr_tick    = DelayUntil(cs_tid, curr_tick + 10);
     auto rcv_msg = send<CAN::AckMsg>(can_tid, CAN::TickMsg{});
     if (!rcv_msg.has_value()) {
       break;
