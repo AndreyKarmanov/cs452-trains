@@ -94,7 +94,7 @@ static void uninitialize_event(Event event) {
   initalized_events &= ~(1u << static_cast<int>(event));
 }
 
-static void handle_event(Event event);
+static void handle_event(Event event, int arg0 = 0);
 
 static void initalize_event(Event event) {
   using namespace Kernel;
@@ -166,7 +166,7 @@ static void initalize_event(Event event) {
   }
 }
 
-static void handle_event(Event event) {
+static void handle_event(Event event, int arg0) {
   using namespace Kernel;
 
   // one-time handling
@@ -239,6 +239,11 @@ static void handle_event(Event event) {
     case Event::CAN_RX_IRQ: {
       scheduler.schedule(*td.value());
       return;
+    }
+    case Event::TASK_EXIT: {
+      ((TrapFrame *)(td.value()->sp_el0))->x[0] = arg0;
+      scheduler.schedule(*td.value());
+      break;
     }
     default: {
       scheduler.schedule(*td.value());
@@ -421,6 +426,8 @@ void handle(int tid, Syscall request) {
       scheduler.schedule(*to_td);
       to_tid_opt = td->sender_queue.pop();
     }
+
+    handle_event(Event::TASK_EXIT, tid);
     break;
   }
   case Syscall::SEND: {

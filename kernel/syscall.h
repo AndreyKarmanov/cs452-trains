@@ -30,7 +30,7 @@ enum class Event {
   UART_TX_IRQ,
   CAN_RX_IRQ,
   CAN_TX_IRQ,
-  NEVER,
+  TASK_EXIT,
   EVENT_COUNT
 };
 constexpr auto TOTAL_EVENT_TYPES = static_cast<size_t>(Event::EVENT_COUNT);
@@ -69,7 +69,7 @@ int reply(int tid, const char *reply, int rplen);
 void reply_with_error(int tid, int error_code = 0);
 
 void await_task(int tid);
-void await_event(Event event);
+int await_event(Event event);
 
 bool tx_can(const CANFRAME &frame);
 bool rx_can(CANFRAME &frame);
