@@ -195,7 +195,6 @@ struct UserCmd {
     Quit,
     Light,
     Speed,
-    Direction,
     Switch,
     Reverse,
     Stop,

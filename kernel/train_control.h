@@ -42,9 +42,6 @@ template <size_t TX_BUFFER_SIZE = 64> class TrainControlServer {
       tx_buf.push(TC::TX{
           .mrk = SpeedCmd(command.id, static_cast<uint16_t>(command.value))});
       break;
-    case UserCmd::Type::Direction:
-      tx_buf.push(TC::TX{.mrk = DirectionCmd(command.id, command.flag)});
-      break;
     case UserCmd::Type::Switch:
 
       tx_buf.push(TC::TX{
@@ -53,11 +50,11 @@ template <size_t TX_BUFFER_SIZE = 64> class TrainControlServer {
     case UserCmd::Type::Reverse: {
       auto loco = state.get_loco(command.id);
       if (loco.requested_speed == 0) {
-        tx_buf.push(TC::TX{.mrk = DirectionCmd(command.id, !loco.backward)});
+        tx_buf.push(TC::TX{.mrk = DirectionCmd(command.id, !command.flag)});
         break;
       }
       tx_buf.push(TC::TX{.mrk = SpeedCmd(command.id, 0)});
-      tx_buf.push(TC::TX{.mrk = DirectionCmd(command.id, !loco.backward),
+      tx_buf.push(TC::TX{.mrk         = DirectionCmd(command.id, !command.flag),
                          .delay_ticks = 10 * TICKS_PER_S});
       tx_buf.push(TC::TX{.mrk = SpeedCmd(command.id, loco.requested_speed),
                          .delay_ticks = 10 * TICKS_PER_S});
@@ -100,7 +97,7 @@ template <size_t TX_BUFFER_SIZE = 64> class TrainControlServer {
 
   bool has_dirty_state() const {
     return state.sensors_dirty || state.switches_dirty || state.trains_dirty ||
-           state.status_dirty || state.timings_dirty;
+           state.status_dirty;
   }
 
   void reply_waiting_ui_update_worker_if_dirty() {
@@ -108,13 +105,12 @@ template <size_t TX_BUFFER_SIZE = 64> class TrainControlServer {
       return;
     }
 
-    reply(waiting_ui_update_worker_tid, TC::UIUpdate{state});
+    reply(waiting_ui_update_worker_tid, TC::UIUpdate{state, 0});
     waiting_ui_update_worker_tid = -1;
     state.sensors_dirty          = false;
     state.switches_dirty         = false;
     state.trains_dirty           = false;
     state.status_dirty           = false;
-    state.timings_dirty          = false;
   }
 
 public:
@@ -134,12 +130,11 @@ public:
 
   void handle(const int tid, const TC::UIReady &) {
     if (has_dirty_state()) {
-      reply(tid, TC::UIUpdate{state});
+      reply(tid, TC::UIUpdate{state, 0});
       state.sensors_dirty  = false;
       state.switches_dirty = false;
       state.trains_dirty   = false;
       state.status_dirty   = false;
-      state.timings_dirty  = false;
       return;
     }
 

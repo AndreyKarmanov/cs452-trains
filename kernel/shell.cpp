@@ -175,8 +175,6 @@ static void fire_command(char *buf, size_t blen, int tx_tid) {
   } else if (strncmp(cmd, "train", 5) == 0) {
     create(1, train_controller_program_task);
     await_event(Event::NEVER);
-  } else if (strncmp(cmd, "state", 5) == 0) {
-    print_state(tx_tid, State{});
   } else {
     Puts(tx_tid, "Unknown command. Available: q (quit), p (parent tid), "
                  "m (my tid), y (yield), c (create), d (dump memory), "

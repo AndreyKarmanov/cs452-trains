@@ -8,23 +8,123 @@
 #include "syscall.h"
 #include "train_state.h"
 #include "tx_server.h"
+#include <array>
 #include <cstddef>
 #include <ctype.h>
 
-uint32_t print_state(int tx_tid, const State &state);
+constexpr size_t USER_CMD_TIMING_COUNT = 9;
+
+uint32_t print_state(int tx_tid, const State &state,
+                     const std::array<uint32_t, USER_CMD_TIMING_COUNT> &timings,
+                     bool timings_dirty);
 
 template <size_t CLI_BUFFER_SIZE = 64> class TrainUIServer {
+  struct PendingTiming {
+    UserCmd cmd;
+    uint32_t start_time;
+  };
+
   StaticString<CLI_BUFFER_SIZE> buf{};
   Buffer<UserCmd, 8> cmd_buf;
+  std::array<PendingTiming, USER_CMD_TIMING_COUNT> pending_timings{};
+
+  State state{};
+  std::array<uint32_t, USER_CMD_TIMING_COUNT> command_timings{};
+  bool timings_dirty = true;
 
   int tx_tid;
 
   static void ui_update_worker();
   static void cli_worker();
   static void command_worker();
-  int waiting_command_worker_tid = -1;
+  int waiting_command_worker_tid       = -1;
+  uint32_t waiting_command_worker_time = 0;
 
   UserCmd parse_command();
+  void enqueue_command_timing(const UserCmd &command, uint32_t start_ticks) {
+    if (user_command_applied(state, command)) {
+      return;
+    }
+
+    auto &pending      = pending_timings[static_cast<size_t>(command.type)];
+    pending.cmd        = command;
+    pending.start_time = start_ticks;
+  }
+
+  void update_pending_timings(uint32_t now) {
+    for (auto &pending : pending_timings) {
+      if (pending.start_time == 0) {
+        continue;
+      }
+
+      if (!user_command_applied(state, pending.cmd)) {
+        continue;
+      }
+
+      auto cmd_index             = static_cast<size_t>(pending.cmd.type);
+      command_timings[cmd_index] = now - pending.start_time;
+      pending.start_time         = 0;
+      timings_dirty              = true;
+    }
+  }
+
+  static bool user_command_applied(const State &current,
+                                   const UserCmd &command) {
+    switch (command.type) {
+    case UserCmd::Type::Light: {
+      for (const Train &train : current.trains) {
+        if (train.loco_id == command.id) {
+          return train.light_on == command.flag;
+        }
+      }
+      return false;
+    }
+    case UserCmd::Type::Speed: {
+      for (const Train &train : current.trains) {
+        if (train.loco_id == command.id) {
+          return train.requested_speed == static_cast<uint16_t>(command.value);
+        }
+      }
+      return false;
+    }
+    case UserCmd::Type::Switch:
+      return State::is_switch_id(static_cast<uint16_t>(command.id)) &&
+             current.is_switch_straight(static_cast<uint16_t>(command.id)) ==
+                 command.flag;
+    case UserCmd::Type::Reverse: {
+      const Train current_train = current.get_loco(command.id);
+      return current_train.backward != command.flag;
+    }
+    case UserCmd::Type::Stop:
+      return current.stopped;
+    case UserCmd::Type::Go:
+      return !current.stopped;
+    case UserCmd::Type::Reset: {
+      State default_state{};
+      if (current.stopped != default_state.stopped ||
+          current.switches != default_state.switches) {
+        return false;
+      }
+
+      for (size_t i = 0; i < MAX_TRAINS; ++i) {
+        const Train &lhs_train = current.trains[i];
+        const Train &rhs_train = default_state.trains[i];
+        if (lhs_train.loco_id != rhs_train.loco_id ||
+            lhs_train.requested_speed != rhs_train.requested_speed ||
+            lhs_train.backward != rhs_train.backward ||
+            lhs_train.light_on != rhs_train.light_on) {
+          return false;
+        }
+      }
+
+      return true;
+    }
+    case UserCmd::Type::Invalid:
+    case UserCmd::Type::Quit:
+    default:
+      return false;
+    }
+  }
 
   static constexpr auto CONSOLE_LINE = 3;
 
@@ -57,13 +157,13 @@ public:
       auto result = parse_command();
       Puts(tx_tid, "\033[", CONSOLE_LINE, ";2H> ", buf, "\n\r");
       buf.clear();
+      enqueue_command_timing(result, msg.time);
       if (waiting_command_worker_tid >= 0 &&
           result.type != UserCmd::Type::Invalid) {
         reply(waiting_command_worker_tid, TC::CLICmd{result});
         waiting_command_worker_tid = -1;
       } else if (result.type != UserCmd::Type::Invalid) {
-        auto pushed = cmd_buf.push(result);
-        _assert(pushed, "COMMAND BUFFER FULL");
+        _assert(cmd_buf.push(result), "COMMAND BUFFER FULL");
       }
     }
 
@@ -71,7 +171,10 @@ public:
   }
 
   void handle(int sender_tid, const TC::UIUpdate &msg) {
-    print_state(tx_tid, msg.state);
+    state = msg.state;
+    update_pending_timings(msg.time);
+    print_state(tx_tid, state, command_timings, timings_dirty);
+    timings_dirty = false;
     reply(sender_tid, TC::Ack{});
   }
 
@@ -80,7 +183,8 @@ public:
       waiting_command_worker_tid = sender_tid;
       return;
     }
-    reply(sender_tid, TC::CLICmd{cmd_buf.pop().value()});
+    auto cmd = cmd_buf.pop().value();
+    reply(sender_tid, TC::CLICmd{cmd});
   }
 
   template <class T> void handle(int sender_tid, const T &) {

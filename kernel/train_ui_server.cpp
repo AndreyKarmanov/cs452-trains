@@ -1,6 +1,8 @@
 #include "train_ui_server.h"
 #include "can_server.h"
+#include "clock_server.h"
 #include "rx_server.h"
+#include "time.h"
 #include "train_control.h"
 
 namespace {
@@ -112,7 +114,8 @@ template <> UserCmd TrainUIServer<>::parse_command() {
     const char *parse_cursor = cur;
     if (parse_uint(parse_cursor, end, loco_id) &&
         done_parse(parse_cursor, end)) {
-      out = UserCmd{UserCmd::Type::Reverse, loco_id};
+      out = UserCmd{UserCmd::Type::Reverse, loco_id, 0,
+                    state.get_loco(loco_id).backward};
       buf.set("Success: rv ", loco_id, " (stopping)");
     } else {
       out.type = UserCmd::Type::Invalid;
@@ -151,7 +154,19 @@ static constexpr int SENSOR_ROW    = TRAIN_ROW + MAX_TRAINS + 2;
 static constexpr int SWITCH_ROW    = SENSOR_ROW + 3;
 static constexpr int TIMING_ROW    = SWITCH_ROW + 8;
 
-uint32_t print_state(int tx_tid, const State &state) {
+static constexpr const char *cmd_name_for_index(size_t index) {
+  const char *cmd_names[] = {"Invalid ", "Quit    ", "Light   ",
+                             "Speed   ", "Switch  ", "Reverse ",
+                             "Stop    ", "Go      ", "Reset   "};
+  if (index < sizeof(cmd_names) / sizeof(cmd_names[0])) {
+    return cmd_names[index];
+  }
+  return "Unknown ";
+}
+
+uint32_t print_state(int tx_tid, const State &state,
+                     const std::array<uint32_t, USER_CMD_TIMING_COUNT> &timings,
+                     bool timings_dirty) {
   uint32_t draws = 0;
   StaticString<512> line;
 
@@ -208,14 +223,12 @@ uint32_t print_state(int tx_tid, const State &state) {
     ++draws;
   }
 
-  if (state.timings_dirty) {
+  if (timings_dirty) {
     line.set("\033[", TIMING_ROW, ";2HCommand Timings\n\r");
-    const char *cmd_names[] = {"Unknown ", "Light   ", "Speed   ", "Dir ",
-                               "Switch  ", "Sensor  ", "Control "};
-    for (size_t i = 0; i < MRK_CMD_COUNT; ++i) {
-      if (state.command_timings[i] > 0) {
-        line.append("   ", cmd_names[i], ": ", state.command_timings[i],
-                    " us (", state.command_timings[i] / 1000, " ms)\n\r");
+    for (size_t i = 0; i < timings.size(); ++i) {
+      if (timings[i] > 0) {
+        line.append("\033[K   ", cmd_name_for_index(i), ": ", timings[i],
+                    " ticks (", timings[i] * TICK_TIME_US / 1000, " ms)\n\r");
       }
     }
     Puts(tx_tid, line);
@@ -229,6 +242,9 @@ template <> void TrainUIServer<>::ui_update_worker() {
   auto tcs_tid = WhoIs(TrainControlServer<>::TC_SERVER_NAME);
   _assert(tcs_tid >= 0, "TC SERVER NOT FOUND");
 
+  auto cs_tid = WhoIs(ClockServer<>::CLOCK_SERVER_NAME);
+  _assert(cs_tid >= 0, "CLOCK SERVER WHOIS FAILED");
+
   auto uis_tid = WhoIs(TrainUIServer<>::TC_UI_SERVER_NAME);
   _assert(uis_tid >= 0, "TC SERVER NOT FOUND");
 
@@ -237,7 +253,9 @@ template <> void TrainUIServer<>::ui_update_worker() {
     if (!cans_reply.has_value()) {
       break;
     }
-    auto uis_reply = send<TC::Ack>(uis_tid, cans_reply.value());
+    auto uis_reply = send<TC::Ack>(
+        uis_tid, TC::UIUpdate{.state = cans_reply->state,
+                              .time  = static_cast<uint32_t>(Time(cs_tid))});
     if (!uis_reply.has_value()) {
       break;
     }
@@ -251,9 +269,14 @@ template <> void TrainUIServer<>::cli_worker() {
   auto uis_tid = WhoIs(TrainUIServer<>::TC_UI_SERVER_NAME);
   _assert(uis_tid >= 0, "TC SERVER NOT FOUND");
 
+  auto cs_tid = WhoIs(ClockServer<>::CLOCK_SERVER_NAME);
+  _assert(cs_tid >= 0, "CLOCK SERVER WHOIS FAILED");
+
   TC::CLIInput msg{};
   while (true) {
-    msg.c          = Getc(rx_tid);
+    msg.c    = Getc(rx_tid);
+    msg.time = static_cast<uint32_t>(Time(cs_tid));
+
     auto uis_reply = send<TC::Ack>(uis_tid, msg);
     if (!uis_reply.has_value()) {
       break;
@@ -281,6 +304,8 @@ template <> void TrainUIServer<>::command_worker() {
     }
   }
 }
+
+static void train_ui_server_task();
 
 static void train_ui_server_task() {
   TrainUIServer<> server;

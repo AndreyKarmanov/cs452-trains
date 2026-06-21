@@ -158,6 +158,7 @@ namespace TC {
   struct UIReady {};
   struct UIUpdate {
     State state;
+    uint32_t time;
   };
 
   struct TXReady {};
@@ -172,6 +173,7 @@ namespace TC {
 
   struct CLIInput {
     char c;
+    uint32_t time;
   };
 
   struct CLICmdReady {};

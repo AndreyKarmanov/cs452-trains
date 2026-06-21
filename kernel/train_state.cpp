@@ -1,7 +1,6 @@
 #include "train_state.h"
 #include "mcp2515.h"
 #include "mrk.h"
-#include "time.h"
 #include <type_traits>
 
 #define STATE_ROW "6"
@@ -13,14 +12,6 @@
 #define TIMING_ROW (SWITCH_ROW + 8)
 
 void State::update_from_mrk(const MRKCmd &cmd) {
-
-  uint8_t cmd_index = cmd.index();
-  if (command_timings_start[cmd_index]) {
-    timings_dirty              = true;
-    command_timings[cmd_index] = time_get() - command_timings_start[cmd_index];
-    command_timings_start[cmd_index] = 0;
-  }
-
   std::visit(
       [&](const auto &command) {
         using Command = std::decay_t<decltype(command)>;
