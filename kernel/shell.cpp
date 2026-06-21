@@ -176,7 +176,7 @@ static void fire_command(char *buf, size_t blen, int tx_tid) {
     create(1, train_controller_program_task);
     await_event(Event::NEVER);
   } else {
-    Puts(tx_tid, "Unknown command. Available: q (quit), p (parent tid), "
+    Puts(tx_tid, "Unknown: p (parent tid), "
                  "m (my tid), y (yield), c (create), d (dump memory), "
                  "w (write memory), t k1, t map, t heap\n\r");
   }
@@ -192,9 +192,8 @@ void shell_task() {
 
   char buf[BUFFER_SIZE];
   size_t buf_n = 0;
-  Puts(tx_tid,
-       "COMMANDS: q (quit) p (parent tid) m (my tid) y (yield) c "
-       "(create) d <hex address> [count] w <hex address> <hex value>\n\r> ");
+  Puts(tx_tid, "COMMANDS: trains (run trains) | d(ump) <hex address> [count] | "
+               "w(write) <hex address> <hex value>\n\r> ");
   while (1) {
     int rc = Getc(rx_tid);
     _assert(rc >= 0, "SHELL: GETC FAILED");
