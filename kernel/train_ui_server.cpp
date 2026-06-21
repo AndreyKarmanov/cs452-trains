@@ -1,7 +1,6 @@
 #include "train_ui_server.h"
 #include "rx_server.h"
 #include "train_control.h"
-#include "uart.h"
 
 namespace {
 
@@ -144,13 +143,12 @@ template <> UserCmd TrainUIServer<>::parse_command() {
   return out;
 }
 
-#define STATE_ROW "6"
-#define STATE_ROW_INT 7
-#define STATUS_ROW (STATE_ROW_INT + 1)
-#define TRAIN_ROW (STATE_ROW_INT + 3)
-#define SENSOR_ROW (TRAIN_ROW + MAX_TRAINS + 2)
-#define SWITCH_ROW (SENSOR_ROW + 3)
-#define TIMING_ROW (SWITCH_ROW + 8)
+static constexpr int STATE_ROW_INT = 8;
+static constexpr int STATUS_ROW    = STATE_ROW_INT + 1;
+static constexpr int TRAIN_ROW     = STATE_ROW_INT + 3;
+static constexpr int SENSOR_ROW    = TRAIN_ROW + MAX_TRAINS + 2;
+static constexpr int SWITCH_ROW    = SENSOR_ROW + 3;
+static constexpr int TIMING_ROW    = SWITCH_ROW + 8;
 
 uint32_t print_state(int tx_tid, const State &state) {
   uint32_t draws = 0;
@@ -233,20 +231,13 @@ template <> void TrainUIServer<>::ui_update_worker() {
   auto uis_tid = WhoIs(TrainUIServer<>::TC_UI_SERVER_NAME);
   _assert(uis_tid >= 0, "TC SERVER NOT FOUND");
 
-  debug_printf(CONSOLE, "UI UPDATE WORKER STARTED\n\r");
-
   while (true) {
-    debug_printf(CONSOLE, "UI UPDATE WORKER requesting state\n\r");
     auto cans_reply = send<TC::UIUpdate>(cans_tid, TC::UIReady{});
     if (!cans_reply.has_value()) {
-      debug_printf(CONSOLE, "UI UPDATE WORKER send error %d\n\r",
-                   cans_reply.error());
       break;
     }
-    debug_printf(CONSOLE, "UI UPDATE WORKER got state, forwarding\n\r");
     auto uis_reply = send<TC::Ack>(uis_tid, cans_reply.value());
     if (!uis_reply.has_value()) {
-      debug_printf(CONSOLE, "UI UPDATE WORKER forward error\n\r");
       break;
     }
   }
@@ -259,17 +250,11 @@ template <> void TrainUIServer<>::cli_worker() {
   auto uis_tid = WhoIs(TrainUIServer<>::TC_UI_SERVER_NAME);
   _assert(uis_tid >= 0, "TC SERVER NOT FOUND");
 
-  debug_printf(CONSOLE, "CLI WORKER STARTED\n\r");
-
   TC::CLIInput msg{};
   while (true) {
-    debug_printf(CONSOLE, "CLI WORKER waiting for input\n\r");
-    msg.c = Getc(rx_tid);
-    debug_printf(CONSOLE, "CLI WORKER got input %d\n\r",
-                 static_cast<int>(msg.c));
+    msg.c          = Getc(rx_tid);
     auto uis_reply = send<TC::Ack>(uis_tid, msg);
     if (!uis_reply.has_value()) {
-      debug_printf(CONSOLE, "CLI WORKER send error\n\r");
       break;
     }
   }
@@ -282,42 +267,35 @@ template <> void TrainUIServer<>::command_worker() {
   auto uis_tid = WhoIs(TrainUIServer<>::TC_UI_SERVER_NAME);
   _assert(uis_tid >= 0, "TC SERVER NOT FOUND");
 
-  debug_printf(CONSOLE, "COMMAND WORKER STARTED\n\r");
-
   TC::CLICmdReady msg{};
   while (true) {
-    debug_printf(CONSOLE, "COMMAND WORKER requesting command\n\r");
     auto uis_reply = send<TC::CLICmd>(uis_tid, msg);
     if (!uis_reply.has_value()) {
-      debug_printf(CONSOLE, "COMMAND WORKER send error\n\r");
       break;
     }
-    debug_printf(CONSOLE, "GOT COMMAND\n\r");
 
     auto cans_reply = send<TC::Ack>(cans_tid, uis_reply.value());
     if (!cans_reply.has_value()) {
-      debug_printf(CONSOLE, "COMMAND WORKER CAN send error\n\r");
       break;
     }
-    debug_printf(CONSOLE, "SENT COMMAND\n\r");
   }
 }
 
 static void train_ui_server_task() {
-  debug_printf(CONSOLE, "train_ui_server_task entry\n\r");
   TrainUIServer<> server;
   for (;;) {
-    debug_printf(CONSOLE, "train_ui_server_task loop\n\r");
     server.run();
   }
 }
 
 void train_controller_program_task() {
-  debug_printf(CONSOLE, "train_controller_program_task entry\n\r");
+  auto tx_tid = WhoIs(TX_Server::TX_SERVER_NAME);
+  _assert(tx_tid >= 0, "TX SERVER WHOIS FAILED");
+  Puts(tx_tid, "\033[2J\033[1;1H");
+
   TrainControlServer<> server;
-  create(5, train_ui_server_task);
+  create(3, train_ui_server_task);
   for (;;) {
-    debug_printf(CONSOLE, "train_controller_program_task loop\n\r");
     server.run();
   }
 }

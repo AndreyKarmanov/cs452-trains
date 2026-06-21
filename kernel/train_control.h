@@ -48,24 +48,20 @@ template <size_t TX_BUFFER_SIZE = 64> class TrainControlServer {
 public:
   static constexpr auto TC_SERVER_NAME = "TCSERVER";
   TrainControlServer() {
-    debug_printf(CONSOLE, "TCSERVER starting\n\r");
     auto response = RegisterAs(TC_SERVER_NAME);
     _assert(response == 0, "TC_SERVER_NAME REGISTERAS FAILED");
 
-    create(4, tx_can_worker);
-    create(5, rx_can_worker);
+    create(2, rx_can_worker);
+    create(3, tx_can_worker);
   }
 
   void handle(const int tid, const TC::RX &msg) {
-    debug_printf(CONSOLE, "TCSERVER RX from %d\n\r", tid);
     state.update_from_mrk(msg.mrk);
     reply_waiting_ui_update_worker_if_dirty();
-    debug_printf(CONSOLE, "RX update received\n\r");
     reply(tid, TC::Ack{});
   }
 
   void handle(const int tid, const TC::UIReady &) {
-    debug_printf(CONSOLE, "TCSERVER UIReady from %d\n\r", tid);
     if (has_dirty_state()) {
       reply(tid, TC::UIUpdate{state});
       state.sensors_dirty  = false;
@@ -80,8 +76,6 @@ public:
   }
 
   void handle(const int tid, const TC::TXReady &) {
-    debug_printf(CONSOLE, "TCSERVER TXReady from %d buffer=%d waiting=%d\n\r",
-                 tid, tx_buf.is_empty() ? 0 : 1, waiting_can_tx_worker_tid);
     if (tx_buf.is_empty()) {
       waiting_can_tx_worker_tid = tid;
       return;
@@ -90,23 +84,16 @@ public:
   }
 
   void handle(const int tid, const TC::CLICmd &msg) {
-    debug_printf(CONSOLE, "TCSERVER CLICmd from %d\n\r", tid);
     std::array<MRKCmd, 64> commands{};
     size_t command_count = expand_user_command(state, msg.cmd, commands);
 
     if (command_count == 0) {
-      debug_printf(CONSOLE, "TCSERVER CLICmd expanded to 0 commands\n\r");
       reply(tid, TC::Ack{});
       return;
     }
 
     for (size_t i = 0; i < command_count; ++i) {
-      debug_printf(CONSOLE, "TCSERVER enqueue command %u/%u\n\r",
-                   static_cast<unsigned>(i + 1),
-                   static_cast<unsigned>(command_count));
       if (waiting_can_tx_worker_tid >= 0) {
-        debug_printf(CONSOLE, "TCSERVER replying to waiting TX worker %d\n\r",
-                     waiting_can_tx_worker_tid);
         reply(waiting_can_tx_worker_tid, TC::TX{commands[i]});
         waiting_can_tx_worker_tid = -1;
         continue;
@@ -126,7 +113,6 @@ public:
     int sender_tid;
     Message msg;
     receive(&sender_tid, msg);
-    debug_printf(CONSOLE, "TCSERVER dispatch from %d\n\r", sender_tid);
     std::visit([&](auto &&arg) { handle(sender_tid, arg); }, msg);
   };
 };

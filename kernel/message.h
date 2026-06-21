@@ -95,7 +95,7 @@ namespace CS {
 } // namespace CS
 
 namespace TX {
-  constexpr int MAX_DATA_LENGTH = 64;
+  constexpr int MAX_DATA_LENGTH = 512;
 
   struct SendMsg {
     int len;

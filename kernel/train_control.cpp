@@ -65,18 +65,13 @@ size_t expand_user_command(const State &state, const UserCmd &command,
 template <> void TrainControlServer<>::tx_can_worker() {
   auto cans_tid = WhoIs(TrainControlServer<>::TC_SERVER_NAME);
   _assert(cans_tid >= 0, "TC SERVER NOT FOUND");
-  debug_printf(CONSOLE, "TX CAN WORKER STARTED\n\r");
 
   while (true) {
-    debug_printf(CONSOLE, "TX CAN WORKER requesting next frame\n\r");
     auto cans_reply = send<TC::TX>(cans_tid, TC::TXReady{});
     if (!cans_reply.has_value()) {
-      debug_printf(CONSOLE, "TX CAN WORKER send error\n\r");
       break;
     }
-    debug_printf(CONSOLE, "TX CAN WORKER got frame, awaiting IRQ\n\r");
     await_event(Event::CAN_TX_IRQ);
-    debug_printf(CONSOLE, "TX CAN WORKER IRQ fired, transmitting\n\r");
     tx_can(encode_frame(cans_reply->mrk));
   }
 }
@@ -84,19 +79,15 @@ template <> void TrainControlServer<>::tx_can_worker() {
 template <> void TrainControlServer<>::rx_can_worker() {
   auto cans_tid = WhoIs(TrainControlServer<>::TC_SERVER_NAME);
   _assert(cans_tid >= 0, "TC SERVER NOT FOUND");
-  debug_printf(CONSOLE, "RX CAN WORKER STARTED\n\r");
 
   CANFRAME frame{};
   TC::RX msg{};
   while (true) {
-    debug_printf(CONSOLE, "RX CAN WORKER awaiting IRQ\n\r");
     await_event(Event::CAN_RX_IRQ);
-    debug_printf(CONSOLE, "RX CAN WORKER IRQ fired, receiving\n\r");
     rx_can(frame);
     msg.mrk         = decode_frame(frame);
     auto cans_reply = send<TC::Ack>(cans_tid, msg);
     if (!cans_reply.has_value()) {
-      debug_printf(CONSOLE, "RX CAN WORKER send error\n\r");
       break;
     }
   }

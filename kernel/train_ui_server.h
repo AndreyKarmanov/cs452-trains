@@ -30,26 +30,23 @@ template <size_t CLI_BUFFER_SIZE = 64> class TrainUIServer {
 
   UserCmd parse_command();
 
-  static constexpr auto CONSOLE_LINE = 2;
+  static constexpr auto CONSOLE_LINE = 3;
 
 public:
   static constexpr auto TC_UI_SERVER_NAME = "TCUISERVER";
   TrainUIServer() {
-    debug_printf(CONSOLE, "TCUISERVER starting\n\r");
     auto response = RegisterAs(TC_UI_SERVER_NAME);
     _assert(response == 0, "TC_UI_SERVER_NAME REGISTERAS FAILED");
 
     tx_tid = WhoIs(TX_Server::TX_SERVER_NAME);
     _assert(tx_tid >= 0, "TX SERVER WHOIS FAILED");
 
-    create(5, cli_worker);
-    create(5, command_worker);
-    create(6, ui_update_worker);
+    create(4, cli_worker);
+    create(4, command_worker);
+    create(5, ui_update_worker);
   }
 
   void handle(int sender_tid, const TC::CLIInput &msg) {
-    debug_printf(CONSOLE, "TCUISERVER CLIInput from %d char=%d\n\r", sender_tid,
-                 static_cast<int>(msg.c));
     auto c = msg.c;
     if (isprint(c)) {
       if (!buf.append(c)) {
@@ -78,15 +75,11 @@ public:
   }
 
   void handle(int sender_tid, const TC::UIUpdate &msg) {
-    debug_printf(CONSOLE, "TCUISERVER UIUpdate from %d\n\r", sender_tid);
     print_state(tx_tid, msg.state);
     reply(sender_tid, TC::Ack{});
   }
 
   void handle(int sender_tid, const TC::CLICmdReady &) {
-    debug_printf(
-        CONSOLE, "TCUISERVER CLICmdReady from %d buffer=%d waiting=%d\n\r",
-        sender_tid, cmd_buf.is_empty() ? 0 : 1, waiting_command_worker_tid);
     if (cmd_buf.is_empty()) {
       waiting_command_worker_tid = sender_tid;
       return;
@@ -102,7 +95,6 @@ public:
     int sender_tid;
     Message msg;
     receive(&sender_tid, msg);
-    debug_printf(CONSOLE, "TCUISERVER dispatch from %d\n\r", sender_tid);
     std::visit([&](auto &&arg) { handle(sender_tid, arg); }, msg);
   };
 };

@@ -105,11 +105,11 @@ static void initalize_event(Event event) {
   initalized_events |= (1u << static_cast<int>(event));
 
   switch (event) {
-  case Event::CLOCK_TICK_1MS: {
+  case Event::CLOCK_TICK: {
     set_interrupt_core_routing(0, GIC_TIMER_IRQ_C1, true);
     set_interrupt(GIC_TIMER_IRQ_C1, true);
     clear_timer_interrupt(1);
-    set_timer_interrupt(1, TIME_10MS_US);
+    set_timer_interrupt(1, TICK_TIME_US);
     break;
   }
   case Event::DELAY_5S: {
@@ -171,8 +171,8 @@ static void handle_event(Event event) {
 
   // one-time handling
   switch (event) {
-  case Event::CLOCK_TICK_1MS: {
-    update_timer_interrupt(1, TIME_10MS_US);
+  case Event::CLOCK_TICK: {
+    update_timer_interrupt(1, TICK_TIME_US);
     clear_timer_interrupt(1);
     break;
   }
@@ -311,7 +311,7 @@ static void handle_interrupt() {
     // interrupt id to event mapping
     switch (interrupt_id) {
     case GIC_TIMER_IRQ_C1:
-      handle_event(Event::CLOCK_TICK_1MS);
+      handle_event(Event::CLOCK_TICK);
       break;
     case GIC_TIMER_IRQ_C3:
       debug_printf(CONSOLE, "5 second delay event\n\r");

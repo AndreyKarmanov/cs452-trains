@@ -1,4 +1,3 @@
-
 #include "first_user_task.h"
 #include "clock_server.h"
 #include "io_helpers.h"
@@ -7,6 +6,7 @@
 #include "rx_server.h"
 #include "shell.h"
 #include "syscall.h"
+#include "sysinfo_task.h"
 #include "tx_server.h"
 
 #if (defined(PERF_TEST) && PERF_TEST) || (defined(RPS_TEST) && RPS_TEST) ||    \
@@ -23,11 +23,9 @@ void first_user_task() {
   create(2, tx_server_task);
   create(2, rx_server_task);
 
-  int tx_tid = WhoIs(TX_Server::TX_SERVER_NAME);
+  auto tx_tid = WhoIs(TX_Server::TX_SERVER_NAME);
   Puts(tx_tid, "\033[2J\033[?25l\033[1;1H" __DATE__ " / " __TIME__
                " / Andrey Karmanov / Anthony Ho\n\r");
-
-  Puts(tx_tid, "Created name server, clock server, tx server, rx server\n\r");
 
 #if defined(RPS_TEST) && RPS_TEST
   int rps_tid = create(1, rps_server_task);
@@ -81,6 +79,9 @@ void first_user_task() {
 
   // Idle task
   create(PRIORITY_LEVELS - 1, idle_task);
+
+  // header with idle, time
+  create(PRIORITY_LEVELS - 2, sysinfo_task);
 
   // Shell
   create(PRIORITY_LEVELS - 2, shell_task);

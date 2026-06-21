@@ -226,10 +226,6 @@ bool mcp2515_recieve(CANFRAME &frame) {
   auto active = mcp2515_get_active_irq();
   auto result = mcp2515_recieve_RXn(read_rx0, frame);
 
-  debug_printf(CONSOLE,
-               "MCP2515 receive, active=%d, read_rx0=%d, result=%d\n\r",
-               static_cast<uint8_t>(active), read_rx0, result);
-
   // if we have messages in both buffers
   // switch to other buffer to ensure fifo order
   if (active.rxi0ie && active.rxi1e) {

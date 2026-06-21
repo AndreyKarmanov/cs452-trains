@@ -4,7 +4,6 @@
 
 // userspace helpers
 void idle_task();
-bool maintainance(int tx_tid);
 
 // kernelspace struct for managing idle task
 class IdleManager {

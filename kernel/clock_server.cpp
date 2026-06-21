@@ -6,14 +6,10 @@
 
 template <> void ClockServer<>::clock_tick_task() {
   int cs_tid = WhoIs(ClockServer<>::CLOCK_SERVER_NAME);
-  int tx_tid = WhoIs(TX_Server::TX_SERVER_NAME);
-
   _assert(cs_tid >= 0, "CLOCK SERVER WHOIS FAILED");
 
-  Printf(tx_tid, "STARTED CLOCK NOTIFIER");
-
   while (true) {
-    await_event(Event::CLOCK_TICK_1MS);
+    await_event(Event::CLOCK_TICK);
     auto rcv_msg = send<CS::TickMsg>(cs_tid, CS::TickMsg{});
     if (!rcv_msg.has_value()) {
       break;

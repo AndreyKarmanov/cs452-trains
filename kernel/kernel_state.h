@@ -12,7 +12,7 @@
 #include <optional>
 
 #define PRIORITY_LEVELS 8
-#define MAX_TASKS 16
+#define MAX_TASKS 32
 #define TASK_STACK_SIZE 4096
 
 namespace Kernel {

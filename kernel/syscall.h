@@ -24,7 +24,7 @@ enum class Syscall {
 // make sure that event count is the last event!!
 // this is pivotal to ensure we can use it as the number of events :)
 enum class Event {
-  CLOCK_TICK_1MS,
+  CLOCK_TICK,
   DELAY_5S,
   UART_RX_IRQ,
   UART_TX_IRQ,
