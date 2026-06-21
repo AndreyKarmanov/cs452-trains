@@ -4,6 +4,7 @@
 #include "io_helpers.h"
 #include "kernel_state.h"
 #include "name_server.h"
+#include "pathfind.h"
 #include "rx_server.h"
 #include "shell.h"
 #include "syscall.h"
@@ -28,6 +29,8 @@ void first_user_task() {
                " / Andrey Karmanov / Anthony Ho\n\r");
 
   Puts(tx_tid, "Created name server, clock server, tx server, rx server\n\r");
+
+  // test_pathfind();
 
 #if defined(RPS_TEST) && RPS_TEST
   int rps_tid = create(1, rps_server_task);
