@@ -9,11 +9,6 @@
 #include "train_state.h"
 #include <cstddef>
 
-void train_control_can_courier_task();
-
-// todo: make the workers a class inside of StateServer
-// todo: see if making the server subclasses & a real heirarchy work properly -
-// perf perhaps? todo: add perf testing stuff more easily.
 template <size_t TX_BUFFER_SIZE = 64> class TrainControlServer {
   int waiting_ui_update_worker_tid = -1;
   int waiting_can_tx_worker_tid    = -1;
