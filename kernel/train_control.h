@@ -5,12 +5,10 @@
 #include "mrk.h"
 #include "name_server.h"
 #include "syscall.h"
+#include "time.h"
 #include "train_state.h"
-#include <array>
 #include <cstddef>
 
-size_t expand_user_command(const State &state, const UserCmd &command,
-                           std::array<MRKCmd, 64> &commands);
 void train_control_can_courier_task();
 
 // todo: make the workers a class inside of StateServer
@@ -25,13 +23,79 @@ template <size_t TX_BUFFER_SIZE = 64> class TrainControlServer {
   State state{};
   static void rx_can_worker();
 
-  void reply_waiting_can_tx_worker_if_pending() {
+  void send_waiting_can_tx_worker_if_pending() {
     if (waiting_can_tx_worker_tid < 0 || tx_buf.is_empty()) {
       return;
     }
 
     reply(waiting_can_tx_worker_tid, tx_buf.pop().value());
     waiting_can_tx_worker_tid = -1;
+  }
+
+  void expand_user_command(const UserCmd &command) {
+    switch (command.type) {
+    case UserCmd::Type::Light:
+      tx_buf.push(TC::TX{.mrk = LightCmd(command.id, command.flag)});
+      break;
+    case UserCmd::Type::Speed:
+
+      tx_buf.push(TC::TX{
+          .mrk = SpeedCmd(command.id, static_cast<uint16_t>(command.value))});
+      break;
+    case UserCmd::Type::Direction:
+      tx_buf.push(TC::TX{.mrk = DirectionCmd(command.id, command.flag)});
+      break;
+    case UserCmd::Type::Switch:
+
+      tx_buf.push(TC::TX{
+          .mrk = SwitchCmd(static_cast<uint16_t>(command.id), command.flag)});
+      break;
+    case UserCmd::Type::Reverse: {
+      auto loco = state.get_loco(command.id);
+      if (loco.requested_speed == 0) {
+        tx_buf.push(TC::TX{.mrk = DirectionCmd(command.id, !loco.backward)});
+        break;
+      }
+      tx_buf.push(TC::TX{.mrk = SpeedCmd(command.id, 0)});
+      tx_buf.push(TC::TX{.mrk = DirectionCmd(command.id, !loco.backward),
+                         .delay_ticks = 10 * TICKS_PER_S});
+      tx_buf.push(TC::TX{.mrk = SpeedCmd(command.id, loco.requested_speed),
+                         .delay_ticks = 10 * TICKS_PER_S});
+      break;
+    }
+    case UserCmd::Type::Stop:
+      tx_buf.push(TC::TX{.mrk = ControlCmd(ControlCmd::CMD_STOP)});
+      break;
+    case UserCmd::Type::Go:
+      tx_buf.push(TC::TX{.mrk = ControlCmd(ControlCmd::CMD_GO)});
+      break;
+    case UserCmd::Type::Reset: {
+      State default_state{};
+
+      tx_buf.push(TC::TX{.mrk = ControlCmd(ControlCmd::CMD_HALT)});
+      for (const Train &train : default_state.trains) {
+
+        tx_buf.push(TC::TX{.mrk = LightCmd(train.loco_id, train.light_on)});
+        tx_buf.push(
+            TC::TX{.mrk = SpeedCmd(train.loco_id, train.requested_speed)});
+        tx_buf.push(TC::TX{.mrk = DirectionCmd(train.loco_id, train.backward)});
+      }
+
+      for (int sw_id = 0; sw_id < 22; ++sw_id) {
+        tx_buf.push(TC::TX{.mrk = SwitchCmd(State::switch_id(sw_id),
+                                            default_state.is_switch_straight(
+                                                State::switch_id(sw_id)))});
+      }
+
+      tx_buf.push(TC::TX{.mrk = ControlCmd(default_state.stopped
+                                               ? ControlCmd::CMD_STOP
+                                               : ControlCmd::CMD_GO)});
+      break;
+    }
+    case UserCmd::Type::Invalid:
+    case UserCmd::Type::Quit:
+      break;
+    }
   }
 
   bool has_dirty_state() const {
@@ -92,20 +156,8 @@ public:
   }
 
   void handle(const int tid, const TC::CLICmd &msg) {
-    std::array<MRKCmd, 64> commands{};
-    size_t command_count = expand_user_command(state, msg.cmd, commands);
-
-    if (command_count == 0) {
-      reply(tid, TC::Ack{});
-      return;
-    }
-
-    for (size_t i = 0; i < command_count; ++i) {
-      auto pushed = tx_buf.push(TC::TX{.mrk = commands[i], .delay_ticks = 0});
-      _assert(pushed, "TC TX BUFFER FULL");
-      reply_waiting_can_tx_worker_if_pending();
-    }
-
+    expand_user_command(msg.cmd);
+    send_waiting_can_tx_worker_if_pending();
     reply(tid, TC::Ack{});
   }
   template <class T> void handle(int sender_tid, const T &) {

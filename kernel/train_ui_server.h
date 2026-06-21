@@ -8,13 +8,9 @@
 #include "syscall.h"
 #include "train_state.h"
 #include "tx_server.h"
-#include "uart.h"
-#include <array>
 #include <cstddef>
 #include <ctype.h>
 
-size_t expand_user_command(const State &state, const UserCmd &command,
-                           std::array<MRKCmd, 64> &commands);
 uint32_t print_state(int tx_tid, const State &state);
 
 template <size_t CLI_BUFFER_SIZE = 64> class TrainUIServer {

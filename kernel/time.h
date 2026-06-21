@@ -5,7 +5,7 @@
 
 #define TIME_1S_US 1'000'000
 #define TICK_TIME_US 1'000
-#define TICKS_IN_1S (TIME_1S_US / TICK_TIME_US)
+#define TICKS_PER_S (TIME_1S_US / TICK_TIME_US)
 
 void set_timer_interrupt(uint32_t timer, uint32_t delay_us);
 void update_timer_interrupt(uint32_t timer, uint32_t delta_us);
