@@ -22,11 +22,11 @@ template <> void CanServer<>::tick_can_worker() {
 
   int cs_tid = WhoIs(ClockServer<>::CLOCK_SERVER_NAME);
   _assert(cs_tid >= 0, "CLOCK SERVER WHOIS FAILED");
-  auto curr_tick = Time(cs_tid);
+  auto curr_tick = static_cast<uint32_t>(Time(cs_tid));
 
   while (true) {
     curr_tick    = DelayUntil(cs_tid, curr_tick + 10);
-    auto rcv_msg = send<CAN::AckMsg>(can_tid, CAN::TickMsg{});
+    auto rcv_msg = send<CAN::AckMsg>(can_tid, CAN::TickMsg{curr_tick});
     if (!rcv_msg.has_value()) {
       break;
     }

@@ -108,8 +108,8 @@ public:
     reply(tid, CAN::TXMsg{.frame = immediate_queue.pop().value()});
   }
 
-  void handle(int tid, const CAN::TickMsg &) {
-    curr_tick += 10;
+  void handle(int tid, const CAN::TickMsg &msg) {
+    curr_tick = msg.ticks;
     promote_due_frames();
     reply_waiting_worker_if_possible();
     reply(tid, CAN::AckMsg{});

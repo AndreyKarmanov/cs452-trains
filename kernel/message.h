@@ -115,7 +115,9 @@ namespace CAN {
     CANFRAME frame;
   };
 
-  struct TickMsg {};
+  struct TickMsg {
+    uint32_t ticks;
+  };
 
   struct AckMsg {};
 } // namespace CAN
