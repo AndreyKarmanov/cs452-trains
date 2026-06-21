@@ -305,10 +305,15 @@ template <> void TrainUIServer<>::command_worker() {
   }
 }
 
-static void train_ui_server_task();
-
 static void train_ui_server_task() {
   TrainUIServer<> server;
+  for (;;) {
+    server.run();
+  }
+}
+
+static void train_control_server_task() {
+  TrainControlServer<> server;
   for (;;) {
     server.run();
   }
@@ -320,10 +325,6 @@ void train_controller_program_task() {
   Puts(tx_tid, "\033[2J\033[1;1H");
 
   create(2, can_server_task);
-  TrainControlServer<> server;
-  create(3, train_control_can_courier_task);
+  create(2, train_control_server_task);
   create(3, train_ui_server_task);
-  for (;;) {
-    server.run();
-  }
 }

@@ -1,7 +1,7 @@
 #include "train_control.h"
 #include "can_server.h"
 
-void train_control_can_courier_task() {
+template <> void TrainControlServer<>::tx_can_worker() {
   auto tc_tid = WhoIs(TrainControlServer<>::TC_SERVER_NAME);
   _assert(tc_tid >= 0, "TC SERVER WHOIS FAILED");
 

@@ -21,6 +21,7 @@ template <size_t TX_BUFFER_SIZE = 64> class TrainControlServer {
   Buffer<TC::TX, TX_BUFFER_SIZE> tx_buf;
 
   State state{};
+  static void tx_can_worker();
   static void rx_can_worker();
 
   void send_waiting_can_tx_worker_if_pending() {
@@ -119,7 +120,9 @@ public:
     auto response = RegisterAs(TC_SERVER_NAME);
     _assert(response == 0, "TC_SERVER_NAME REGISTERAS FAILED");
 
+    expand_user_command(UserCmd{.type = UserCmd::Type::Reset});
     create(2, rx_can_worker);
+    create(2, tx_can_worker);
   }
 
   void handle(const int tid, const TC::RX &msg) {

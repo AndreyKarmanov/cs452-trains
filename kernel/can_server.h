@@ -5,6 +5,7 @@
 #include "heap.h"
 #include "kernel_state.h"
 #include "message.h"
+#include "mrk.h"
 #include "name_server.h"
 #include "syscall.h"
 #include <cstdint>
