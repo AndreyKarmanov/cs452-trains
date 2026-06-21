@@ -1,21 +1,5 @@
 #include "can_server.h"
 
-static void can_tick_notifier_task() {
-  int can_tid = WhoIs(CanServer<>::CAN_SERVER_NAME);
-  _assert(can_tid >= 0, "CAN SERVER WHOIS FAILED");
-
-  while (true) {
-    for (int i = 0; i < 10; ++i) {
-      await_event(Event::CLOCK_TICK);
-    }
-
-    auto rcv_msg = send<CAN::AckMsg>(can_tid, CAN::TickMsg{});
-    if (!rcv_msg.has_value()) {
-      break;
-    }
-  }
-}
-
 template <> void CanServer<>::tx_can_worker() {
   auto can_tid = WhoIs(CanServer<>::CAN_SERVER_NAME);
   _assert(can_tid >= 0, "CAN SERVER WHOIS FAILED");
@@ -31,7 +15,21 @@ template <> void CanServer<>::tx_can_worker() {
   }
 }
 
-template <> void CanServer<>::tick_can_worker() { can_tick_notifier_task(); }
+template <> void CanServer<>::tick_can_worker() {
+  int can_tid = WhoIs(CanServer<>::CAN_SERVER_NAME);
+  _assert(can_tid >= 0, "CAN SERVER WHOIS FAILED");
+
+  while (true) {
+    for (int i = 0; i < 10; ++i) {
+      await_event(Event::CLOCK_TICK);
+    }
+
+    auto rcv_msg = send<CAN::AckMsg>(can_tid, CAN::TickMsg{});
+    if (!rcv_msg.has_value()) {
+      break;
+    }
+  }
+}
 
 void can_server_task() {
   CanServer<> can_server;
