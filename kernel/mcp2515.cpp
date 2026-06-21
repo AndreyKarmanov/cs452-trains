@@ -220,6 +220,7 @@ void mcp2515_send_pending() {
     }
   }
 }
+
 bool mcp2515_recieve(CANFRAME &frame) {
   static bool read_rx0 = true;
 

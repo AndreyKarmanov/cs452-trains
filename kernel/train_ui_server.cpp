@@ -1,4 +1,5 @@
 #include "train_ui_server.h"
+#include "can_server.h"
 #include "rx_server.h"
 #include "train_control.h"
 
@@ -225,14 +226,14 @@ uint32_t print_state(int tx_tid, const State &state) {
 }
 
 template <> void TrainUIServer<>::ui_update_worker() {
-  auto cans_tid = WhoIs(TrainControlServer<>::TC_SERVER_NAME);
-  _assert(cans_tid >= 0, "TC SERVER NOT FOUND");
+  auto tcs_tid = WhoIs(TrainControlServer<>::TC_SERVER_NAME);
+  _assert(tcs_tid >= 0, "TC SERVER NOT FOUND");
 
   auto uis_tid = WhoIs(TrainUIServer<>::TC_UI_SERVER_NAME);
   _assert(uis_tid >= 0, "TC SERVER NOT FOUND");
 
   while (true) {
-    auto cans_reply = send<TC::UIUpdate>(cans_tid, TC::UIReady{});
+    auto cans_reply = send<TC::UIUpdate>(tcs_tid, TC::UIReady{});
     if (!cans_reply.has_value()) {
       break;
     }
@@ -261,8 +262,8 @@ template <> void TrainUIServer<>::cli_worker() {
 }
 
 template <> void TrainUIServer<>::command_worker() {
-  auto cans_tid = WhoIs(TrainControlServer<>::TC_SERVER_NAME);
-  _assert(cans_tid >= 0, "TC SERVER NOT FOUND");
+  auto tcs_tid = WhoIs(TrainControlServer<>::TC_SERVER_NAME);
+  _assert(tcs_tid >= 0, "TC SERVER NOT FOUND");
 
   auto uis_tid = WhoIs(TrainUIServer<>::TC_UI_SERVER_NAME);
   _assert(uis_tid >= 0, "TC SERVER NOT FOUND");
@@ -274,7 +275,7 @@ template <> void TrainUIServer<>::command_worker() {
       break;
     }
 
-    auto cans_reply = send<TC::Ack>(cans_tid, uis_reply.value());
+    auto cans_reply = send<TC::Ack>(tcs_tid, uis_reply.value());
     if (!cans_reply.has_value()) {
       break;
     }
@@ -293,7 +294,9 @@ void train_controller_program_task() {
   _assert(tx_tid >= 0, "TX SERVER WHOIS FAILED");
   Puts(tx_tid, "\033[2J\033[1;1H");
 
+  create(2, can_server_task);
   TrainControlServer<> server;
+  create(3, train_control_can_courier_task);
   create(3, train_ui_server_task);
   for (;;) {
     server.run();

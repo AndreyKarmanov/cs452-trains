@@ -2,29 +2,37 @@
 
 #include "buffer.h"
 #include "debug.h"
-#include "message.h"
 #include "mrk.h"
 #include "name_server.h"
 #include "syscall.h"
 #include "train_state.h"
-#include "uart.h"
 #include <array>
 #include <cstddef>
 
 size_t expand_user_command(const State &state, const UserCmd &command,
                            std::array<MRKCmd, 64> &commands);
+void train_control_can_courier_task();
 
 // todo: make the workers a class inside of StateServer
 // todo: see if making the server subclasses & a real heirarchy work properly -
 // perf perhaps? todo: add perf testing stuff more easily.
 template <size_t TX_BUFFER_SIZE = 64> class TrainControlServer {
-  Buffer<MRKCmd, TX_BUFFER_SIZE> tx_buf;
-  int waiting_can_tx_worker_tid    = -1;
   int waiting_ui_update_worker_tid = -1;
+  int waiting_can_tx_worker_tid    = -1;
+
+  Buffer<TC::TX, TX_BUFFER_SIZE> tx_buf;
 
   State state{};
-  static void tx_can_worker();
   static void rx_can_worker();
+
+  void reply_waiting_can_tx_worker_if_pending() {
+    if (waiting_can_tx_worker_tid < 0 || tx_buf.is_empty()) {
+      return;
+    }
+
+    reply(waiting_can_tx_worker_tid, tx_buf.pop().value());
+    waiting_can_tx_worker_tid = -1;
+  }
 
   bool has_dirty_state() const {
     return state.sensors_dirty || state.switches_dirty || state.trains_dirty ||
@@ -52,7 +60,6 @@ public:
     _assert(response == 0, "TC_SERVER_NAME REGISTERAS FAILED");
 
     create(2, rx_can_worker);
-    create(3, tx_can_worker);
   }
 
   void handle(const int tid, const TC::RX &msg) {
@@ -80,7 +87,8 @@ public:
       waiting_can_tx_worker_tid = tid;
       return;
     }
-    reply(tid, TC::TX{tx_buf.pop().value()});
+
+    reply(tid, tx_buf.pop().value());
   }
 
   void handle(const int tid, const TC::CLICmd &msg) {
@@ -93,14 +101,9 @@ public:
     }
 
     for (size_t i = 0; i < command_count; ++i) {
-      if (waiting_can_tx_worker_tid >= 0) {
-        reply(waiting_can_tx_worker_tid, TC::TX{commands[i]});
-        waiting_can_tx_worker_tid = -1;
-        continue;
-      }
-
-      auto pushed = tx_buf.push(commands[i]);
-      _assert(pushed, "TX BUFFER FULL");
+      auto pushed = tx_buf.push(TC::TX{.mrk = commands[i], .delay_ticks = 0});
+      _assert(pushed, "TC TX BUFFER FULL");
+      reply_waiting_can_tx_worker_if_pending();
     }
 
     reply(tid, TC::Ack{});

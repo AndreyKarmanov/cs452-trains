@@ -94,6 +94,32 @@ namespace CS {
 
 } // namespace CS
 
+namespace CAN {
+  struct SendMsg {
+    CANFRAME frame;
+  };
+
+  struct DelayMsg {
+    CANFRAME frame;
+    uint32_t delay_ticks;
+  };
+
+  struct DelayUntilMsg {
+    CANFRAME frame;
+    uint32_t ticks;
+  };
+
+  struct TXReadyMsg {};
+
+  struct TXMsg {
+    CANFRAME frame;
+  };
+
+  struct TickMsg {};
+
+  struct AckMsg {};
+} // namespace CAN
+
 namespace TX {
   constexpr int MAX_DATA_LENGTH = 512;
 
@@ -137,6 +163,7 @@ namespace TC {
   struct TXReady {};
   struct TX {
     MRKCmd mrk;
+    uint32_t delay_ticks = 0;
   };
 
   struct RX {
@@ -163,17 +190,17 @@ struct ErrorMsg {
 
 struct TaskExitMsg {};
 
-using Message =
-    std::variant<NS::RegisterMsg, NS::WhoIsMsg, NS::RegisterReplyMsg,
-                 NS::WhoIsReplyMsg, RPS::SetupMsg, RPS::PlayMsg, RPS::QuitMsg,
-                 RPS::PlayReadyMsg, RPS::PlayResultMsg, RPS::QuitAckMsg,
-                 CS::TimeMsg, CS::TimeReplyMsg, CS::DelayMsg, CS::DelayUntilMsg,
-                 CS::DelayReplyMsg, CS::TickMsg, FUT::ClientParamRequestMsg,
-                 FUT::ClientInitMsg, TX::SendMsg, TX::InterruptMsg,
-                 TX::ReplyMsg, RX::GetcMsg, RX::GetcReplyMsg, RX::InterruptMsg,
-                 RX::InterruptReplyMsg, ErrorMsg, TaskExitMsg, TC::UIReady,
-                 TC::UIUpdate, TC::CLICmdReady, TC::CLICmd, TC::CLIInput,
-                 TC::TX, TC::RX, TC::TXReady, TC::Ack>;
+using Message = std::variant<
+    NS::RegisterMsg, NS::WhoIsMsg, NS::RegisterReplyMsg, NS::WhoIsReplyMsg,
+    RPS::SetupMsg, RPS::PlayMsg, RPS::QuitMsg, RPS::PlayReadyMsg,
+    RPS::PlayResultMsg, RPS::QuitAckMsg, CS::TimeMsg, CS::TimeReplyMsg,
+    CS::DelayMsg, CS::DelayUntilMsg, CS::DelayReplyMsg, CS::TickMsg,
+    CAN::SendMsg, CAN::DelayMsg, CAN::DelayUntilMsg, CAN::TXReadyMsg,
+    CAN::TXMsg, CAN::TickMsg, CAN::AckMsg, FUT::ClientParamRequestMsg,
+    FUT::ClientInitMsg, TX::SendMsg, TX::InterruptMsg, TX::ReplyMsg,
+    RX::GetcMsg, RX::GetcReplyMsg, RX::InterruptMsg, RX::InterruptReplyMsg,
+    ErrorMsg, TaskExitMsg, TC::UIReady, TC::UIUpdate, TC::CLICmdReady,
+    TC::CLICmd, TC::CLIInput, TC::TX, TC::RX, TC::TXReady, TC::Ack>;
 
 static_assert(std::is_trivially_copyable<Message>::value,
               "MessageVar must be trivially copyable");
