@@ -3,6 +3,7 @@
 #include "io_helpers.h"
 #include "kernel_state.h"
 #include "name_server.h"
+#include "pathfind.h"
 #include "rx_server.h"
 #include "shell.h"
 #include "syscall.h"

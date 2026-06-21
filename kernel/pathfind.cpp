@@ -1,0 +1,190 @@
+#include "pathfind.h"
+
+#include "debug.h"
+#include "uart.h"
+#include <climits>
+
+static constexpr int INF = INT_MAX / 2;
+
+track_node Pathfind::track[TRACK_MAX];
+
+Pathfind::Pathfind(char track_layout) {
+  if (track_layout == 'b')
+    init_trackb(track);
+  else
+    init_tracka(track);
+
+  for (int node_idx = 0; node_idx < TRACK_MAX; ++node_idx) {
+    if (track[node_idx].name != nullptr && track[node_idx].name[0] != '\0')
+      node_to_idx.set(StaticString<8>(track[node_idx].name), node_idx);
+  }
+}
+
+std::optional<int> Pathfind::get_idx(const char *name) const {
+  StaticString<8> node_name(name);
+  return node_to_idx.get(node_name);
+}
+
+bool Pathfind::can_visit(int node_idx) const {
+  (void)node_idx;
+  // use if we want to block particular nodes in the future.
+  return true;
+}
+
+void Pathfind::relax(int from_idx, int from_dist, int to_idx, int edge_dist,
+                     int best_dist[TRACK_MAX], int predecessor[TRACK_MAX],
+                     Heap<std::pair<int, int>, TRACK_MAX> &frontier) const {
+  if (!can_visit(to_idx))
+    return;
+
+  int new_dist = from_dist + edge_dist;
+  if (new_dist < best_dist[to_idx]) {
+    best_dist[to_idx]   = new_dist;
+    predecessor[to_idx] = from_idx;
+    frontier.push({new_dist, to_idx});
+  }
+}
+
+std::optional<PathResult>
+Pathfind::build_path(int start_idx, int goal_idx,
+                     const int best_dist[TRACK_MAX],
+                     const int predecessor[TRACK_MAX]) const {
+  (void)start_idx;
+
+  if (best_dist[goal_idx] >= INF)
+    return std::nullopt;
+
+  size_t path_len = 0;
+  for (int node_idx = goal_idx; node_idx != -1;
+       node_idx     = predecessor[node_idx])
+    ++path_len;
+
+  PathResult result{};
+  result.dist = best_dist[goal_idx];
+  result.len  = path_len;
+
+  size_t write_idx = path_len;
+  for (int node_idx = goal_idx; node_idx != -1;
+       node_idx     = predecessor[node_idx])
+    result.nodes[--write_idx] = node_idx;
+
+  return result;
+}
+
+std::optional<PathResult> Pathfind::shortest_path(int start_idx, int goal_idx,
+                                                  bool allow_reverse) const {
+  if (start_idx < 0 || start_idx >= TRACK_MAX || goal_idx < 0 ||
+      goal_idx >= TRACK_MAX)
+    return std::nullopt;
+
+  if (start_idx == goal_idx) {
+    PathResult result{};
+    result.dist     = 0;
+    result.len      = 1;
+    result.nodes[0] = start_idx;
+    return result;
+  }
+
+  int best_dist[TRACK_MAX];
+  int predecessor[TRACK_MAX];
+
+  for (int node_idx = 0; node_idx < TRACK_MAX; ++node_idx) {
+    best_dist[node_idx]   = INF;
+    predecessor[node_idx] = -1;
+  }
+
+  best_dist[start_idx] = 0;
+  Heap<std::pair<int, int>, TRACK_MAX> frontier;
+  frontier.push({0, start_idx});
+
+  while (!frontier.is_empty()) {
+    auto [pop_dist, curr_idx] = frontier.pop().value();
+    if (pop_dist > best_dist[curr_idx])
+      continue;
+    if (curr_idx == goal_idx)
+      break;
+
+    const track_node &curr_node = track[curr_idx];
+    int curr_dist               = best_dist[curr_idx];
+
+    switch (curr_node.type) {
+    case NODE_SENSOR:
+    case NODE_MERGE:
+    case NODE_ENTER:
+      relax(curr_idx, curr_dist, node_index(curr_node.edge[DIR_AHEAD].dest),
+            curr_node.edge[DIR_AHEAD].dist, best_dist, predecessor, frontier);
+      break;
+
+    case NODE_BRANCH:
+      relax(curr_idx, curr_dist, node_index(curr_node.edge[DIR_STRAIGHT].dest),
+            curr_node.edge[DIR_STRAIGHT].dist, best_dist, predecessor,
+            frontier);
+      relax(curr_idx, curr_dist, node_index(curr_node.edge[DIR_CURVED].dest),
+            curr_node.edge[DIR_CURVED].dist, best_dist, predecessor, frontier);
+      break;
+
+    case NODE_EXIT:
+      break;
+
+    default:
+      break;
+    }
+
+    if (allow_reverse) {
+      relax(curr_idx, curr_dist, node_index(curr_node.reverse), REVERSE_COST,
+            best_dist, predecessor, frontier);
+    }
+  }
+
+  return build_path(start_idx, goal_idx, best_dist, predecessor);
+}
+
+std::optional<PathResult> Pathfind::shortest_path(const char *from,
+                                                  const char *to,
+                                                  bool allow_reverse) const {
+  auto start_idx = get_idx(from);
+  auto goal_idx  = get_idx(to);
+  if (!start_idx.has_value() || !goal_idx.has_value())
+    return std::nullopt;
+
+  return shortest_path(start_idx.value(), goal_idx.value(), allow_reverse);
+}
+
+const char *Pathfind::node_name(int node_idx) const {
+  if (node_idx < 0 || node_idx >= TRACK_MAX)
+    return "?";
+  const char *name = track[node_idx].name;
+  return (name != nullptr && name[0] != '\0') ? name : "?";
+}
+
+static void print_path(const Pathfind &pathfind, const char *label,
+                       const std::optional<PathResult> &path) {
+  if (!path.has_value()) {
+    debug_printf(CONSOLE, "%s: no path\n\r", label);
+    return;
+  }
+
+  debug_printf(CONSOLE, "%s: dist=%d len=%zu ", label, path->dist, path->len);
+  for (size_t step = 0; step < path->len; ++step) {
+    debug_printf(CONSOLE, "%s", pathfind.node_name(path->nodes[step]));
+    if (step + 1 < path->len)
+      debug_puts(CONSOLE, " -> ");
+  }
+  debug_puts(CONSOLE, "\n\r");
+}
+
+void test_pathfind() {
+  debug_puts(CONSOLE, "pathfind tests\n\r");
+
+  Pathfind track_a('a');
+  print_path(track_a, "A1->A13", track_a.shortest_path("A1", "A13", true));
+  print_path(track_a, "A13->A1", track_a.shortest_path("A13", "A1"));
+  print_path(track_a, "A1->E16", track_a.shortest_path("A1", "E16"));
+  print_path(track_a, "A1->A1", track_a.shortest_path("A1", "A1"));
+  print_path(track_a, "A1->ZZZ", track_a.shortest_path("A1", "ZZZ"));
+
+  // Pathfind track_b('b');
+  // print_path(track_b, "B1->B16", track_b.shortest_path("B1", "B16"));
+
+  debug_puts(CONSOLE, "pathfind tests done\n\r");
+}
