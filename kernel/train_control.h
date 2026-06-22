@@ -18,7 +18,6 @@ template <size_t TX_BUFFER_SIZE = 64> class TrainControlServer {
 
   State state{};
   static void tx_can_worker();
-  static void rx_can_worker();
 
   void send_waiting_can_tx_worker_if_pending() {
     if (waiting_can_tx_worker_tid < 0 || tx_buf.is_empty()) {
@@ -116,7 +115,6 @@ public:
     auto response = RegisterAs(TC_SERVER_NAME);
     _assert(response == 0, "TC_SERVER_NAME REGISTERAS FAILED");
 
-    create(2, rx_can_worker);
     create(2, tx_can_worker);
 
     expand_user_command(UserCmd::RemoveTrains{});

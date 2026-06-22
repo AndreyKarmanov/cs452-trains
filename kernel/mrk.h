@@ -253,3 +253,18 @@ inline MRKCmd decode_frame(const CANFRAME &frame) {
     return UnknownCmd(frame);
   }
 }
+
+inline bool is_mrk_response_to(const CANFRAME &sent, const CANFRAME &recv) {
+  if (sent.resp != 0 || recv.resp != 1) {
+    return false;
+  }
+  if (sent.cmdid != recv.cmdid || sent.dlc != recv.dlc) {
+    return false;
+  }
+  for (uint8_t i = 0; i < sent.dlc; ++i) {
+    if (sent.data[i] != recv.data[i]) {
+      return false;
+    }
+  }
+  return true;
+}

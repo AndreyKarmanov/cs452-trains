@@ -1,4 +1,5 @@
 #include "train_ui_server.h"
+#include "can_rx_server.h"
 #include "can_server.h"
 #include "clock_server.h"
 #include "mrk.h"
@@ -346,6 +347,7 @@ void train_controller_program_task() {
   _assert(tx_tid >= 0, "TX SERVER WHOIS FAILED");
   Puts(tx_tid, "\033[2J\033[1;1H");
 
+  create(2, can_rx_server_task);
   create(2, can_server_task);
   create(2, train_control_server_task);
   create(3, train_ui_server_task);

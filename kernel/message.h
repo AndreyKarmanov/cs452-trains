@@ -147,6 +147,26 @@ namespace RX {
   struct InterruptReplyMsg {};
 } // namespace RX
 
+namespace CRX {
+  struct PaceRegisterMsg {
+    CANFRAME frame;
+  };
+
+  struct PaceAwaitMsg {};
+
+  struct AckMsg {};
+
+  struct InterruptMsg {};
+
+  struct InterruptReplyMsg {};
+
+  struct ForwardReadyMsg {};
+
+  struct ForwardMsg {
+    MRKCmd mrk;
+  };
+} // namespace CRX
+
 namespace FUT {
   struct ClientParamRequestMsg {};
   struct ClientInitMsg {
@@ -210,7 +230,10 @@ using Message =
                  CAN::AckMsg, FUT::ClientParamRequestMsg, FUT::ClientInitMsg,
                  TX::SendMsg, TX::InterruptMsg, TX::ReplyMsg, RX::GetcMsg,
                  RX::GetcReplyMsg, RX::InterruptMsg, RX::InterruptReplyMsg,
-                 ErrorMsg, TaskExitMsg, TC::UIReady, TC::UIUpdate,
+                 CRX::PaceRegisterMsg, CRX::PaceAwaitMsg, CRX::AckMsg,
+                 CRX::InterruptMsg, CRX::InterruptReplyMsg, CRX::ForwardReadyMsg,
+                 CRX::ForwardMsg, ErrorMsg,
+                 TaskExitMsg, TC::UIReady, TC::UIUpdate,
                  TC::CLICmdReady, TC::CLICmd, TC::CLIInput, TC::TX, TC::RX,
                  TC::TXReady, TC::Ack, TC::UIPrint, TC::UIPrintReady>;
 

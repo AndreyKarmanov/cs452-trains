@@ -21,20 +21,3 @@ template <> void TrainControlServer<>::tx_can_worker() {
     _assert(send_result == 0, "CAN COURRIER SEND FAILED");
   }
 }
-
-template <> void TrainControlServer<>::rx_can_worker() {
-  auto tcs_tid = WhoIs(TrainControlServer<>::TC_SERVER_NAME);
-  _assert(tcs_tid >= 0, "TC SERVER NOT FOUND");
-
-  CANFRAME frame{};
-  TC::RX msg{};
-  while (true) {
-    await_event(Event::CAN_RX_IRQ);
-    rx_can(frame);
-    msg.mrk         = decode_frame(frame);
-    auto cans_reply = send<TC::Ack>(tcs_tid, msg);
-    if (!cans_reply.has_value()) {
-      break;
-    }
-  }
-}

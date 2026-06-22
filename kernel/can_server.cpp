@@ -1,18 +1,32 @@
 #include "can_server.h"
+#include "can_rx_server.h"
 #include "clock_server.h"
 
 template <> void CanServer<>::tx_can_worker() {
   auto can_tid = WhoIs(CanServer<>::CAN_SERVER_NAME);
   _assert(can_tid >= 0, "CAN SERVER WHOIS FAILED");
 
+  auto can_rx_tid = WhoIs(CAN_RxServer::CAN_RX_SERVER_NAME);
+  _assert(can_rx_tid >= 0, "CAN RX SERVER WHOIS FAILED");
+
   while (true) {
+    // get next frame to send
     auto rcv_msg = send<CAN::TXMsg>(can_tid, CAN::TXReadyMsg{});
     if (!rcv_msg.has_value()) {
       break;
     }
 
+    // notify can receiver of message that will be sent
+    auto pace_register = send<CRX::AckMsg>(
+        can_rx_tid, CRX::PaceRegisterMsg{.frame = rcv_msg->frame});
+    _assert(pace_register.has_value(), "CAN PACE REGISTER FAILED");
+
     await_event(Event::CAN_TX_IRQ);
     tx_can(rcv_msg->frame);
+
+    // wait for can receiver to ack sent message
+    auto pace_await = send<CRX::AckMsg>(can_rx_tid, CRX::PaceAwaitMsg{});
+    _assert(pace_await.has_value(), "CAN PACE AWAIT FAILED");
   }
 }
 
