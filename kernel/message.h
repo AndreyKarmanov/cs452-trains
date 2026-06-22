@@ -192,7 +192,7 @@ namespace TC {
   struct TXReady {};
   struct TX {
     MRKCmd mrk;
-    uint32_t delay_ticks = 0;
+    // uint32_t delay_ticks = 0;
   };
 
   struct RX {
@@ -220,22 +220,20 @@ struct ErrorMsg {
 
 struct TaskExitMsg {};
 
-using Message =
-    std::variant<NS::RegisterMsg, NS::WhoIsMsg, NS::RegisterReplyMsg,
-                 NS::WhoIsReplyMsg, RPS::SetupMsg, RPS::PlayMsg, RPS::QuitMsg,
-                 RPS::PlayReadyMsg, RPS::PlayResultMsg, RPS::QuitAckMsg,
-                 CS::TimeMsg, CS::TimeReplyMsg, CS::DelayMsg, CS::DelayUntilMsg,
-                 CS::DelayReplyMsg, CS::TickMsg, CAN::SendMsg, CAN::DelayMsg,
-                 CAN::DelayUntilMsg, CAN::TXReadyMsg, CAN::TXMsg, CAN::TickMsg,
-                 CAN::AckMsg, FUT::ClientParamRequestMsg, FUT::ClientInitMsg,
-                 TX::SendMsg, TX::InterruptMsg, TX::ReplyMsg, RX::GetcMsg,
-                 RX::GetcReplyMsg, RX::InterruptMsg, RX::InterruptReplyMsg,
-                 CRX::PaceRegisterMsg, CRX::PaceAwaitMsg, CRX::AckMsg,
-                 CRX::InterruptMsg, CRX::InterruptReplyMsg, CRX::ForwardReadyMsg,
-                 CRX::ForwardMsg, ErrorMsg,
-                 TaskExitMsg, TC::UIReady, TC::UIUpdate,
-                 TC::CLICmdReady, TC::CLICmd, TC::CLIInput, TC::TX, TC::RX,
-                 TC::TXReady, TC::Ack, TC::UIPrint, TC::UIPrintReady>;
+using Message = std::variant<
+    NS::RegisterMsg, NS::WhoIsMsg, NS::RegisterReplyMsg, NS::WhoIsReplyMsg,
+    RPS::SetupMsg, RPS::PlayMsg, RPS::QuitMsg, RPS::PlayReadyMsg,
+    RPS::PlayResultMsg, RPS::QuitAckMsg, CS::TimeMsg, CS::TimeReplyMsg,
+    CS::DelayMsg, CS::DelayUntilMsg, CS::DelayReplyMsg, CS::TickMsg,
+    CAN::SendMsg, CAN::DelayMsg, CAN::DelayUntilMsg, CAN::TXReadyMsg,
+    CAN::TXMsg, CAN::TickMsg, CAN::AckMsg, FUT::ClientParamRequestMsg,
+    FUT::ClientInitMsg, TX::SendMsg, TX::InterruptMsg, TX::ReplyMsg,
+    RX::GetcMsg, RX::GetcReplyMsg, RX::InterruptMsg, RX::InterruptReplyMsg,
+    CRX::PaceRegisterMsg, CRX::PaceAwaitMsg, CRX::AckMsg, CRX::InterruptMsg,
+    CRX::InterruptReplyMsg, CRX::ForwardReadyMsg, CRX::ForwardMsg, ErrorMsg,
+    TaskExitMsg, TC::UIReady, TC::UIUpdate, TC::CLICmdReady, TC::CLICmd,
+    TC::CLIInput, TC::TX, TC::RX, TC::TXReady, TC::Ack, TC::UIPrint,
+    TC::UIPrintReady>;
 
 static_assert(std::is_trivially_copyable<Message>::value,
               "MessageVar must be trivially copyable");

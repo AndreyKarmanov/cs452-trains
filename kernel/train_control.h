@@ -49,10 +49,12 @@ template <size_t TX_BUFFER_SIZE = 64> class TrainControlServer {
               return;
             }
             tx_buf.push(TC::TX{.mrk = SpeedCmd(cmd.id, 0)});
-            tx_buf.push(TC::TX{.mrk         = DirectionCmd(cmd.id, !cmd.flag),
-                               .delay_ticks = 10 * TICKS_PER_S});
-            tx_buf.push(TC::TX{.mrk = SpeedCmd(cmd.id, loco.requested_speed),
-                               .delay_ticks = 10 * TICKS_PER_S});
+            tx_buf.push(TC::TX{
+                .mrk = DirectionCmd(cmd.id, !cmd.flag),
+            });
+            tx_buf.push(TC::TX{
+                .mrk = SpeedCmd(cmd.id, loco.requested_speed),
+            });
           } else if constexpr (std::is_same_v<Command, UserCmd::Stop>) {
             tx_buf.push(TC::TX{.mrk = ControlCmd(ControlCmd::CMD_STOP)});
           } else if constexpr (std::is_same_v<Command, UserCmd::Go>) {
@@ -65,22 +67,18 @@ template <size_t TX_BUFFER_SIZE = 64> class TrainControlServer {
 
             for (const Train &train : default_state.trains) {
               tx_buf.push(
-                  TC::TX{.mrk         = LightCmd(train.loco_id, train.light_on),
-                         .delay_ticks = TICKS_PER_MS * 5u * train.loco_id});
+                  TC::TX{.mrk = LightCmd(train.loco_id, train.light_on)});
+              tx_buf.push(TC::TX{
+                  .mrk = SpeedCmd(train.loco_id, train.requested_speed)});
               tx_buf.push(
-                  TC::TX{.mrk = SpeedCmd(train.loco_id, train.requested_speed),
-                         .delay_ticks = TICKS_PER_MS * 5u * train.loco_id});
-              tx_buf.push(
-                  TC::TX{.mrk = DirectionCmd(train.loco_id, train.backward),
-                         .delay_ticks = TICKS_PER_MS * 5u * train.loco_id});
+                  TC::TX{.mrk = DirectionCmd(train.loco_id, train.backward)});
             }
 
             for (uint32_t sw_id = 0; sw_id < 22; ++sw_id) {
               tx_buf.push(
                   TC::TX{.mrk = SwitchCmd(State::switch_id(sw_id),
                                           default_state.is_switch_straight(
-                                              State::switch_id(sw_id))),
-                         .delay_ticks = TICKS_PER_MS * 45u * sw_id});
+                                              State::switch_id(sw_id)))});
             }
 
           } else if constexpr (std::is_same_v<Command, UserCmd::RemoveTrains>) {

@@ -15,9 +15,7 @@ template <> void TrainControlServer<>::tx_can_worker() {
     }
 
     auto frame      = encode_frame(tx_msg->mrk);
-    int send_result = tx_msg->delay_ticks > 0
-                          ? CanDelay(can_tid, frame, tx_msg->delay_ticks)
-                          : CanSend(can_tid, frame);
+    int send_result = CanSend(can_tid, frame);
     _assert(send_result == 0, "CAN COURRIER SEND FAILED");
   }
 }
