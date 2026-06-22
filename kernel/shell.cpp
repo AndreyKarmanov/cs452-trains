@@ -1,5 +1,6 @@
 #include <ctype.h>
 
+#include "behaviour_tree.h"
 #include "clock_server.h"
 #include "debug.h"
 #include "heap.h"
@@ -8,11 +9,11 @@
 #include "map.h"
 #include "mcp2515.h"
 #include "name_server.h"
-#include "uart_rx_server.h"
 #include "shell.h"
 #include "syscall.h"
 #include "test.h"
 #include "train_ui_server.h"
+#include "uart_rx_server.h"
 #include "uart_tx_server.h"
 #include "util.h"
 #include <cstddef>
@@ -175,6 +176,8 @@ static void fire_command(char *buf, size_t blen, int tx_tid) {
   } else if (strncmp(cmd, "train", 5) == 0) {
     create(1, train_controller_program_task);
     await_event(Event::NEVER);
+  } else if (strncmp(cmd, "tree", 4) == 0) {
+    test_tree();
   } else {
     Puts(tx_tid, "Unknown: p (parent tid), "
                  "m (my tid), y (yield), c (create), d (dump memory), "
@@ -183,8 +186,8 @@ static void fire_command(char *buf, size_t blen, int tx_tid) {
 }
 
 void shell_task() {
-  int rx_tid = WhoIs(RX_Server::RX_SERVER_NAME);
-  int tx_tid = WhoIs(TX_Server::TX_SERVER_NAME);
+  int rx_tid = WhoIs(UART_RX_Server::RX_SERVER_NAME);
+  int tx_tid = WhoIs(UART_TX_Server::TX_SERVER_NAME);
   _assert(rx_tid >= 0, "SHELL: RX SERVER WHOIS FAILED");
   _assert(tx_tid >= 0, "SHELL: TX SERVER WHOIS FAILED");
   Puts(tx_tid, "\033[2J\033[?25l\033[2;1H" __DATE__ " / " __TIME__

@@ -4,11 +4,11 @@
 #include "debug.h"
 #include "name_server.h"
 
-class TX_Server {
+class UART_TX_Server {
 public:
   static constexpr auto TX_SERVER_NAME = "TXSERVER";
 
-  TX_Server() {
+  UART_TX_Server() {
     auto response = RegisterAs(TX_SERVER_NAME);
     _assert(response == 0, "TX SERVER REGISTERAS FAILED");
   }

@@ -42,7 +42,7 @@ public:
     // register with name server
     RegisterAs(RPS_SERVER_NAME);
 
-    tx_tid = WhoIs(TX_Server::TX_SERVER_NAME);
+    tx_tid = WhoIs(UART_TX_Server::TX_SERVER_NAME);
     _assert(tx_tid >= 0, "TX SERVER WHOIS FAILED");
 
     // initialize players to game ptrs to -1 (no players)

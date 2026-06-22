@@ -51,7 +51,7 @@ int DelayUntil(int tid, uint32_t ticks) {
 void test_clock_server() {
   auto cs_tid = WhoIs(ClockServer<>::CLOCK_SERVER_NAME);
 
-  int tx_tid = WhoIs(TX_Server::TX_SERVER_NAME);
+  int tx_tid = WhoIs(UART_TX_Server::TX_SERVER_NAME);
 
   auto time = Time(cs_tid);
   Printf(tx_tid, "Current time: %d ticks\n\r", time);
@@ -67,7 +67,7 @@ void test_clock_client_task() {
 
   int tid      = my_tid();
   int p_tid    = my_parent_tid();
-  int tx_tid   = WhoIs(TX_Server::TX_SERVER_NAME);
+  int tx_tid   = WhoIs(UART_TX_Server::TX_SERVER_NAME);
   auto rcv_msg = send<FUT::ClientInitMsg>(p_tid, FUT::ClientParamRequestMsg{});
 
   _assert(rcv_msg.has_value(), "clock client task did not receive param msg");

@@ -18,7 +18,7 @@ void State::update_from_mrk(const MRKCmd &cmd) {
 
         if constexpr (std::is_same_v<Command, LightCmd>) {
           trains_dirty = true;
-          for (Train &train : trains) {
+          for (TrainState &train : trains) {
             if (train.loco_id == command.loco_id) {
               train.light_on = command.value;
               return;
@@ -26,7 +26,7 @@ void State::update_from_mrk(const MRKCmd &cmd) {
           }
         } else if constexpr (std::is_same_v<Command, SpeedCmd>) {
           trains_dirty = true;
-          for (Train &train : trains) {
+          for (TrainState &train : trains) {
             if (train.loco_id == command.loco_id) {
               train.requested_speed = command.speed;
               return;
@@ -34,7 +34,7 @@ void State::update_from_mrk(const MRKCmd &cmd) {
           }
         } else if constexpr (std::is_same_v<Command, DirectionCmd>) {
           trains_dirty = true;
-          for (Train &train : trains) {
+          for (TrainState &train : trains) {
             if (train.loco_id == command.loco_id) {
               train.backward = command.backward;
               return;
@@ -83,7 +83,7 @@ void State::update_from_mrk(const MRKCmd &cmd) {
             }
             break;
           case ControlCmd::CMD_HALT:
-            for (Train &train : trains) {
+            for (TrainState &train : trains) {
               train.requested_speed = 0;
             }
             break;
@@ -99,7 +99,7 @@ void apply_state(const State &state) {
   // stop all trains first
   mcp2515_send(ControlCmd(ControlCmd::CMD_HALT).to_frame());
 
-  for (const Train &train : state.trains) {
+  for (const TrainState &train : state.trains) {
     mcp2515_send(LightCmd(train.loco_id, train.light_on).to_frame(),
                  train.loco_id * 1'000);
     mcp2515_send(SpeedCmd(train.loco_id, train.requested_speed).to_frame(),

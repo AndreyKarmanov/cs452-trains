@@ -10,7 +10,7 @@ void sysinfo_task() {
   static constexpr uint32_t UPDATE_INTERVAL_TICKS = TICKS_PER_S / 10;
   static constexpr int SYSINFO_ROW                = 1;
   auto cs_tid = WhoIs(ClockServer<>::CLOCK_SERVER_NAME);
-  auto tx_tid = WhoIs(TX_Server::TX_SERVER_NAME);
+  auto tx_tid = WhoIs(UART_TX_Server::TX_SERVER_NAME);
   auto ticks  = Time(cs_tid);
 
   while (true) {

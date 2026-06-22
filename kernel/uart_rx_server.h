@@ -4,12 +4,12 @@
 #include "debug.h"
 #include "name_server.h"
 
-class RX_Server {
+class UART_RX_Server {
 public:
   static constexpr auto RX_SERVER_NAME   = "RXSERVER";
   static constexpr size_t RX_BUFFER_SIZE = 1024;
 
-  RX_Server() {
+  UART_RX_Server() {
     auto response = RegisterAs(RX_SERVER_NAME);
     _assert(response == 0, "RX SERVER REGISTERAS FAILED");
   }

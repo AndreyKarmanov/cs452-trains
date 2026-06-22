@@ -3,9 +3,9 @@
 #include "can_server.h"
 #include "clock_server.h"
 #include "mrk.h"
-#include "uart_rx_server.h"
 #include "time.h"
 #include "train_control.h"
+#include "uart_rx_server.h"
 
 namespace {
 
@@ -186,7 +186,7 @@ uint32_t print_state(int tx_tid, const State &state,
 
   if (state.trains_dirty) {
     line.set("\033[", TRAIN_ROW, ";2HTrain | Dir | Lamp | Speed \n\r");
-    for (const Train &train : state.trains) {
+    for (const TrainState &train : state.trains) {
       line.append("\033[K   ", train.loco_id, "  | ",
                   train.backward ? "Rev" : "Fwd", " | ",
                   train.light_on ? " On " : " Off", " | ",
@@ -273,7 +273,7 @@ template <> void TrainUIServer<>::ui_print_worker() {
   auto tcs_tid = WhoIs(TrainUIServer<>::TC_UI_SERVER_NAME);
   _assert(tcs_tid >= 0, "TC SERVER NOT FOUND");
 
-  auto tx_tid = WhoIs(TX_Server::TX_SERVER_NAME);
+  auto tx_tid = WhoIs(UART_TX_Server::TX_SERVER_NAME);
   _assert(tx_tid >= 0, "TX SERVER WHOIS FAILED");
 
   while (true) {
@@ -343,7 +343,7 @@ static void train_control_server_task() {
 }
 
 void train_controller_program_task() {
-  auto tx_tid = WhoIs(TX_Server::TX_SERVER_NAME);
+  auto tx_tid = WhoIs(UART_TX_Server::TX_SERVER_NAME);
   _assert(tx_tid >= 0, "TX SERVER WHOIS FAILED");
   Puts(tx_tid, "\033[2J\033[1;1H");
 

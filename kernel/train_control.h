@@ -65,7 +65,7 @@ template <size_t TX_BUFFER_SIZE = 64> class TrainControlServer {
             tx_buf.push(
                 TC::TX{.mrk = ControlCmd(ControlCmd::CMD_REMOVE_TRAINS)});
 
-            for (const Train &train : default_state.trains) {
+            for (const TrainState &train : default_state.trains) {
               tx_buf.push(
                   TC::TX{.mrk = LightCmd(train.loco_id, train.light_on)});
               tx_buf.push(TC::TX{

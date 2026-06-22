@@ -4,7 +4,7 @@
 #include "uart.h"
 
 static void rx_notifier_task() {
-  int rx_tid = WhoIs(RX_Server::RX_SERVER_NAME);
+  int rx_tid = WhoIs(UART_RX_Server::RX_SERVER_NAME);
   _assert(rx_tid >= 0, "RX SERVER WHOIS FAILED");
 
   while (true) {
@@ -15,7 +15,7 @@ static void rx_notifier_task() {
 }
 
 void uart_rx_server_task() {
-  RX_Server uart_rx_server;
+  UART_RX_Server uart_rx_server;
   create(2, rx_notifier_task);
   while (true) {
     uart_rx_server.run();
@@ -23,7 +23,7 @@ void uart_rx_server_task() {
   }
 }
 
-void RX_Server::try_reply_getc() {
+void UART_RX_Server::try_reply_getc() {
   if (waiting_getc_tid < 0 || rx_buffer.is_empty()) {
     return;
   }
@@ -35,7 +35,7 @@ void RX_Server::try_reply_getc() {
   waiting_getc_tid = -1;
 }
 
-void RX_Server::handle(const int tid, const RX::InterruptMsg &) {
+void UART_RX_Server::handle(const int tid, const RX::InterruptMsg &) {
   while (can_receive_io()) {
     _assert(rx_buffer.push(getc()), "RX SERVER: BUFFER FULL");
   }
@@ -48,7 +48,7 @@ void RX_Server::handle(const int tid, const RX::InterruptMsg &) {
   try_reply_getc();
 }
 
-void RX_Server::handle(const int tid, const RX::GetcMsg &) {
+void UART_RX_Server::handle(const int tid, const RX::GetcMsg &) {
   if (!rx_buffer.is_empty()) {
     auto c = rx_buffer.pop();
     _assert(c.has_value(), "RX SERVER: GETC POP FAILED");
@@ -59,7 +59,7 @@ void RX_Server::handle(const int tid, const RX::GetcMsg &) {
   }
 }
 
-void RX_Server::run() {
+void UART_RX_Server::run() {
   int tid;
   Message msg{};
   receive(&tid, msg);

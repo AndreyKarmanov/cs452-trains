@@ -3,7 +3,7 @@
 #include "uart.h"
 
 static void tx_notifier_task() {
-  int tx_tid = WhoIs(TX_Server::TX_SERVER_NAME);
+  int tx_tid = WhoIs(UART_TX_Server::TX_SERVER_NAME);
   _assert(tx_tid >= 0, "TX SERVER WHOIS FAILED");
 
   while (true) {
@@ -17,7 +17,7 @@ static void tx_notifier_task() {
 }
 
 void uart_tx_server_task() {
-  TX_Server uart_tx_server;
+  UART_TX_Server uart_tx_server;
   create(2, tx_notifier_task);
   while (true) {
     uart_tx_server.run();
@@ -25,7 +25,7 @@ void uart_tx_server_task() {
   }
 }
 
-void TX_Server::drain() {
+void UART_TX_Server::drain() {
   while (!tx_buffer.is_empty()) {
     if (!can_transmit_io()) {
       break;
@@ -37,12 +37,12 @@ void TX_Server::drain() {
   buffer_has_pending_tx = !tx_buffer.is_empty();
 }
 
-void TX_Server::reply_to_notifier() {
+void UART_TX_Server::reply_to_notifier() {
   can_reply_to_notifier = false;
   reply(notifier_tid, TX::ReplyMsg{});
 }
 
-void TX_Server::handle(const int tid, const TX::SendMsg &msg) {
+void UART_TX_Server::handle(const int tid, const TX::SendMsg &msg) {
   for (int i = 0; i < msg.len; ++i) {
     tx_buffer.push(msg.data[i]);
   }
@@ -57,7 +57,7 @@ void TX_Server::handle(const int tid, const TX::SendMsg &msg) {
   }
 }
 
-void TX_Server::handle(const int tid, const TX::InterruptMsg &) {
+void UART_TX_Server::handle(const int tid, const TX::InterruptMsg &) {
   notifier_tid          = tid;
   can_reply_to_notifier = true;
   drain();
@@ -70,7 +70,7 @@ void TX_Server::handle(const int tid, const TX::InterruptMsg &) {
   }
 }
 
-void TX_Server::run() {
+void UART_TX_Server::run() {
   int tid;
   Message msg{};
   receive(&tid, msg);

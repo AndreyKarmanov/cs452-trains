@@ -7,7 +7,7 @@
 #define MAX_TRAINS 6
 #define MAX_SENSORS_RECENT 10
 
-struct Train {
+struct TrainState {
   uint32_t loco_id;
 
   uint16_t requested_speed;
@@ -55,9 +55,9 @@ struct State {
   Buffer<uint16_t, MAX_SENSORS_RECENT> sensors{};
 
   // trains
-  Train trains[MAX_TRAINS]{{13, 0, false, true}, {14, 0, false, true},
-                           {15, 0, false, true}, {17, 0, false, true},
-                           {18, 0, false, true}, {55, 0, false, true}};
+  TrainState trains[MAX_TRAINS]{{13, 0, false, true}, {14, 0, false, true},
+                                {15, 0, false, true}, {17, 0, false, true},
+                                {18, 0, false, true}, {55, 0, false, true}};
 
   // track go / stop
   bool stopped : 1        = true;
@@ -67,13 +67,13 @@ struct State {
   bool status_dirty : 1   = true;
 
   void update_from_mrk(const MRKCmd &cmd);
-  Train get_loco(uint32_t loco_id) const {
-    for (const Train &train : trains) {
+  TrainState get_loco(uint32_t loco_id) const {
+    for (const TrainState &train : trains) {
       if (train.loco_id == loco_id) {
         return train;
       }
     }
-    return Train{loco_id, 0, false, false};
+    return TrainState{loco_id, 0, false, false};
   }
 };
 

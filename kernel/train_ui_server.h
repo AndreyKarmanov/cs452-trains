@@ -77,14 +77,14 @@ template <size_t CLI_BUFFER_SIZE = 64> class TrainUIServer {
           using Command = std::decay_t<decltype(cmd)>;
 
           if constexpr (std::is_same_v<Command, UserCmd::Light>) {
-            for (const Train &train : current.trains) {
+            for (const TrainState &train : current.trains) {
               if (train.loco_id == cmd.id) {
                 return train.light_on == cmd.flag;
               }
             }
             return false;
           } else if constexpr (std::is_same_v<Command, UserCmd::Speed>) {
-            for (const Train &train : current.trains) {
+            for (const TrainState &train : current.trains) {
               if (train.loco_id == cmd.id) {
                 return train.requested_speed ==
                        static_cast<uint16_t>(cmd.value);
@@ -96,7 +96,7 @@ template <size_t CLI_BUFFER_SIZE = 64> class TrainUIServer {
                    current.is_switch_straight(static_cast<uint16_t>(cmd.id)) ==
                        cmd.flag;
           } else if constexpr (std::is_same_v<Command, UserCmd::Reverse>) {
-            const Train current_train = current.get_loco(cmd.id);
+            const TrainState current_train = current.get_loco(cmd.id);
             return current_train.backward != cmd.flag;
           } else if constexpr (std::is_same_v<Command, UserCmd::Stop>) {
             return current.stopped;
@@ -110,8 +110,8 @@ template <size_t CLI_BUFFER_SIZE = 64> class TrainUIServer {
             }
 
             for (size_t i = 0; i < MAX_TRAINS; ++i) {
-              const Train &lhs_train = current.trains[i];
-              const Train &rhs_train = default_state.trains[i];
+              const TrainState &lhs_train = current.trains[i];
+              const TrainState &rhs_train = default_state.trains[i];
               if (lhs_train.loco_id != rhs_train.loco_id ||
                   lhs_train.requested_speed != rhs_train.requested_speed ||
                   lhs_train.backward != rhs_train.backward ||
@@ -136,7 +136,7 @@ public:
     auto response = RegisterAs(TC_UI_SERVER_NAME);
     _assert(response == 0, "TC_UI_SERVER_NAME REGISTERAS FAILED");
 
-    tx_tid = WhoIs(TX_Server::TX_SERVER_NAME);
+    tx_tid = WhoIs(UART_TX_Server::TX_SERVER_NAME);
     _assert(tx_tid >= 0, "TX SERVER WHOIS FAILED");
 
     create(4, cli_worker);
