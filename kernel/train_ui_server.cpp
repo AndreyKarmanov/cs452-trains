@@ -149,7 +149,7 @@ template <> UserCmd::Cmd TrainUIServer<>::parse_command() {
   }
 
   out = UserCmd::Invalid{};
-  buf.set("Error: cmds: q, tr, sw, rv, lr, stop, go, reset, clear");
+  buf.set("Error: cmds: q, tr, sw, rv, lr, stop, go, reset, quirk");
   return out;
 }
 
