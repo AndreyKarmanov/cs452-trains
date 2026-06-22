@@ -8,12 +8,12 @@
 #include "map.h"
 #include "mcp2515.h"
 #include "name_server.h"
-#include "rx_server.h"
+#include "uart_rx_server.h"
 #include "shell.h"
 #include "syscall.h"
 #include "test.h"
 #include "train_ui_server.h"
-#include "tx_server.h"
+#include "uart_tx_server.h"
 #include "util.h"
 #include <cstddef>
 #include <cstring>

@@ -2,7 +2,7 @@
 #include "io_helpers.h"
 #include "message.h"
 #include "syscall.h"
-#include "tx_server.h"
+#include "uart_tx_server.h"
 
 template <> void ClockServer<>::clock_tick_task() {
   int cs_tid = WhoIs(ClockServer<>::CLOCK_SERVER_NAME);

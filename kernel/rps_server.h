@@ -3,7 +3,7 @@
 #include "allocator.h"
 #include "message.h"
 #include "name_server.h"
-#include "tx_server.h"
+#include "uart_tx_server.h"
 
 constexpr static char RPS_SERVER_NAME[]      = "RPS_SERVER";
 constexpr static size_t RPS_SERVER_MAX_GAMES = 32;

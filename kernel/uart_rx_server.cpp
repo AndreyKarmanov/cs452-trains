@@ -1,4 +1,4 @@
-#include "rx_server.h"
+#include "uart_rx_server.h"
 #include "message.h"
 #include "syscall.h"
 #include "uart.h"
@@ -14,11 +14,11 @@ static void rx_notifier_task() {
   }
 }
 
-void rx_server_task() {
-  RX_Server rx_server;
+void uart_rx_server_task() {
+  RX_Server uart_rx_server;
   create(2, rx_notifier_task);
   while (true) {
-    rx_server.run();
+    uart_rx_server.run();
     yield();
   }
 }

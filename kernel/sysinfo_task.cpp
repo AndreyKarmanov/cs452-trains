@@ -4,7 +4,7 @@
 #include "name_server.h"
 #include "syscall.h"
 #include "time.h"
-#include "tx_server.h"
+#include "uart_tx_server.h"
 
 void sysinfo_task() {
   static constexpr uint32_t UPDATE_INTERVAL_TICKS = TICKS_PER_S / 10;

@@ -4,7 +4,7 @@
 #include "message.h"
 #include "rps_server.h"
 #include "syscall.h"
-#include "tx_server.h"
+#include "uart_tx_server.h"
 
 RPSClient::RPSClient() {
   tx_tid = WhoIs(TX_Server::TX_SERVER_NAME);

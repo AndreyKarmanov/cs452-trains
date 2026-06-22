@@ -7,7 +7,7 @@
 #include "name_server.h"
 #include "syscall.h"
 #include "train_state.h"
-#include "tx_server.h"
+#include "uart_tx_server.h"
 #include <array>
 #include <cstddef>
 #include <ctype.h>

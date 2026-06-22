@@ -26,4 +26,4 @@ private:
   template <class T> void handle(int tid, const T &) { reply_with_error(tid); }
 };
 
-void rx_server_task();
+void uart_rx_server_task();

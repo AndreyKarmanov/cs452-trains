@@ -4,11 +4,11 @@
 #include "kernel_state.h"
 #include "name_server.h"
 #include "pathfind.h"
-#include "rx_server.h"
+#include "uart_rx_server.h"
 #include "shell.h"
 #include "syscall.h"
 #include "sysinfo_task.h"
-#include "tx_server.h"
+#include "uart_tx_server.h"
 
 #if (defined(PERF_TEST) && PERF_TEST) || (defined(RPS_TEST) && RPS_TEST) ||    \
     (defined(CLOCK_TEST) && CLOCK_TEST)
@@ -21,8 +21,8 @@
 void first_user_task() {
   create(2, name_server_task);
   create(2, clock_server_task);
-  create(2, tx_server_task);
-  create(2, rx_server_task);
+  create(2, uart_tx_server_task);
+  create(2, uart_rx_server_task);
 
 #if defined(RPS_TEST) && RPS_TEST
   int rps_tid = create(1, rps_server_task);

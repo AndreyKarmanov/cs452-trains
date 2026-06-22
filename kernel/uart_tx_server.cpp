@@ -1,4 +1,4 @@
-#include "tx_server.h"
+#include "uart_tx_server.h"
 #include "syscall.h"
 #include "uart.h"
 
@@ -16,11 +16,11 @@ static void tx_notifier_task() {
   }
 }
 
-void tx_server_task() {
-  TX_Server tx_server;
+void uart_tx_server_task() {
+  TX_Server uart_tx_server;
   create(2, tx_notifier_task);
   while (true) {
-    tx_server.run();
+    uart_tx_server.run();
     yield();
   }
 }
