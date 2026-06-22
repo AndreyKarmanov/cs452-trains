@@ -158,7 +158,12 @@ struct SensorData {
 struct ControlCmd {
   static constexpr uint8_t cmdid = 0x00;
 
-  typedef enum { CMD_STOP = 0x00, CMD_GO = 0x01, CMD_HALT = 0x02 } CmdType;
+  typedef enum {
+    CMD_STOP          = 0x00,
+    CMD_GO            = 0x01,
+    CMD_HALT          = 0x02,
+    CMD_REMOVE_TRAINS = 0x04
+  } CmdType;
 
   CmdType type;
 
@@ -211,9 +216,10 @@ namespace UserCmd {
   struct Stop {};
   struct Go {};
   struct Reset {};
+  struct RemoveTrains {};
 
   using Cmd = std::variant<Invalid, Quit, Light, Speed, Switch, Reverse, Stop,
-                           Go, Reset>;
+                           Go, Reset, RemoveTrains>;
 
   constexpr size_t COUNT = std::variant_size<Cmd>::value;
 } // namespace UserCmd

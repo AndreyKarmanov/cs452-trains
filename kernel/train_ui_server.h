@@ -13,10 +13,8 @@
 #include <ctype.h>
 #include <type_traits>
 
-constexpr size_t USER_CMD_TIMING_COUNT = 9;
-
 uint32_t print_state(int tx_tid, const State &state,
-                     const std::array<uint32_t, USER_CMD_TIMING_COUNT> &timings,
+                     const std::array<uint32_t, UserCmd::COUNT> &timings,
                      bool timings_dirty);
 
 template <size_t CLI_BUFFER_SIZE = 64> class TrainUIServer {
@@ -27,10 +25,10 @@ template <size_t CLI_BUFFER_SIZE = 64> class TrainUIServer {
 
   StaticString<CLI_BUFFER_SIZE> buf{};
   Buffer<UserCmd::Cmd, 8> cmd_buf;
-  std::array<PendingTiming, USER_CMD_TIMING_COUNT> pending_timings{};
+  std::array<PendingTiming, UserCmd::COUNT> pending_timings{};
 
   State state{};
-  std::array<uint32_t, USER_CMD_TIMING_COUNT> command_timings{};
+  std::array<uint32_t, UserCmd::COUNT> command_timings{};
   bool timings_dirty = true;
 
   int tx_tid;

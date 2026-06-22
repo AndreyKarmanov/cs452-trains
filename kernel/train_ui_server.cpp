@@ -1,6 +1,7 @@
 #include "train_ui_server.h"
 #include "can_server.h"
 #include "clock_server.h"
+#include "mrk.h"
 #include "rx_server.h"
 #include "time.h"
 #include "train_control.h"
@@ -141,8 +142,14 @@ template <> UserCmd::Cmd TrainUIServer<>::parse_command() {
     return out;
   }
 
+  if (cmd_len == 5 && strncmp(cmd, "quirk", 5) == 0 && done_parse(cur, end)) {
+    out = UserCmd::RemoveTrains{};
+    buf.set("Success: quirk (marlin quirk clear)");
+    return out;
+  }
+
   out = UserCmd::Invalid{};
-  buf.set("Error: cmds: q, tr, sw, rv, lr, stop, go, reset");
+  buf.set("Error: cmds: q, tr, sw, rv, lr, stop, go, reset, clear");
   return out;
 }
 
@@ -164,7 +171,7 @@ static constexpr const char *cmd_name_for_index(size_t index) {
 }
 
 uint32_t print_state(int tx_tid, const State &state,
-                     const std::array<uint32_t, USER_CMD_TIMING_COUNT> &timings,
+                     const std::array<uint32_t, UserCmd::COUNT> &timings,
                      bool timings_dirty) {
   uint32_t draws = 0;
   StaticString<512> line;
