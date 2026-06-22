@@ -43,7 +43,19 @@ void State::update_from_mrk(const MRKCmd &cmd) {
         } else if constexpr (std::is_same_v<Command, SwitchCmd>) {
           switches_dirty = true;
           if (State::is_switch_id(command.sw_id)) {
+            // special case for sw 153/154 and 155/156
+            // if 153 is curved, 154 must be straight, and v.v., same for
+            // 155/156
             set_switch(command.sw_id, command.straight);
+            if (command.sw_id == 153) {
+              set_switch(154, true);
+            } else if (command.sw_id == 154) {
+              set_switch(153, true);
+            } else if (command.sw_id == 155) {
+              set_switch(156, true);
+            } else if (command.sw_id == 156) {
+              set_switch(155, true);
+            }
           }
         } else if constexpr (std::is_same_v<Command, SensorData>) {
           if (command.new_state) {

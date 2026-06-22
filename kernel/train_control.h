@@ -61,7 +61,9 @@ template <size_t TX_BUFFER_SIZE = 64> class TrainControlServer {
           } else if constexpr (std::is_same_v<Command, UserCmd::Reset>) {
             State default_state{};
 
-            // tx_buf.push(TC::TX{.mrk = ControlCmd(ControlCmd::CMD_HALT)});
+            tx_buf.push(
+                TC::TX{.mrk = ControlCmd(ControlCmd::CMD_REMOVE_TRAINS)});
+
             for (const Train &train : default_state.trains) {
               tx_buf.push(
                   TC::TX{.mrk         = LightCmd(train.loco_id, train.light_on),
@@ -79,12 +81,9 @@ template <size_t TX_BUFFER_SIZE = 64> class TrainControlServer {
                   TC::TX{.mrk = SwitchCmd(State::switch_id(sw_id),
                                           default_state.is_switch_straight(
                                               State::switch_id(sw_id))),
-                         .delay_ticks = TICKS_PER_MS * 30u * sw_id});
+                         .delay_ticks = TICKS_PER_MS * 45u * sw_id});
             }
 
-            tx_buf.push(TC::TX{.mrk = ControlCmd(default_state.stopped
-                                                     ? ControlCmd::CMD_STOP
-                                                     : ControlCmd::CMD_GO)});
           } else if constexpr (std::is_same_v<Command, UserCmd::RemoveTrains>) {
             tx_buf.push(
                 TC::TX{.mrk = ControlCmd(ControlCmd::CMD_REMOVE_TRAINS)});
@@ -117,11 +116,11 @@ public:
     auto response = RegisterAs(TC_SERVER_NAME);
     _assert(response == 0, "TC_SERVER_NAME REGISTERAS FAILED");
 
-    expand_user_command(UserCmd::Reset{});
-    expand_user_command(UserCmd::RemoveTrains{});
-
     create(2, rx_can_worker);
     create(2, tx_can_worker);
+
+    expand_user_command(UserCmd::RemoveTrains{});
+    expand_user_command(UserCmd::Reset{});
   }
 
   void handle(const int tid, const TC::RX &msg) {
