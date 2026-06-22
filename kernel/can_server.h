@@ -3,15 +3,13 @@
 #include "buffer.h"
 #include "debug.h"
 #include "heap.h"
-#include "kernel_state.h"
 #include "message.h"
 #include "mrk.h"
 #include "name_server.h"
 #include "syscall.h"
 #include <cstdint>
 
-template <size_t MAX_DELAYED = MAX_TASKS, size_t MAX_IMMEDIATE = MAX_TASKS>
-class CanServer {
+template <size_t MAX_DELAYED = 64, size_t MAX_IMMEDIATE = 64> class CanServer {
   struct PendingFrame {
     uint32_t wake_tick;
     CANFRAME frame;
