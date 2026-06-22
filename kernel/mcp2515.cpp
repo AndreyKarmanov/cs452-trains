@@ -3,6 +3,7 @@
 #include "spi.h"
 #include "time.h"
 #include "uart.h"
+#include <cstring>
 
 // configuration registers
 static const uint8_t CNF3 = 0x28;
@@ -259,7 +260,7 @@ bool mcp2515_recieve_RXn(bool rx0, CANFRAME &frame) {
 
   frame.dlc = mcp_frame.DLC.bits.DLC;
 
-  __builtin_memcpy(frame.data, mcp_frame.data, frame.dlc);
+  std::memcpy(frame.data, mcp_frame.data, frame.dlc);
 
   return true;
 };

@@ -1,3 +1,4 @@
+#include <cstring>
 typedef void (*func_ptr)(void);
 
 extern func_ptr __init_array_start[];
@@ -24,5 +25,5 @@ extern "C" void _fini(void) {
 }
 
 extern "C" void bss_zero(void) {
-  __builtin_memset(__bss_start, 0, __bss_end - __bss_start);
+  memset(__bss_start, 0, __bss_end - __bss_start);
 }

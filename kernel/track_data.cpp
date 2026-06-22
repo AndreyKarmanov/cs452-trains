@@ -1,10 +1,10 @@
 /* THIS FILE IS GENERATED CODE -- DO NOT EDIT */
 
 #include "track_data.h"
-#include <cstddef>
+#include <cstring>
 
 void init_tracka(track_node *track) {
-  __builtin_memset(track, 0, TRACK_MAX * sizeof(track_node));
+  std::memset(track, 0, TRACK_MAX * sizeof(track_node));
   track[0].name                         = "A1";
   track[0].type                         = NODE_SENSOR;
   track[0].num                          = 0;
@@ -1188,7 +1188,7 @@ void init_tracka(track_node *track) {
 }
 
 void init_trackb(track_node *track) {
-  __builtin_memset(track, 0, TRACK_MAX * sizeof(track_node));
+  std::memset(track, 0, TRACK_MAX * sizeof(track_node));
   track[0].name                         = "A1";
   track[0].type                         = NODE_SENSOR;
   track[0].num                          = 0;

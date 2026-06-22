@@ -36,7 +36,7 @@ int Puts(int tid, const char *str) {
 
     TX::SendMsg send_msg{};
     send_msg.len = static_cast<int>(chunk);
-    __builtin_memcpy(send_msg.data, str + offset, chunk);
+    std::memcpy(send_msg.data, str + offset, chunk);
     auto rcv_msg = send<TX::ReplyMsg>(tid, send_msg);
     if (!rcv_msg.has_value()) {
       return -1;
@@ -113,7 +113,7 @@ int Printf(int tid, const char *fmt, ...) {
         if (buffer_index + str_len >= TX::MAX_DATA_LENGTH - 1) {
           printf_flush(tid, buffer, buffer_index);
         }
-        __builtin_memcpy(buffer + buffer_index, str, str_len);
+        std::memcpy(buffer + buffer_index, str, str_len);
         buffer_index += str_len;
       }
 

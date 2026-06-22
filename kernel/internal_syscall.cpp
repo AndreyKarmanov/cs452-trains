@@ -13,6 +13,7 @@
 #include "time.h"
 #include "uart.h"
 #include <cstdint>
+#include <cstring>
 #include <optional>
 
 uint64_t get_cycle_count() {
@@ -65,8 +66,7 @@ int _create(int priority, void (*function)(), int parent_tid) {
   uint64_t task_stack_end = task_stack_base - TASK_STACK_SIZE;
 
   // clear stack memory (not required but helpful)
-  __builtin_memset(reinterpret_cast<void *>(task_stack_end), 0,
-                   TASK_STACK_SIZE);
+  std::memset(reinterpret_cast<void *>(task_stack_end), 0, TASK_STACK_SIZE);
 
   // build & push inital trapframe
   TrapFrame *tf =
@@ -416,7 +416,7 @@ void handle(int tid, Syscall request) {
       char *rcv_reply = reinterpret_cast<char *>(to_tf->x[3]);
       int rcv_len     = to_tf->x[4];
 
-      __builtin_memcpy(rcv_reply, &msg, rcv_len);
+      std::memcpy(rcv_reply, &msg, rcv_len);
       to_td->state = TaskStatus::READY;
       scheduler.schedule(*to_td);
       to_tid_opt = td->sender_queue.pop();
@@ -454,7 +454,7 @@ void handle(int tid, Syscall request) {
       // copy message from sender to receiver
       const char *msg = reinterpret_cast<const char *>(tf->x[1]);
       char *rcv_buf   = reinterpret_cast<char *>(to_tf->x[1]);
-      __builtin_memcpy(rcv_buf, msg, len);
+      std::memcpy(rcv_buf, msg, len);
 
       // skip the W4_RECEIVE state, someone was already waiting
       td->state    = TaskStatus::W4_REPLY;
@@ -487,7 +487,7 @@ void handle(int tid, Syscall request) {
       // copy over buffer
       const char *msg = reinterpret_cast<const char *>(from_tf->x[1]);
       char *rcv_buf   = reinterpret_cast<char *>(tf->x[1]);
-      __builtin_memcpy(rcv_buf, msg, len);
+      std::memcpy(rcv_buf, msg, len);
 
       // update sender task to waiting for reply
       // however no impact on scheduling
@@ -523,7 +523,7 @@ void handle(int tid, Syscall request) {
     char *rcv_reply = reinterpret_cast<char *>(to_tf->x[3]);
     int rcv_len     = to_tf->x[4];
     int len = to_tf->x[0] = tf->x[0] = std::min(reply_len, rcv_len);
-    __builtin_memcpy(rcv_reply, reply, len);
+    std::memcpy(rcv_reply, reply, len);
 
     to_td->state = TaskStatus::READY;
     scheduler.schedule(*to_td);

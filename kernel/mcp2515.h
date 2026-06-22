@@ -1,5 +1,6 @@
 #pragma once
 #include "mrk.h"
+#include <cstring>
 #include <stdint.h>
 
 // frame is structed in same way the buffer is laid out
@@ -51,7 +52,7 @@ struct __attribute__((packed)) TXBnFrame {
         EID8(uint8_t((frame.hash >> 8) & 0xFF)),
         EID0(uint8_t(frame.hash & 0xFF)),
         DLC{.byte = uint8_t(frame.dlc & 0x0F)} {
-    __builtin_memcpy(data, frame.data, 8);
+    std::memcpy(data, frame.data, 8);
   }
 };
 
