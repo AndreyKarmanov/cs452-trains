@@ -8,6 +8,7 @@
 #include "time.h"
 #include "train_state.h"
 #include <cstddef>
+#include <type_traits>
 
 template <size_t TX_BUFFER_SIZE = 64> class TrainControlServer {
   int waiting_ui_update_worker_tid = -1;
@@ -28,67 +29,61 @@ template <size_t TX_BUFFER_SIZE = 64> class TrainControlServer {
     waiting_can_tx_worker_tid = -1;
   }
 
-  void expand_user_command(const UserCmd &command) {
-    switch (command.type) {
-    case UserCmd::Type::Light:
-      tx_buf.push(TC::TX{.mrk = LightCmd(command.id, command.flag)});
-      break;
-    case UserCmd::Type::Speed:
+  void expand_user_command(const UserCmd::Cmd &command) {
+    std::visit(
+        [&](const auto &cmd) {
+          // need to use decay_t to get the "raw" type, like LightCmd
+          using Command = std::decay_t<decltype(cmd)>;
 
-      tx_buf.push(TC::TX{
-          .mrk = SpeedCmd(command.id, static_cast<uint16_t>(command.value))});
-      break;
-    case UserCmd::Type::Switch:
+          if constexpr (std::is_same_v<Command, UserCmd::Light>) {
+            tx_buf.push(TC::TX{.mrk = LightCmd(cmd.id, cmd.flag)});
+          } else if constexpr (std::is_same_v<Command, UserCmd::Speed>) {
+            tx_buf.push(TC::TX{
+                .mrk = SpeedCmd(cmd.id, static_cast<uint16_t>(cmd.value))});
+          } else if constexpr (std::is_same_v<Command, UserCmd::Switch>) {
+            tx_buf.push(TC::TX{
+                .mrk = SwitchCmd(static_cast<uint16_t>(cmd.id), cmd.flag)});
+          } else if constexpr (std::is_same_v<Command, UserCmd::Reverse>) {
+            auto loco = state.get_loco(cmd.id);
+            if (loco.requested_speed == 0) {
+              tx_buf.push(TC::TX{.mrk = DirectionCmd(cmd.id, !cmd.flag)});
+              return;
+            }
+            tx_buf.push(TC::TX{.mrk = SpeedCmd(cmd.id, 0)});
+            tx_buf.push(TC::TX{.mrk         = DirectionCmd(cmd.id, !cmd.flag),
+                               .delay_ticks = 10 * TICKS_PER_S});
+            tx_buf.push(TC::TX{.mrk = SpeedCmd(cmd.id, loco.requested_speed),
+                               .delay_ticks = 10 * TICKS_PER_S});
+          } else if constexpr (std::is_same_v<Command, UserCmd::Stop>) {
+            tx_buf.push(TC::TX{.mrk = ControlCmd(ControlCmd::CMD_STOP)});
+          } else if constexpr (std::is_same_v<Command, UserCmd::Go>) {
+            tx_buf.push(TC::TX{.mrk = ControlCmd(ControlCmd::CMD_GO)});
+          } else if constexpr (std::is_same_v<Command, UserCmd::Reset>) {
+            State default_state{};
 
-      tx_buf.push(TC::TX{
-          .mrk = SwitchCmd(static_cast<uint16_t>(command.id), command.flag)});
-      break;
-    case UserCmd::Type::Reverse: {
-      auto loco = state.get_loco(command.id);
-      if (loco.requested_speed == 0) {
-        tx_buf.push(TC::TX{.mrk = DirectionCmd(command.id, !command.flag)});
-        break;
-      }
-      tx_buf.push(TC::TX{.mrk = SpeedCmd(command.id, 0)});
-      tx_buf.push(TC::TX{.mrk         = DirectionCmd(command.id, !command.flag),
-                         .delay_ticks = 10 * TICKS_PER_S});
-      tx_buf.push(TC::TX{.mrk = SpeedCmd(command.id, loco.requested_speed),
-                         .delay_ticks = 10 * TICKS_PER_S});
-      break;
-    }
-    case UserCmd::Type::Stop:
-      tx_buf.push(TC::TX{.mrk = ControlCmd(ControlCmd::CMD_STOP)});
-      break;
-    case UserCmd::Type::Go:
-      tx_buf.push(TC::TX{.mrk = ControlCmd(ControlCmd::CMD_GO)});
-      break;
-    case UserCmd::Type::Reset: {
-      State default_state{};
+            tx_buf.push(TC::TX{.mrk = ControlCmd(ControlCmd::CMD_HALT)});
+            for (const Train &train : default_state.trains) {
+              tx_buf.push(
+                  TC::TX{.mrk = LightCmd(train.loco_id, train.light_on)});
+              tx_buf.push(TC::TX{
+                  .mrk = SpeedCmd(train.loco_id, train.requested_speed)});
+              tx_buf.push(
+                  TC::TX{.mrk = DirectionCmd(train.loco_id, train.backward)});
+            }
 
-      tx_buf.push(TC::TX{.mrk = ControlCmd(ControlCmd::CMD_HALT)});
-      for (const Train &train : default_state.trains) {
+            for (int sw_id = 0; sw_id < 22; ++sw_id) {
+              tx_buf.push(
+                  TC::TX{.mrk = SwitchCmd(State::switch_id(sw_id),
+                                          default_state.is_switch_straight(
+                                              State::switch_id(sw_id)))});
+            }
 
-        tx_buf.push(TC::TX{.mrk = LightCmd(train.loco_id, train.light_on)});
-        tx_buf.push(
-            TC::TX{.mrk = SpeedCmd(train.loco_id, train.requested_speed)});
-        tx_buf.push(TC::TX{.mrk = DirectionCmd(train.loco_id, train.backward)});
-      }
-
-      for (int sw_id = 0; sw_id < 22; ++sw_id) {
-        tx_buf.push(TC::TX{.mrk = SwitchCmd(State::switch_id(sw_id),
-                                            default_state.is_switch_straight(
-                                                State::switch_id(sw_id)))});
-      }
-
-      tx_buf.push(TC::TX{.mrk = ControlCmd(default_state.stopped
-                                               ? ControlCmd::CMD_STOP
-                                               : ControlCmd::CMD_GO)});
-      break;
-    }
-    case UserCmd::Type::Invalid:
-    case UserCmd::Type::Quit:
-      break;
-    }
+            tx_buf.push(TC::TX{.mrk = ControlCmd(default_state.stopped
+                                                     ? ControlCmd::CMD_STOP
+                                                     : ControlCmd::CMD_GO)});
+          }
+        },
+        command);
   }
 
   bool has_dirty_state() const {
@@ -115,7 +110,7 @@ public:
     auto response = RegisterAs(TC_SERVER_NAME);
     _assert(response == 0, "TC_SERVER_NAME REGISTERAS FAILED");
 
-    expand_user_command(UserCmd{.type = UserCmd::Type::Reset});
+    expand_user_command(UserCmd::Reset{});
     create(2, rx_can_worker);
     create(2, tx_can_worker);
   }

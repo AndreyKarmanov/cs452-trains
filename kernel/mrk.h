@@ -189,24 +189,34 @@ struct UnknownCmd {
   CANFRAME to_frame() const { return {}; }
 };
 
-struct UserCmd {
-  enum class Type {
-    Invalid,
-    Quit,
-    Light,
-    Speed,
-    Switch,
-    Reverse,
-    Stop,
-    Go,
-    Reset,
+namespace UserCmd {
+  struct Invalid {};
+  struct Quit {};
+  struct Light {
+    uint32_t id;
+    bool flag;
   };
+  struct Speed {
+    uint32_t id;
+    uint32_t value;
+  };
+  struct Switch {
+    uint32_t id;
+    bool flag;
+  };
+  struct Reverse {
+    uint32_t id;
+    bool flag;
+  };
+  struct Stop {};
+  struct Go {};
+  struct Reset {};
 
-  Type type{Type::Invalid};
-  uint32_t id{0};
-  uint32_t value{0};
-  bool flag{false};
-};
+  using Cmd = std::variant<Invalid, Quit, Light, Speed, Switch, Reverse, Stop,
+                           Go, Reset>;
+
+  constexpr size_t COUNT = std::variant_size<Cmd>::value;
+} // namespace UserCmd
 
 using MRKCmd = std::variant<UnknownCmd, LightCmd, SpeedCmd, DirectionCmd,
                             SwitchCmd, SensorData, ControlCmd>;

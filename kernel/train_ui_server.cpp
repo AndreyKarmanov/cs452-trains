@@ -37,8 +37,8 @@ namespace {
 
 } // namespace
 
-template <> UserCmd TrainUIServer<>::parse_command() {
-  UserCmd out{};
+template <> UserCmd::Cmd TrainUIServer<>::parse_command() {
+  UserCmd::Cmd out{};
 
   const char *begin = buf.data;
   const char *end   = buf.data + buf.len;
@@ -55,7 +55,7 @@ template <> UserCmd TrainUIServer<>::parse_command() {
   if (cmd_len == 1 && (cmd[0] == 'q' || cmd[0] == 'Q') &&
       done_parse(cur, end)) {
     buf.set("Success: q (quit)");
-    return UserCmd{.type = UserCmd::Type::Quit};
+    return UserCmd::Quit{};
   }
 
   if (cmd_len == 2 && strncmp(cmd, "tr", 2) == 0) {
@@ -64,10 +64,10 @@ template <> UserCmd TrainUIServer<>::parse_command() {
     const char *parse_cur = cur;
     if (parse_uint(parse_cur, end, loco_id) &&
         parse_uint(parse_cur, end, speed) && done_parse(parse_cur, end)) {
-      out = UserCmd{UserCmd::Type::Speed, loco_id, speed, false};
+      out = UserCmd::Speed{loco_id, speed};
       buf.set("Success: tr ", loco_id, ' ', speed);
     } else {
-      out.type = UserCmd::Type::Invalid;
+      out = UserCmd::Invalid{};
       buf.set("Error: Format is tr <train number> <train speed>");
     }
     return out;
@@ -79,10 +79,10 @@ template <> UserCmd TrainUIServer<>::parse_command() {
     const char *parse_cursor = cur;
     if (parse_uint(parse_cursor, end, loco_id) &&
         parse_uint(parse_cursor, end, light) && done_parse(parse_cursor, end)) {
-      out = UserCmd{UserCmd::Type::Light, loco_id, 0, light != 0};
+      out = UserCmd::Light{loco_id, light != 0};
       buf.set("Success: lr ", loco_id, ' ', light);
     } else {
-      out.type = UserCmd::Type::Invalid;
+      out = UserCmd::Invalid{};
       buf.set("Error: Format is lr <train number> <light state>");
     }
     return out;
@@ -100,10 +100,10 @@ template <> UserCmd TrainUIServer<>::parse_command() {
     }
     if (sw_id != 0 && (dir == 'S' || dir == 's' || dir == 'C' || dir == 'c') &&
         done_parse(parse_cursor, end)) {
-      out = UserCmd{UserCmd::Type::Switch, sw_id, 0, dir == 'S' || dir == 's'};
+      out = UserCmd::Switch{sw_id, dir == 'S' || dir == 's'};
       buf.set("Success: sw ", sw_id, ' ', dir);
     } else {
-      out.type = UserCmd::Type::Invalid;
+      out = UserCmd::Invalid{};
       buf.set("Error: Format is sw <switch number> <switch direction>");
     }
     return out;
@@ -114,35 +114,34 @@ template <> UserCmd TrainUIServer<>::parse_command() {
     const char *parse_cursor = cur;
     if (parse_uint(parse_cursor, end, loco_id) &&
         done_parse(parse_cursor, end)) {
-      out = UserCmd{UserCmd::Type::Reverse, loco_id, 0,
-                    state.get_loco(loco_id).backward};
+      out = UserCmd::Reverse{loco_id, state.get_loco(loco_id).backward};
       buf.set("Success: rv ", loco_id, " (stopping)");
     } else {
-      out.type = UserCmd::Type::Invalid;
+      out = UserCmd::Invalid{};
       buf.set("Error: Format is rv <train number>");
     }
     return out;
   }
 
   if (cmd_len == 4 && strncmp(cmd, "stop", 4) == 0 && done_parse(cur, end)) {
-    out.type = UserCmd::Type::Stop;
+    out = UserCmd::Stop{};
     buf.set("Success: stop (stopping)");
     return out;
   }
 
   if (cmd_len == 2 && strncmp(cmd, "go", 2) == 0 && done_parse(cur, end)) {
-    out.type = UserCmd::Type::Go;
+    out = UserCmd::Go{};
     buf.set("Success: go (starting)");
     return out;
   }
 
   if (cmd_len == 5 && strncmp(cmd, "reset", 5) == 0 && done_parse(cur, end)) {
-    out.type = UserCmd::Type::Reset;
+    out = UserCmd::Reset{};
     buf.set("Success: reset (resetting all state)");
     return out;
   }
 
-  out.type = UserCmd::Type::Invalid;
+  out = UserCmd::Invalid{};
   buf.set("Error: cmds: q, tr, sw, rv, lr, stop, go, reset");
   return out;
 }
@@ -259,6 +258,22 @@ template <> void TrainUIServer<>::ui_update_worker() {
     if (!uis_reply.has_value()) {
       break;
     }
+  }
+}
+
+template <> void TrainUIServer<>::ui_print_worker() {
+  auto tcs_tid = WhoIs(TrainUIServer<>::TC_UI_SERVER_NAME);
+  _assert(tcs_tid >= 0, "TC SERVER NOT FOUND");
+
+  auto tx_tid = WhoIs(TX_Server::TX_SERVER_NAME);
+  _assert(tx_tid >= 0, "TX SERVER WHOIS FAILED");
+
+  while (true) {
+    auto print = send<TC::UIPrint>(tcs_tid, TC::UIPrintReady{});
+    if (!print.has_value()) {
+      break;
+    }
+    print_state(tx_tid, print->state, print->timings, print->timings_dirty);
   }
 }
 
