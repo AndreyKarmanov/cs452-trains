@@ -209,7 +209,6 @@ static void handle_event(Event event, int arg0) {
   }
 
   if (!event_buffers.contains(event)) {
-    _assert(false, "Received event with no waiting tasks");
     return;
   }
 
