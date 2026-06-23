@@ -203,10 +203,6 @@ static void handle_event(Event event, int arg0) {
     uninitialize_event(event);
     break;
   }
-  case Event::SENSOR_B6: {
-    uninitialize_event(event);
-    break;
-  }
   default: {
     break;
   }
