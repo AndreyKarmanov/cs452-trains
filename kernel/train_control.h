@@ -117,7 +117,6 @@ template <size_t TX_BUFFER_SIZE = 64> class TrainControlServer {
             mailbox.msgs.push(TC::TreeMsg{TC::InitTree{cmd.id, cmd.value}});
             trees.set(tree_tid, mailbox);
             _assert(tree_tid >= 0, "TREE TASK CREATE FAILED");
-            register_tree_subscriber(tree_tid, cmd.id, cmd.value);
           } else if constexpr (std::is_same_v<Command, UserCmd::CalSpeed>) {
             calibrating_train.num   = cmd.id;
             calibrating_train.speed = cmd.value;
