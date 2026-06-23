@@ -1,7 +1,5 @@
 #pragma once
 
-#include "can_rx_server.h"
-#include "can_server.h"
 #include "io_helpers.h"
 #include "train_cli_worker.h"
 #include "train_control.h"
@@ -20,11 +18,8 @@ inline void train_controller_program_task() {
   _assert(tx_tid >= 0, "TX SERVER WHOIS FAILED");
   Puts(tx_tid, "\033[2J\033[1;1H");
 
-  create(2, can_rx_server_task);
-  create(2, can_server_task);
   create(2, train_control_server);
   create(3, ui_update_worker);
-
   auto train_ui_tid = create(3, cli_worker);
 
   await_task(train_ui_tid);

@@ -94,34 +94,6 @@ namespace CS {
 
 } // namespace CS
 
-namespace CAN {
-  struct SendMsg {
-    CANFRAME frame;
-  };
-
-  struct DelayMsg {
-    CANFRAME frame;
-    uint32_t delay_ticks;
-  };
-
-  struct DelayUntilMsg {
-    CANFRAME frame;
-    uint32_t ticks;
-  };
-
-  struct TXReadyMsg {};
-
-  struct TXMsg {
-    CANFRAME frame;
-  };
-
-  struct TickMsg {
-    uint32_t ticks;
-  };
-
-  struct AckMsg {};
-} // namespace CAN
-
 namespace TX {
   constexpr int MAX_DATA_LENGTH = 512;
 
@@ -147,26 +119,6 @@ namespace RX {
   struct InterruptReplyMsg {};
 } // namespace RX
 
-namespace CRX {
-  struct PaceRegisterMsg {
-    CANFRAME frame;
-  };
-
-  struct PaceAwaitMsg {};
-
-  struct AckMsg {};
-
-  struct InterruptMsg {};
-
-  struct InterruptReplyMsg {};
-
-  struct ForwardReadyMsg {};
-
-  struct ForwardMsg {
-    MRKCmd mrk;
-  };
-} // namespace CRX
-
 namespace FUT {
   struct ClientParamRequestMsg {};
   struct ClientInitMsg {
@@ -180,12 +132,6 @@ namespace TC {
   struct UIReady {};
   struct UIUpdate {
     State state;
-    uint32_t time;
-  };
-
-  struct UIPrintReady {};
-  struct UIPrint {
-    State state;
   };
 
   struct TXReady {};
@@ -194,7 +140,7 @@ namespace TC {
   };
 
   struct RX {
-    MRKCmd mrk;
+    CANFRAME frame;
   };
 
   struct CLIInput {
@@ -237,15 +183,11 @@ using Message = std::variant<
     RPS::SetupMsg, RPS::PlayMsg, RPS::QuitMsg, RPS::PlayReadyMsg,
     RPS::PlayResultMsg, RPS::QuitAckMsg, CS::TimeMsg, CS::TimeReplyMsg,
     CS::DelayMsg, CS::DelayUntilMsg, CS::DelayReplyMsg, CS::TickMsg,
-    CAN::SendMsg, CAN::DelayMsg, CAN::DelayUntilMsg, CAN::TXReadyMsg,
-    CAN::TXMsg, CAN::TickMsg, CAN::AckMsg, FUT::ClientParamRequestMsg,
-    FUT::ClientInitMsg, TX::SendMsg, TX::InterruptMsg, TX::ReplyMsg,
-    RX::GetcMsg, RX::GetcReplyMsg, RX::InterruptMsg, RX::InterruptReplyMsg,
-    CRX::PaceRegisterMsg, CRX::PaceAwaitMsg, CRX::AckMsg, CRX::InterruptMsg,
-    CRX::InterruptReplyMsg, CRX::ForwardReadyMsg, CRX::ForwardMsg, ErrorMsg,
-    TaskExitMsg, TC::UIReady, TC::UIUpdate, TC::CLICmdReady, TC::CLICmd,
-    TC::CLIInput, TC::TX, TC::RX, TC::TXReady, TC::TreeReady, TC::TreeExit,
-    TC::TreeMsg, TC::Ack, TC::UIPrint, TC::UIPrintReady>;
+    FUT::ClientParamRequestMsg, FUT::ClientInitMsg, TX::SendMsg,
+    TX::InterruptMsg, TX::ReplyMsg, RX::GetcMsg, RX::GetcReplyMsg,
+    RX::InterruptMsg, RX::InterruptReplyMsg, ErrorMsg, TaskExitMsg, TC::UIReady,
+    TC::UIUpdate, TC::CLICmdReady, TC::CLICmd, TC::CLIInput, TC::TX, TC::RX,
+    TC::TXReady, TC::TreeReady, TC::TreeExit, TC::TreeMsg, TC::Ack>;
 
 static_assert(std::is_trivially_copyable<Message>::value,
               "MessageVar must be trivially copyable");

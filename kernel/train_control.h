@@ -9,13 +9,13 @@
 #include "syscall.h"
 #include "train_server.h"
 #include "train_state.h"
-#include "uart.h"
 #include <cstddef>
 #include <type_traits>
 
 template <size_t TX_BUFFER_SIZE = 64> class TrainControlServer {
   int waiting_ui_update_worker_tid = -1;
   int waiting_can_tx_worker_tid    = -1;
+  bool simple_pacing_can_send      = true;
 
   struct TreeMailbox {
     Buffer<TC::TreeMsg, 16> msgs{};
@@ -26,7 +26,18 @@ template <size_t TX_BUFFER_SIZE = 64> class TrainControlServer {
   Map<int, TreeMailbox, 10> trees;
 
   State state{};
+
+  static void rx_can_worker();
   static void tx_can_worker();
+
+  void maybe_tx() {
+    if (!tx_buf.is_empty() && waiting_can_tx_worker_tid >= 0 &&
+        simple_pacing_can_send) {
+      reply(waiting_can_tx_worker_tid, tx_buf.pop().value());
+      waiting_can_tx_worker_tid = -1;
+      simple_pacing_can_send    = false;
+    }
+  }
 
   void publish_tree_update(const TC::TreeUpdate &update) {
     for (auto [tid, mailbox] : trees) {
@@ -103,8 +114,11 @@ template <size_t TX_BUFFER_SIZE = 64> class TrainControlServer {
   }
 
   void handle(const int tid, const TC::RX &msg) {
-    state.update_from_mrk(msg.mrk);
-    publish_tree_update(TC::TreeUpdate{.mrk = msg.mrk});
+    auto mrk = decode_frame(msg.frame);
+    state.update_from_mrk(mrk);
+    simple_pacing_can_send = simple_pacing_can_send || (msg.frame.resp == 1);
+    maybe_tx();
+    publish_tree_update(TC::TreeUpdate{.mrk = mrk});
     if (state.is_dirty() && waiting_ui_update_worker_tid >= 0) {
       reply(waiting_ui_update_worker_tid, TC::UIUpdate{state});
       state.clear_dirty();
@@ -123,20 +137,13 @@ template <size_t TX_BUFFER_SIZE = 64> class TrainControlServer {
   }
 
   void handle(const int tid, const TC::TXReady &) {
-    if (tx_buf.is_empty()) {
-      waiting_can_tx_worker_tid = tid;
-      return;
-    }
-
-    reply(tid, tx_buf.pop().value());
+    waiting_can_tx_worker_tid = tid;
+    maybe_tx();
   }
 
   void handle(const int tid, const TC::CLICmd &msg) {
     expand_user_command(msg.cmd);
-    if (waiting_can_tx_worker_tid >= 0 && !tx_buf.is_empty()) {
-      reply(waiting_can_tx_worker_tid, tx_buf.pop().value());
-      waiting_can_tx_worker_tid = -1;
-    }
+    maybe_tx();
     reply(tid, TC::Ack{});
   }
 
@@ -171,6 +178,7 @@ public:
     auto response = RegisterAs(TC_SERVER_NAME);
     _assert(response == 0, "TC_SERVER_NAME REGISTERAS FAILED");
 
+    create(2, rx_can_worker);
     create(2, tx_can_worker);
 
     expand_user_command(UserCmd::RemoveTrains{});
