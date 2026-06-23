@@ -165,8 +165,24 @@ UserCmd::Cmd parse_command(StaticString<CLI_BUFFER_SIZE> &buf) {
     return out;
   }
 
+  if (cmd_len == 8 && strncmp(cmd, "calspeed", 8) == 0) {
+    uint32_t loco_id      = 0;
+    uint32_t speed        = 0;
+    const char *parse_cur = cur;
+    if (parse_uint(parse_cur, end, loco_id) &&
+        parse_uint(parse_cur, end, speed) && done_parse(parse_cur, end)) {
+      out = UserCmd::CalSpeed{loco_id, speed};
+      buf.set("Success: calspeed ", loco_id, ' ', speed);
+    } else {
+      out = UserCmd::Invalid{};
+      buf.set("Error: Format is calspeed <train number> <train speed>");
+    }
+    return out;
+  }
+
   out = UserCmd::Invalid{};
-  buf.set("Error: cmds: q, tr, sw, rv, lr, stop, go, reset, quirk, rt");
+  buf.set(
+      "Error: cmds: q, tr, sw, rv, lr, stop, go, reset, quirk, rt, calspeed");
   return out;
 }
 
