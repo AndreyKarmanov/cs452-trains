@@ -17,6 +17,7 @@ struct TrainState {
 };
 
 struct State {
+
   static constexpr uint16_t switch_index(uint16_t sw_id) {
     return sw_id > 18 ? sw_id - 135 : sw_id - 1;
   }
@@ -49,7 +50,9 @@ struct State {
   // switches[0:17] = 1..18
   // switches[18:21] = 153..156
   // bit set means straight
-  uint32_t switches = 0b11110111110101110010100000000000;
+  // REMEMBER IT"S IN REVERSE!!!!
+  // uint32_t switches = 0b11110111110101111010100000000000;
+  uint32_t switches = 0b00000000000'00000'1000'0010'0000'0000;
 
   // recent sensors
   Buffer<uint16_t, MAX_SENSORS_RECENT> sensors{};

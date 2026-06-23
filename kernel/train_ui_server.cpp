@@ -149,8 +149,23 @@ template <> UserCmd::Cmd TrainUIServer<>::parse_command() {
     return out;
   }
 
+  if (cmd_len == 2 && strncmp(cmd, "rt", 2) == 0) {
+    uint32_t loco_id      = 0;
+    uint32_t value        = 0;
+    const char *parse_cur = cur;
+    if (parse_uint(parse_cur, end, loco_id) &&
+        parse_uint(parse_cur, end, value) && done_parse(parse_cur, end)) {
+      out = UserCmd::RunTree{loco_id, value};
+      buf.set("Success: rt ", loco_id, ' ', value);
+    } else {
+      out = UserCmd::Invalid{};
+      buf.set("Error: Format is rt <train number> <value>");
+    }
+    return out;
+  }
+
   out = UserCmd::Invalid{};
-  buf.set("Error: cmds: q, tr, sw, rv, lr, stop, go, reset, quirk");
+  buf.set("Error: cmds: q, tr, sw, rv, lr, stop, go, reset, quirk, rt");
   return out;
 }
 
@@ -200,8 +215,8 @@ uint32_t print_state(int tx_tid, const State &state,
     line.set("\033[", SENSOR_ROW, ";2HRecent Sensors \n\r\033[K   ");
     for (size_t i = state.sensors.size(); i-- > 0;) {
       uint16_t s_id = state.sensors[i].value();
-      char bank     = 'A' + (s_id / 16);
-      int number    = (s_id % 16) + 1;
+      char bank     = 'A' + ((s_id - 1) / 16);
+      int number    = ((s_id - 1) % 16) + 1;
       line.append(bank, number, ' ');
     }
     line.append("\n\r");

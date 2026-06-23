@@ -210,6 +210,20 @@ namespace TC {
     UserCmd::Cmd cmd;
   };
 
+  struct TreeReady {};
+  struct TreeExit {};
+
+  struct InitTree {
+    uint32_t loco_id;
+    uint32_t value;
+  };
+
+  struct TreeUpdate {
+    MRKCmd mrk;
+  };
+
+  using TreeMsg = std::variant<InitTree, TreeUpdate>;
+
   struct Ack {};
   struct Quit {};
 } // namespace TC
@@ -232,8 +246,8 @@ using Message = std::variant<
     CRX::PaceRegisterMsg, CRX::PaceAwaitMsg, CRX::AckMsg, CRX::InterruptMsg,
     CRX::InterruptReplyMsg, CRX::ForwardReadyMsg, CRX::ForwardMsg, ErrorMsg,
     TaskExitMsg, TC::UIReady, TC::UIUpdate, TC::CLICmdReady, TC::CLICmd,
-    TC::CLIInput, TC::TX, TC::RX, TC::TXReady, TC::Ack, TC::UIPrint,
-    TC::UIPrintReady>;
+    TC::CLIInput, TC::TX, TC::RX, TC::TXReady, TC::TreeReady, TC::TreeExit,
+    TC::TreeMsg, TC::Ack, TC::UIPrint, TC::UIPrintReady>;
 
 static_assert(std::is_trivially_copyable<Message>::value,
               "MessageVar must be trivially copyable");

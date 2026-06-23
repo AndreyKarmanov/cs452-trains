@@ -2,6 +2,8 @@
 
 #include "buffer.h"
 #include "debug.h"
+#include "map.h"
+#include "message.h"
 #include "mrk.h"
 #include "name_server.h"
 #include "syscall.h"
@@ -10,14 +12,41 @@
 #include <cstddef>
 #include <type_traits>
 
+void train_tree_task();
+
 template <size_t TX_BUFFER_SIZE = 64> class TrainControlServer {
   int waiting_ui_update_worker_tid = -1;
   int waiting_can_tx_worker_tid    = -1;
 
+  struct TreeMailbox {
+    Buffer<TC::TreeMsg, 16> pending_msgs{};
+    bool waiting = false;
+  };
+
   Buffer<TC::TX, TX_BUFFER_SIZE> tx_buf;
+  Map<int, TreeMailbox, 10> tree_subscribers;
 
   State state{};
   static void tx_can_worker();
+
+  void publish_tree_update(const TC::TreeUpdate &update) {
+    for (auto [tid, mailbox] : tree_subscribers) {
+      _assert(mailbox.pending_msgs.push(TC::TreeMsg{update}),
+              "TREE MAILBOX FULL");
+      if (mailbox.waiting) {
+        auto next_msg = mailbox.pending_msgs.pop();
+        reply(tid, next_msg.value());
+        mailbox.waiting = false;
+      }
+    }
+  }
+
+  void register_tree_subscriber(int tid, uint32_t loco_id, uint32_t value) {
+    TreeMailbox mailbox{};
+    _assert(mailbox.pending_msgs.push(TC::InitTree{loco_id, value}),
+            "TREE INIT BUFFER FULL");
+    _assert(tree_subscribers.set(tid, mailbox), "TREE SUBSCRIBER SET FAILED");
+  }
 
   void send_waiting_can_tx_worker_if_pending() {
     if (waiting_can_tx_worker_tid < 0 || tx_buf.is_empty()) {
@@ -49,9 +78,7 @@ template <size_t TX_BUFFER_SIZE = 64> class TrainControlServer {
               return;
             }
             tx_buf.push(TC::TX{.mrk = SpeedCmd(cmd.id, 0)});
-            tx_buf.push(TC::TX{
-                .mrk = DirectionCmd(cmd.id, !cmd.flag),
-            });
+            tx_buf.push(TC::TX{.mrk = DirectionCmd(cmd.id, !cmd.flag)});
             tx_buf.push(TC::TX{
                 .mrk = SpeedCmd(cmd.id, loco.requested_speed),
             });
@@ -80,10 +107,13 @@ template <size_t TX_BUFFER_SIZE = 64> class TrainControlServer {
                                           default_state.is_switch_straight(
                                               State::switch_id(sw_id)))});
             }
-
           } else if constexpr (std::is_same_v<Command, UserCmd::RemoveTrains>) {
             tx_buf.push(
                 TC::TX{.mrk = ControlCmd(ControlCmd::CMD_REMOVE_TRAINS)});
+          } else if constexpr (std::is_same_v<Command, UserCmd::RunTree>) {
+            int tree_tid = create(4, train_tree_task);
+            _assert(tree_tid >= 0, "TREE TASK CREATE FAILED");
+            register_tree_subscriber(tree_tid, cmd.id, cmd.value);
           }
         },
         command);
@@ -121,7 +151,29 @@ public:
 
   void handle(const int tid, const TC::RX &msg) {
     state.update_from_mrk(msg.mrk);
+    publish_tree_update(TC::TreeUpdate{.mrk = msg.mrk});
     reply_waiting_ui_update_worker_if_dirty();
+    reply(tid, TC::Ack{});
+  }
+
+  void handle(const int tid, const TC::TreeReady &) {
+    auto *mailbox = tree_subscribers.get_ref(tid);
+    if (mailbox == nullptr) {
+      reply_with_error(tid);
+      return;
+    }
+
+    auto next_msg = mailbox->pending_msgs.pop();
+    if (next_msg.has_value()) {
+      reply(tid, next_msg.value());
+      return;
+    }
+
+    mailbox->waiting = true;
+  }
+
+  void handle(const int tid, const TC::TreeExit &) {
+    tree_subscribers.remove(tid);
     reply(tid, TC::Ack{});
   }
 
@@ -152,6 +204,7 @@ public:
     send_waiting_can_tx_worker_if_pending();
     reply(tid, TC::Ack{});
   }
+
   template <class T> void handle(int sender_tid, const T &) {
     reply_with_error(sender_tid);
   }
@@ -161,5 +214,5 @@ public:
     Message msg;
     receive(&sender_tid, msg);
     std::visit([&](auto &&arg) { handle(sender_tid, arg); }, msg);
-  };
+  }
 };

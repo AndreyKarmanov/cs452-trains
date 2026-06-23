@@ -149,8 +149,8 @@ struct SensorData {
   SensorData(const CANFRAME &frame)
       : sensor_id((frame.decode_data_0_4() & 0xFFFF)), old_state(frame.data[4]),
         new_state(frame.data[5]) {
-    bank   = (sensor_id / 16);
-    number = (sensor_id % 16);
+    bank   = ((sensor_id - 1) / 16);
+    number = ((sensor_id - 1) % 16) + 1;
   }
   CANFRAME to_frame() const { return {}; }
 };
@@ -217,9 +217,13 @@ namespace UserCmd {
   struct Go {};
   struct Reset {};
   struct RemoveTrains {};
+  struct RunTree {
+    uint32_t id;
+    uint32_t value;
+  };
 
   using Cmd = std::variant<Invalid, Quit, Light, Speed, Switch, Reverse, Stop,
-                           Go, Reset, RemoveTrains>;
+                           Go, Reset, RemoveTrains, RunTree>;
 
   constexpr size_t COUNT = std::variant_size<Cmd>::value;
 } // namespace UserCmd

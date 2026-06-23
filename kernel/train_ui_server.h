@@ -121,6 +121,10 @@ template <size_t CLI_BUFFER_SIZE = 64> class TrainUIServer {
             }
 
             return true;
+          } else if constexpr (std::is_same_v<Command, UserCmd::RemoveTrains>) {
+            return true;
+          } else if constexpr (std::is_same_v<Command, UserCmd::RunTree>) {
+            return true;
           } else {
             return false;
           }
