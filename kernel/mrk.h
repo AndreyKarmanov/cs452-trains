@@ -222,8 +222,13 @@ namespace UserCmd {
     uint32_t value;
   };
 
+  struct CalSpeed {
+    uint32_t id;
+    uint32_t value;
+  };
+
   using Cmd = std::variant<Invalid, Quit, Light, Speed, Switch, Reverse, Stop,
-                           Go, Reset, RemoveTrains, RunTree>;
+                           Go, Reset, RemoveTrains, RunTree, CalSpeed>;
 
   constexpr size_t COUNT = std::variant_size<Cmd>::value;
 } // namespace UserCmd

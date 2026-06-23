@@ -209,6 +209,9 @@ static void handle_event(Event event, int arg0) {
   }
 
   if (!event_buffers.contains(event)) {
+    if (event != Event::SENSOR_B6) {
+      _assert(false, "Received event with no waiting tasks");
+    }
     return;
   }
 
@@ -574,6 +577,17 @@ void handle(int tid, Syscall request) {
   case Syscall::RX_CAN: {
     CANFRAME *frame_ptr = reinterpret_cast<CANFRAME *>(tf->x[0]);
     tf->x[0]            = mcp2515_recieve(*frame_ptr);
+    scheduler.schedule(*td);
+    break;
+  }
+  case Syscall::EMIT_EVENT: {
+    auto raw_event = static_cast<int>(tf->x[0]);
+    if (raw_event < 0 || raw_event >= static_cast<int>(Event::EVENT_COUNT)) {
+      tf->x[0] = -1;
+      scheduler.schedule(*td);
+      break;
+    }
+    handle_event(static_cast<Event>(raw_event));
     scheduler.schedule(*td);
     break;
   }

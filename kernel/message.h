@@ -168,6 +168,13 @@ namespace TC {
 
   using TreeMsg = std::variant<InitTree, TreeUpdate>;
 
+  struct CalSpeedReady {};
+
+  struct CalSpeedParams {
+    uint32_t loco_id;
+    uint32_t speed;
+  };
+
   struct Ack {};
   struct Quit {};
 } // namespace TC
@@ -178,16 +185,18 @@ struct ErrorMsg {
 
 struct TaskExitMsg {};
 
-using Message = std::variant<
-    NS::RegisterMsg, NS::WhoIsMsg, NS::RegisterReplyMsg, NS::WhoIsReplyMsg,
-    RPS::SetupMsg, RPS::PlayMsg, RPS::QuitMsg, RPS::PlayReadyMsg,
-    RPS::PlayResultMsg, RPS::QuitAckMsg, CS::TimeMsg, CS::TimeReplyMsg,
-    CS::DelayMsg, CS::DelayUntilMsg, CS::DelayReplyMsg, CS::TickMsg,
-    FUT::ClientParamRequestMsg, FUT::ClientInitMsg, TX::SendMsg,
-    TX::InterruptMsg, TX::ReplyMsg, RX::GetcMsg, RX::GetcReplyMsg,
-    RX::InterruptMsg, RX::InterruptReplyMsg, ErrorMsg, TaskExitMsg, TC::UIReady,
-    TC::UIUpdate, TC::CLICmdReady, TC::CLICmd, TC::CLIInput, TC::TX, TC::RX,
-    TC::TXReady, TC::TreeReady, TC::TreeExit, TC::TreeMsg, TC::Ack>;
+using Message =
+    std::variant<NS::RegisterMsg, NS::WhoIsMsg, NS::RegisterReplyMsg,
+                 NS::WhoIsReplyMsg, RPS::SetupMsg, RPS::PlayMsg, RPS::QuitMsg,
+                 RPS::PlayReadyMsg, RPS::PlayResultMsg, RPS::QuitAckMsg,
+                 CS::TimeMsg, CS::TimeReplyMsg, CS::DelayMsg, CS::DelayUntilMsg,
+                 CS::DelayReplyMsg, CS::TickMsg, FUT::ClientParamRequestMsg,
+                 FUT::ClientInitMsg, TX::SendMsg, TX::InterruptMsg,
+                 TX::ReplyMsg, RX::GetcMsg, RX::GetcReplyMsg, RX::InterruptMsg,
+                 RX::InterruptReplyMsg, ErrorMsg, TaskExitMsg, TC::UIReady,
+                 TC::UIUpdate, TC::CLICmdReady, TC::CLICmd, TC::CLIInput,
+                 TC::TX, TC::RX, TC::TXReady, TC::TreeReady, TC::TreeExit,
+                 TC::TreeMsg, TC::Ack, TC::CalSpeedReady, TC::CalSpeedParams>;
 
 static_assert(std::is_trivially_copyable<Message>::value,
               "MessageVar must be trivially copyable");

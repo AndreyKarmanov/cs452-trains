@@ -19,6 +19,7 @@ enum class Syscall {
   KERNEL_IDLE_PCT = 10,
   TX_CAN          = 11,
   RX_CAN          = 12,
+  EMIT_EVENT      = 13,
 };
 
 // make sure that event count is the last event!!
@@ -31,6 +32,7 @@ enum class Event {
   CAN_RX_IRQ,
   CAN_TX_IRQ,
   TASK_EXIT,
+  SENSOR_B6,
   EVENT_COUNT
 };
 constexpr auto TOTAL_EVENT_TYPES = static_cast<size_t>(Event::EVENT_COUNT);
@@ -70,6 +72,7 @@ void reply_with_error(int tid, int error_code = 0);
 
 void await_task(int tid);
 int await_event(Event event);
+void emit_event(Event event);
 
 bool tx_can(const CANFRAME &frame);
 bool rx_can(CANFRAME &frame);
