@@ -2,12 +2,8 @@
 
 #include "buffer.h"
 #include "clock_server.h"
-#include "io_helpers.h"
 #include "mrk.h"
-#include "name_server.h"
-#include "train_control.h"
 #include "train_state.h"
-#include "uart_tx_server.h"
 
 struct Blackboard {
   State state;
@@ -16,13 +12,14 @@ struct Blackboard {
   int tx_server_tid;
   int cs_server_tid;
 
-  uint16_t estimated_speed;
+  uint16_t est_speed;
   uint16_t requested_speed;
 
   uint16_t last_seen_sensor;
   uint16_t expected_next_sensor;
 
   MRKCmd new_event;
+  uint32_t event_tick;
 
   StaticString<32> error_msg;
 };

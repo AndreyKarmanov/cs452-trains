@@ -2,6 +2,7 @@
 #include "behaviour_tree.h"
 #include "io_helpers.h"
 #include "message.h"
+#include "pathfind.h"
 #include "train_control.h"
 
 namespace {
@@ -11,15 +12,6 @@ namespace {
       Puts(bb.tx_server_tid, "tree tick for loco ", bb.loco_id, " value ",
            bb.requested_speed, "\n\r");
       return NodeResult::Success;
-    }
-  };
-
-  struct WaitUntilSensorNode : public LeafNode {
-    NodeResult tick(Blackboard &bb) override {
-      if (std::get_if<SensorData>(&bb.new_event)) {
-        return NodeResult::Success;
-      }
-      return NodeResult::Running;
     }
   };
 
@@ -38,28 +30,42 @@ namespace {
   };
 
   template <size_t N> struct ExpectPathNode : public LeafNode {
-    std::array<uint16_t, N> expected_path;
+    std::array<uint16_t, N> path;
     size_t path_idx = 0;
+    Pathfind pathfind{'b'};
+    uint32_t last_sensor_passed_tick = 0;
 
     ExpectPathNode(std::array<uint16_t, N> expected_path)
-        : expected_path(expected_path) {}
+        : path(expected_path) {}
 
     NodeResult tick(Blackboard &bb) override {
       if (std::get_if<SensorData>(&bb.new_event)) {
-        const SensorData &sensor_data = std::get<SensorData>(bb.new_event);
-        if (sensor_data.new_state == 0) {
+        const SensorData &data = std::get<SensorData>(bb.new_event);
+        if (data.new_state == 0) {
           return NodeResult::Running;
         }
-        if (sensor_data.sensor_id == expected_path[path_idx]) {
+        if (data.sensor_id == path[path_idx]) {
+          if (path_idx >= 1) {
+            auto distance = pathfind.shortest_path(path.at(path_idx - 1) - 1,
+                                                   path.at(path_idx) - 1);
+            if (distance.has_value()) {
+              bb.est_speed = (distance.value().dist * 10) /
+                             (bb.event_tick - last_sensor_passed_tick);
+            }
+          }
           path_idx++;
-          Puts(bb.tx_server_tid, "Path progress: ", path_idx, "/", N, "\n\r");
+          Debug_Puts(bb.tx_server_tid, "Path: ", path_idx, "/", N, " speed ",
+                     bb.est_speed / 10, ".", bb.est_speed % 10, "mm / tick ",
+                     bb.event_tick - last_sensor_passed_tick,
+                     " Tick delta\n\r");
+          last_sensor_passed_tick = bb.event_tick;
           if (path_idx == N) {
-            Puts(bb.tx_server_tid, "path completed successfully\n\r");
+            Debug_Puts(bb.tx_server_tid, "path completed successfully\n\r");
             return NodeResult::Success;
           }
         } else {
-          bb.error_msg.set("Unexpected sensor: ", sensor_data.sensor_id,
-                           " expected ", expected_path[path_idx]);
+          bb.error_msg.set("Unexpected sid: ", data.sensor_id, " expected ",
+                           path[path_idx]);
           return NodeResult::Failure;
         }
       } else if (path_idx == N) {
@@ -106,7 +112,8 @@ void train_tree_task() {
             bb.requested_speed = static_cast<uint16_t>(event.value);
           } else if constexpr (std::is_same_v<Event, TC::TreeUpdate>) {
             bb.state.update_from_mrk(event.mrk);
-            bb.new_event = event.mrk;
+            bb.new_event  = event.mrk;
+            bb.event_tick = event.time;
           }
         },
         next_msg.value());

@@ -8,6 +8,7 @@
 #include "message.h"
 #include "mrk.h"
 #include "name_server.h"
+#include "static_string.h"
 #include "syscall.h"
 #include "time.h"
 #include "train_server.h"
@@ -57,7 +58,7 @@ template <size_t TX_BUFFER_SIZE = 64> class TrainControlServer {
 
   void publish_tree_update(const TC::TreeUpdate &update) {
     for (auto [tid, mailbox] : trees) {
-      _assert(mailbox.msgs.push(TC::TreeMsg{update}), "TREE MAILBOX FULL");
+      _assert(mailbox.msgs.push(update), "TREE MAILBOX FULL");
       if (mailbox.waiting) {
         auto next_msg = mailbox.msgs.pop();
         reply(tid, next_msg.value());
@@ -173,7 +174,7 @@ template <size_t TX_BUFFER_SIZE = 64> class TrainControlServer {
     state.update_from_mrk(mrk);
     simple_pacing_can_send = simple_pacing_can_send || (msg.frame.resp == 1);
     maybe_tx();
-    publish_tree_update(TC::TreeUpdate{.mrk = mrk});
+    publish_tree_update(TC::TreeUpdate{.mrk = mrk, .time = msg.time});
     if (state.is_dirty() && waiting_ui_update_worker_tid >= 0) {
       reply(waiting_ui_update_worker_tid, TC::UIUpdate{state});
       state.clear_dirty();

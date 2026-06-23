@@ -1,13 +1,11 @@
 #include "first_user_task.h"
 #include "clock_server.h"
-#include "io_helpers.h"
 #include "kernel_state.h"
 #include "name_server.h"
-#include "pathfind.h"
-#include "uart_rx_server.h"
 #include "shell.h"
 #include "syscall.h"
 #include "sysinfo_task.h"
+#include "uart_rx_server.h"
 #include "uart_tx_server.h"
 
 #if (defined(PERF_TEST) && PERF_TEST) || (defined(RPS_TEST) && RPS_TEST) ||    \

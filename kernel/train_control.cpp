@@ -1,4 +1,5 @@
 #include "train_control.h"
+#include "clock_server.h"
 #include "io_helpers.h"
 #include "message.h"
 #include "uart_tx_server.h"
@@ -32,11 +33,15 @@ template <> void TrainControlServer<>::rx_can_worker() {
   auto tx_tid = WhoIs(UART_TX_Server::TX_SERVER_NAME);
   _assert(tx_tid >= 0, "TX SERVER WHOIS FAILED");
 
+  auto cs_tid = WhoIs(ClockServer<>::CLOCK_SERVER_NAME);
+  _assert(cs_tid >= 0, "CLOCK SERVER WHOIS FAILED");
+
   while (true) {
     await_event(Event::CAN_RX_IRQ);
+    auto time = static_cast<uint32_t>(Time(cs_tid));
     rx_can(frame);
 
-    auto rcv_msg = send<TC::Ack>(can_tid, TC::RX{.frame = frame});
+    auto rcv_msg = send<TC::Ack>(can_tid, TC::RX{.frame = frame, .time = time});
     if (!rcv_msg.has_value()) {
       break;
     }

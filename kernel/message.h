@@ -141,6 +141,7 @@ namespace TC {
 
   struct RX {
     CANFRAME frame;
+    uint32_t time;
   };
 
   struct CLICmd {
@@ -157,6 +158,7 @@ namespace TC {
 
   struct TreeUpdate {
     MRKCmd mrk;
+    uint32_t time;
   };
 
   using TreeMsg = std::variant<InitTree, TreeUpdate>;
