@@ -7,9 +7,9 @@
 #include "mrk.h"
 #include "name_server.h"
 #include "syscall.h"
-#include "time.h"
 #include "train_server.h"
 #include "train_state.h"
+#include "uart.h"
 #include <cstddef>
 #include <type_traits>
 
@@ -94,7 +94,9 @@ template <size_t TX_BUFFER_SIZE = 64> class TrainControlServer {
                 TC::TX{.mrk = ControlCmd(ControlCmd::CMD_REMOVE_TRAINS)});
           } else if constexpr (std::is_same_v<Command, UserCmd::RunTree>) {
             int tree_tid = create(4, train_tree_task);
-            trees.set(tree_tid, {TC::InitTree{cmd.id, cmd.value}});
+            TreeMailbox mailbox{};
+            mailbox.msgs.push(TC::TreeMsg{TC::InitTree{cmd.id, cmd.value}});
+            trees.set(tree_tid, mailbox);
           }
         },
         command);
@@ -104,8 +106,8 @@ template <size_t TX_BUFFER_SIZE = 64> class TrainControlServer {
     state.update_from_mrk(msg.mrk);
     publish_tree_update(TC::TreeUpdate{.mrk = msg.mrk});
     if (state.is_dirty() && waiting_ui_update_worker_tid >= 0) {
+      reply(waiting_ui_update_worker_tid, TC::UIUpdate{state});
       state.clear_dirty();
-      reply(waiting_ui_update_worker_tid, TC::UIUpdate{state, 0});
       waiting_ui_update_worker_tid = -1;
     }
     reply(tid, TC::Ack{});
@@ -113,7 +115,7 @@ template <size_t TX_BUFFER_SIZE = 64> class TrainControlServer {
 
   void handle(const int tid, const TC::UIReady &) {
     if (state.is_dirty()) {
-      reply(tid, TC::UIUpdate{state, 0});
+      reply(tid, TC::UIUpdate{state});
       state.clear_dirty();
       return;
     }

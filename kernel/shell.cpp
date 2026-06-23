@@ -11,7 +11,7 @@
 #include "shell.h"
 #include "syscall.h"
 #include "test.h"
-#include "train_ui_server.h"
+#include "trains_main.h"
 #include "uart_rx_server.h"
 #include "uart_tx_server.h"
 #include "util.h"
