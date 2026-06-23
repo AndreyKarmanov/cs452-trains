@@ -1,6 +1,5 @@
 #include <ctype.h>
 
-#include "behaviour_tree.h"
 #include "clock_server.h"
 #include "debug.h"
 #include "heap.h"
@@ -177,7 +176,7 @@ static void fire_command(char *buf, size_t blen, int tx_tid) {
     create(1, train_controller_program_task);
     await_event(Event::NEVER);
   } else if (strncmp(cmd, "tree", 4) == 0) {
-    test_tree();
+    // test_tree();
   } else {
     Puts(tx_tid, "Unknown: p (parent tid), "
                  "m (my tid), y (yield), c (create), d (dump memory), "

@@ -286,7 +286,7 @@ template <> void TrainUIServer<>::ui_print_worker() {
 }
 
 template <> void TrainUIServer<>::cli_worker() {
-  auto rx_tid = WhoIs(RX_Server::RX_SERVER_NAME);
+  auto rx_tid = WhoIs(UART_RX_Server::RX_SERVER_NAME);
   _assert(rx_tid >= 0, "SHELL: RX SERVER WHOIS FAILED");
 
   auto uis_tid = WhoIs(TrainUIServer<>::TC_UI_SERVER_NAME);
