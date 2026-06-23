@@ -45,7 +45,7 @@ void Pathfind::relax(int from_idx, int from_dist, int to_idx, int edge_dist,
   }
 }
 
-std::optional<PathResult>
+std::optional<Path>
 Pathfind::build_path(int start_idx, int goal_idx,
                      const int best_dist[TRACK_MAX],
                      const int predecessor[TRACK_MAX]) const {
@@ -59,7 +59,7 @@ Pathfind::build_path(int start_idx, int goal_idx,
        node_idx     = predecessor[node_idx])
     ++path_len;
 
-  PathResult result{};
+  Path result{};
   result.dist = best_dist[goal_idx];
   result.len  = path_len;
 
@@ -71,14 +71,14 @@ Pathfind::build_path(int start_idx, int goal_idx,
   return result;
 }
 
-std::optional<PathResult> Pathfind::shortest_path(int start_idx, int goal_idx,
-                                                  bool allow_reverse) const {
+std::optional<Path> Pathfind::shortest_path(int start_idx, int goal_idx,
+                                            bool allow_reverse) const {
   if (start_idx < 0 || start_idx >= TRACK_MAX || goal_idx < 0 ||
       goal_idx >= TRACK_MAX)
     return std::nullopt;
 
   if (start_idx == goal_idx) {
-    PathResult result{};
+    Path result{};
     result.dist     = 0;
     result.len      = 1;
     result.nodes[0] = start_idx;
@@ -139,9 +139,8 @@ std::optional<PathResult> Pathfind::shortest_path(int start_idx, int goal_idx,
   return build_path(start_idx, goal_idx, best_dist, predecessor);
 }
 
-std::optional<PathResult> Pathfind::shortest_path(const char *from,
-                                                  const char *to,
-                                                  bool allow_reverse) const {
+std::optional<Path> Pathfind::shortest_path(const char *from, const char *to,
+                                            bool allow_reverse) const {
   auto start_idx = get_idx(from);
   auto goal_idx  = get_idx(to);
   if (!start_idx.has_value() || !goal_idx.has_value())
@@ -167,7 +166,7 @@ const char *Pathfind::node_name(int node_idx) const {
 }
 
 static void print_path(const Pathfind &pathfind, const char *label,
-                       const std::optional<PathResult> &path) {
+                       const std::optional<Path> &path) {
   if (!path.has_value()) {
     debug_printf(CONSOLE, "%s: no path\n\r", label);
     return;

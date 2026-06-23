@@ -8,11 +8,10 @@
 #include "name_server.h"
 #include "syscall.h"
 #include "time.h"
+#include "train_server.h"
 #include "train_state.h"
 #include <cstddef>
 #include <type_traits>
-
-void train_tree_task();
 
 template <size_t TX_BUFFER_SIZE = 64> class TrainControlServer {
   int waiting_ui_update_worker_tid = -1;

@@ -8,7 +8,7 @@
 #include <cstddef>
 #include <optional>
 
-struct PathResult {
+struct Path {
   int dist;
   std::array<int, TRACK_MAX> nodes;
   size_t len;
@@ -28,9 +28,9 @@ class Pathfind {
              int best_dist[TRACK_MAX], int predecessor[TRACK_MAX],
              Heap<std::pair<int, int>, TRACK_MAX> &frontier) const;
 
-  std::optional<PathResult> build_path(int start_idx, int goal_idx,
-                                       const int best_dist[TRACK_MAX],
-                                       const int predecessor[TRACK_MAX]) const;
+  std::optional<Path> build_path(int start_idx, int goal_idx,
+                                 const int best_dist[TRACK_MAX],
+                                 const int predecessor[TRACK_MAX]) const;
 
 public:
   static constexpr int REVERSE_COST = 500;
@@ -39,11 +39,11 @@ public:
 
   std::optional<int> get_idx(const char *name) const;
 
-  std::optional<PathResult> shortest_path(int start_idx, int goal_idx,
-                                          bool allow_reverse = false) const;
+  std::optional<Path> shortest_path(int start_idx, int goal_idx,
+                                    bool allow_reverse = false) const;
 
-  std::optional<PathResult> shortest_path(const char *from, const char *to,
-                                          bool allow_reverse = false) const;
+  std::optional<Path> shortest_path(const char *from, const char *to,
+                                    bool allow_reverse = false) const;
 
   std::optional<int> distance_between_nodes(const char *from, const char *to,
                                             bool allow_reverse = false) const;
