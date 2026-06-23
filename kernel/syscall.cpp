@@ -102,26 +102,25 @@ void reply_with_error(int tid, int error_code) {
 }
 
 void await_task(int tid) {
-  TaskExitMsg msg{};
-  while (true) {
-    auto rcv_msg = send<TaskExitMsg>(tid, Message{msg});
-    if (rcv_msg.has_value()) {
-      return;
-    } else {
-      _assert(false, "UNEXPECTED MESSAGE ON AWAIT TASK");
-    }
-  }
+  while (await_event(Event::TASK_EXIT) != tid) {
+  };
 }
 
-void await_event(Event event) {
-  register auto r0 asm("x0") = event;
-  asm volatile("svc %1" : "=r"(r0) : "i"(Syscall::AWAIT_EVENT) : "memory");
+int await_event(Event event) {
+  register int r0_in asm("x0") = static_cast<int>(event);
+  register int r0_out asm("x0");
+  asm volatile("svc %2"
+               : "=r"(r0_out)
+               : "r"(r0_in), "i"(Syscall::AWAIT_EVENT)
+               : "memory");
+  return r0_out;
 }
 
 void park() { asm volatile("svc %0" : : "i"(Syscall::PARK) : "memory"); }
 
 int kernel_idle_pct() {
   register int r0 asm("x0");
+
   asm volatile("svc %1" : "=r"(r0) : "i"(Syscall::KERNEL_IDLE_PCT) : "memory");
   return r0;
 }
