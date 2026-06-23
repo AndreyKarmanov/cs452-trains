@@ -1,9 +1,24 @@
 #include "io_helpers.h"
 #include "message.h"
+#include "static_string.h"
 #include "syscall.h"
 #include "util.h"
 #include <cstdarg>
 #include <cstring>
+
+static constexpr int DEBUG_LINE_START = 40;
+static int debug_scroll_line          = 0;
+
+int Debug_Puts(int tid, const char *str) {
+  const int row = DEBUG_LINE_START + debug_scroll_line;
+  debug_scroll_line++;
+
+  StaticString<TX::MAX_DATA_LENGTH> out;
+  out.append("\033[s\033[", row, ";1H\033[K");
+  out.append(str);
+  out.append("\033[u");
+  return Puts(tid, out.c_str());
+}
 
 // tid should be the RX server tid
 int Getc(int tid) {

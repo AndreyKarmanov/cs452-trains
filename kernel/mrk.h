@@ -59,6 +59,23 @@ struct LightCmd {
   }
 };
 
+constexpr uint32_t MAX_USER_SPEED     = 14;
+constexpr uint32_t SPEED_LEVEL_STRIDE = 77;
+
+inline uint16_t user_speed_to_mrk_level(uint32_t step) {
+  if (step == 0) {
+    return 0;
+  }
+  return static_cast<uint16_t>(1 + (step - 1) * SPEED_LEVEL_STRIDE);
+}
+
+inline uint16_t mrk_level_to_user_speed(uint16_t level) {
+  if (level == 0) {
+    return 0;
+  }
+  return static_cast<uint16_t>((level - 1) / SPEED_LEVEL_STRIDE + 1);
+}
+
 struct SpeedCmd {
   static constexpr uint8_t cmdid = 0x04;
 
@@ -227,8 +244,13 @@ namespace UserCmd {
     uint32_t value;
   };
 
+  struct DebugSensor {
+    bool enabled;
+  };
+
   using Cmd = std::variant<Invalid, Quit, Light, Speed, Switch, Reverse, Stop,
-                           Go, Reset, RemoveTrains, RunTree, CalSpeed>;
+                           Go, Reset, RemoveTrains, RunTree, CalSpeed,
+                           DebugSensor>;
 
   constexpr size_t COUNT = std::variant_size<Cmd>::value;
 } // namespace UserCmd

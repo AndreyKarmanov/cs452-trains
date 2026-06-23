@@ -1,14 +1,18 @@
 #pragma once
 
 #include "buffer.h"
+#include "clock_server.h"
 #include "debug.h"
+#include "io_helpers.h"
 #include "map.h"
 #include "message.h"
 #include "mrk.h"
 #include "name_server.h"
 #include "syscall.h"
+#include "time.h"
 #include "train_server.h"
 #include "train_state.h"
+#include "uart_tx_server.h"
 #include <cstddef>
 #include <type_traits>
 
@@ -32,6 +36,10 @@ template <size_t TX_BUFFER_SIZE = 64> class TrainControlServer {
     uint32_t num   = 0;
     uint32_t speed = 0;
   } calibrating_train{};
+
+  bool debug_sensor = false;
+  int cs_tid        = -1;
+  int tx_tid        = -1;
 
   State state{};
 
@@ -68,7 +76,7 @@ template <size_t TX_BUFFER_SIZE = 64> class TrainControlServer {
             tx_buf.push(TC::TX{.mrk = LightCmd(cmd.id, cmd.flag)});
           } else if constexpr (std::is_same_v<Command, UserCmd::Speed>) {
             tx_buf.push(TC::TX{
-                .mrk = SpeedCmd(cmd.id, static_cast<uint16_t>(cmd.value))});
+                .mrk = SpeedCmd(cmd.id, user_speed_to_mrk_level(cmd.value))});
           } else if constexpr (std::is_same_v<Command, UserCmd::Switch>) {
             tx_buf.push(TC::TX{
                 .mrk = SwitchCmd(static_cast<uint16_t>(cmd.id), cmd.flag)});
@@ -81,7 +89,8 @@ template <size_t TX_BUFFER_SIZE = 64> class TrainControlServer {
             tx_buf.push(TC::TX{.mrk = SpeedCmd(cmd.id, 0)});
             tx_buf.push(TC::TX{.mrk = DirectionCmd(cmd.id, !cmd.flag)});
             tx_buf.push(TC::TX{
-                .mrk = SpeedCmd(cmd.id, loco.requested_speed),
+                .mrk = SpeedCmd(cmd.id,
+                                user_speed_to_mrk_level(loco.requested_speed)),
             });
           } else if constexpr (std::is_same_v<Command, UserCmd::Stop>) {
             tx_buf.push(TC::TX{.mrk = ControlCmd(ControlCmd::CMD_STOP)});
@@ -97,7 +106,8 @@ template <size_t TX_BUFFER_SIZE = 64> class TrainControlServer {
               tx_buf.push(
                   TC::TX{.mrk = LightCmd(train.loco_id, train.light_on)});
               tx_buf.push(TC::TX{
-                  .mrk = SpeedCmd(train.loco_id, train.requested_speed)});
+                  .mrk = SpeedCmd(train.loco_id, user_speed_to_mrk_level(
+                                                     train.requested_speed))});
               tx_buf.push(
                   TC::TX{.mrk = DirectionCmd(train.loco_id, train.backward)});
             }
@@ -131,6 +141,8 @@ template <size_t TX_BUFFER_SIZE = 64> class TrainControlServer {
               reply(waiting_can_tx_worker_tid, TC::Quit{});
               waiting_can_tx_worker_tid = -1;
             }
+          } else if constexpr (std::is_same_v<Command, UserCmd::DebugSensor>) {
+            debug_sensor = cmd.enabled;
           } else {
             _assert(false, "UNHANDLED USER COMMAND");
           }
@@ -143,6 +155,15 @@ template <size_t TX_BUFFER_SIZE = 64> class TrainControlServer {
 
     // emit event for sensor B6 on trigger
     if (auto *sensor = std::get_if<SensorData>(&mrk)) {
+
+      // if debug sensor, then debug puts the sensor
+      if (debug_sensor && sensor->new_state != 0) {
+        char bank        = 'A' + sensor->bank;
+        uint32_t time_us = static_cast<uint32_t>(Time(cs_tid)) * TICK_TIME_US;
+        Debug_Puts(tx_tid, "sensor trigger: ", bank, sensor->number, " at ",
+                   format_time(time_us));
+      }
+
       constexpr uint16_t SENSOR_B6_ID = ('B' - 'A') * 16 + 6;
       if (sensor->sensor_id == SENSOR_B6_ID && sensor->new_state != 0) {
         emit_event(Event::SENSOR_B6);
@@ -219,6 +240,12 @@ public:
   TrainControlServer() {
     auto response = RegisterAs(TC_SERVER_NAME);
     _assert(response == 0, "TC_SERVER_NAME REGISTERAS FAILED");
+
+    cs_tid = WhoIs(ClockServer<>::CLOCK_SERVER_NAME);
+    _assert(cs_tid >= 0, "CLOCK SERVER WHOIS FAILED");
+
+    tx_tid = WhoIs(UART_TX_Server::TX_SERVER_NAME);
+    _assert(tx_tid >= 0, "TX SERVER WHOIS FAILED");
 
     create(2, rx_can_worker);
     create(2, tx_can_worker);

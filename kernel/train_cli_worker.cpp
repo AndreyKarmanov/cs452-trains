@@ -66,12 +66,14 @@ UserCmd::Cmd parse_command(StaticString<CLI_BUFFER_SIZE> &buf) {
     uint32_t speed        = 0;
     const char *parse_cur = cur;
     if (parse_uint(parse_cur, end, loco_id) &&
-        parse_uint(parse_cur, end, speed) && done_parse(parse_cur, end)) {
+        parse_uint(parse_cur, end, speed) && speed <= MAX_USER_SPEED &&
+        done_parse(parse_cur, end)) {
       out = UserCmd::Speed{loco_id, speed};
       buf.set("Success: tr ", loco_id, ' ', speed);
     } else {
       out = UserCmd::Invalid{};
-      buf.set("Error: Format is tr <train number> <train speed>");
+      buf.set("Error: Format is tr <train number> <speed 0-", MAX_USER_SPEED,
+              '>');
     }
     return out;
   }
@@ -170,19 +172,38 @@ UserCmd::Cmd parse_command(StaticString<CLI_BUFFER_SIZE> &buf) {
     uint32_t speed        = 0;
     const char *parse_cur = cur;
     if (parse_uint(parse_cur, end, loco_id) &&
-        parse_uint(parse_cur, end, speed) && done_parse(parse_cur, end)) {
+        parse_uint(parse_cur, end, speed) && speed <= MAX_USER_SPEED &&
+        done_parse(parse_cur, end)) {
       out = UserCmd::CalSpeed{loco_id, speed};
       buf.set("Success: calspeed ", loco_id, ' ', speed);
     } else {
       out = UserCmd::Invalid{};
-      buf.set("Error: Format is calspeed <train number> <train speed>");
+      buf.set("Error: Format is calspeed <train number> <speed 0-",
+              MAX_USER_SPEED, '>');
+    }
+    return out;
+  }
+
+  if (cmd_len == 11 && strncmp(cmd, "debugsensor", 11) == 0) {
+    const char *parse_cur = skip_ws(cur, end);
+    if (parse_cur + 2 <= end &&
+        (strncmp(parse_cur, "on", 2) == 0 && done_parse(parse_cur + 2, end))) {
+      out = UserCmd::DebugSensor{true};
+      buf.set("Success: debugsensor on");
+    } else if (parse_cur + 3 <= end && (strncmp(parse_cur, "off", 3) == 0 &&
+                                        done_parse(parse_cur + 3, end))) {
+      out = UserCmd::DebugSensor{false};
+      buf.set("Success: debugsensor off");
+    } else {
+      out = UserCmd::Invalid{};
+      buf.set("Error: Format is debugsensor on|off");
     }
     return out;
   }
 
   out = UserCmd::Invalid{};
-  buf.set(
-      "Error: cmds: q, tr, sw, rv, lr, stop, go, reset, quirk, rt, calspeed");
+  buf.set("Error: cmds: q, tr, sw, rv, lr, stop, go, reset, quirk, rt, "
+          "calspeed, debugsensor");
   return out;
 }
 

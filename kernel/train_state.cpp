@@ -26,7 +26,8 @@ void State::update_from_mrk(const MRKCmd &cmd) {
           trains_dirty = true;
           for (TrainState &train : trains) {
             if (train.loco_id == command.loco_id) {
-              train.requested_speed = command.speed;
+              train.requested_speed =
+                  mrk_level_to_user_speed(command.speed);
               return;
             }
           }
