@@ -122,6 +122,17 @@ template <size_t TX_BUFFER_SIZE = 64> class TrainControlServer {
             calibrating_train.speed = cmd.value;
             int cal_tid             = create(4, cal_speed_task);
             _assert(cal_tid >= 0, "CAL SPEED TASK CREATE FAILED");
+          } else if constexpr (std::is_same_v<Command, UserCmd::Quit>) {
+            if (waiting_ui_update_worker_tid >= 0) {
+              reply(waiting_ui_update_worker_tid, TC::Quit{});
+              waiting_ui_update_worker_tid = -1;
+            }
+            if (waiting_can_tx_worker_tid >= 0) {
+              reply(waiting_can_tx_worker_tid, TC::Quit{});
+              waiting_can_tx_worker_tid = -1;
+            }
+          } else {
+            _assert(false, "UNHANDLED USER COMMAND");
           }
         },
         command);
@@ -168,6 +179,9 @@ template <size_t TX_BUFFER_SIZE = 64> class TrainControlServer {
     expand_user_command(msg.cmd);
     maybe_tx();
     reply(tid, TC::Ack{});
+    if (std::get_if<UserCmd::Quit>(&msg.cmd)) {
+      exit();
+    }
   }
 
   void handle(const int tid, const TC::TreeReady &) {

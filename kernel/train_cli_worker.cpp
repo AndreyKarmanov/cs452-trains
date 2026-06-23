@@ -190,9 +190,6 @@ void cli_worker() {
   auto rx_tid = WhoIs(UART_RX_Server::RX_SERVER_NAME);
   _assert(rx_tid >= 0, "SHELL: RX SERVER WHOIS FAILED");
 
-  auto cs_tid = WhoIs(ClockServer<>::CLOCK_SERVER_NAME);
-  _assert(cs_tid >= 0, "CLOCK SERVER WHOIS FAILED");
-
   auto tx_tid = WhoIs(UART_TX_Server::TX_SERVER_NAME);
   _assert(tx_tid >= 0, "TX SERVER WHOIS FAILED");
 
@@ -221,10 +218,14 @@ void cli_worker() {
       }
 
       auto cans_reply = send<TC::Ack>(tcs_tid, TC::CLICmd{result});
-      if (!cans_reply.has_value()) {
+      if (cans_reply.error()) {
+        break;
+      }
+
+      if (std::get_if<UserCmd::Quit>(&result)) {
         break;
       }
     }
   }
-  Debug_Puts(tx_tid, "CLI WORKER EXITING\n\r");
+  Offset_Puts(tx_tid, 0, "CLI EXITING\n\r");
 }

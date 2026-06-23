@@ -221,16 +221,17 @@ static void handle_event(Event event, int arg0) {
   auto event_buf = event_buffers.get_ref(event);
   auto tid_opt   = event_buf->pop();
   while (tid_opt.has_value()) {
-    auto tid = tid_opt.value();
-    auto td  = lookup_td(tid);
-    if (!td.has_value()) {
+    auto tid    = tid_opt.value();
+    auto td_opt = lookup_td(tid);
+    if (!td_opt.has_value()) {
+      _assert(false, "invalid tid in event buffer");
       tid_opt = event_buf->pop();
       continue;
     }
 
     switch (event) {
     case Event::DELAY_5S: {
-      scheduler.schedule(*td.value());
+      scheduler.schedule(*td_opt.value());
 
       // reset the delay for the next task.
       if (!event_buf->is_empty()) {
@@ -239,16 +240,16 @@ static void handle_event(Event event, int arg0) {
       return; // return if only the first should wake
     }
     case Event::CAN_RX_IRQ: {
-      scheduler.schedule(*td.value());
+      scheduler.schedule(*td_opt.value());
       return;
     }
     case Event::TASK_EXIT: {
-      ((TrapFrame *)(td.value()->sp_el0))->x[0] = arg0;
-      scheduler.schedule(*td.value());
+      ((TrapFrame *)(td_opt.value()->sp_el0))->x[0] = arg0;
+      scheduler.schedule(*td_opt.value());
       break;
     }
     default: {
-      scheduler.schedule(*td.value());
+      scheduler.schedule(*td_opt.value());
       break;
     }
     }
@@ -341,8 +342,9 @@ static void handle_interrupt() {
 
 Syscall activate(int tid) {
   auto td_opt = Kernel::lookup_td(tid);
-  auto td     = td_opt.value();
-  td->state   = TaskStatus::RUNNING;
+  _assert(td_opt.has_value(), "invalid tid");
+  auto td   = td_opt.value();
+  td->state = TaskStatus::RUNNING;
 
   // clear I and F bits in saved Pstate to allow interrupts in user mode.
   auto *user_tf         = reinterpret_cast<Kernel::TrapFrame *>(td->sp_el0);
@@ -373,7 +375,8 @@ void handle(int tid, Syscall request) {
   // (e.g. for syscalls) ESR_EL1 will have exception code, holds n form svc N
 
   using namespace Kernel;
-  auto td_opt   = lookup_td(tid);
+  auto td_opt = lookup_td(tid);
+  _assert(td_opt.has_value(), "invalid tid");
   auto td       = td_opt.value();
   TrapFrame *tf = reinterpret_cast<TrapFrame *>(td->sp_el0);
 
@@ -413,6 +416,7 @@ void handle(int tid, Syscall request) {
     while (to_tid_opt.has_value()) {
       auto to_tid    = to_tid_opt.value();
       auto to_td_opt = lookup_td(to_tid);
+      _assert(to_td_opt.has_value(), "invalid tid in sender queue");
       if (!to_td_opt.has_value()) {
         to_tid_opt = td->sender_queue.pop();
         continue;
@@ -482,8 +486,9 @@ void handle(int tid, Syscall request) {
       int from_tid = from_tid_opt.value();
 
       auto to_td_opt = lookup_td(from_tid);
-      auto to_td     = to_td_opt.value();
-      auto from_tf   = reinterpret_cast<TrapFrame *>(to_td->sp_el0);
+      _assert(to_td_opt.has_value(), "invalid tid");
+      auto to_td   = to_td_opt.value();
+      auto from_tf = reinterpret_cast<TrapFrame *>(to_td->sp_el0);
 
       // set who msg is from (follow int ptr)
       *reinterpret_cast<int *>(tf->x[0]) = from_tid;
@@ -514,6 +519,7 @@ void handle(int tid, Syscall request) {
     auto to_td_opt = lookup_td(to_tid);
     if (!to_td_opt.has_value()) {
       tf->x[0] = -1; // invalid tid
+      _assert(false, "invalid tid");
       scheduler.schedule(*td);
       break;
     }

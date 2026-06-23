@@ -14,13 +14,19 @@ template <size_t SIZE> int Puts(int tid, const StaticString<SIZE> &str) {
 
 template <typename... Args> int Debug_Puts(int tid, const Args &...args) {
   static constexpr int DEBUG_LINE = 40;
-  static int lines                = 0;
+  static int lines                = 1;
 
   StaticString<TX::MAX_DATA_LENGTH> str;
-  str.append("\033[s\033[", DEBUG_LINE + lines, ";1H");
-  str.append(args...);
-  str.append("\033[u");
   lines++;
+  str.append("\033[s\033[", DEBUG_LINE + lines, ";1H", args..., "\033[u");
+  return Puts(tid, str);
+}
+
+template <typename... Args>
+int Offset_Puts(int tid, int offset, const Args &...args) {
+  static constexpr int DEBUG_LINE = 40;
+  StaticString<TX::MAX_DATA_LENGTH> str;
+  str.append("\033[s\033[", DEBUG_LINE + offset, ";1H", args..., "\033[u");
   return Puts(tid, str);
 }
 

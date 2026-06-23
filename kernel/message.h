@@ -143,13 +143,6 @@ namespace TC {
     CANFRAME frame;
   };
 
-  struct CLIInput {
-    char c;
-    uint32_t time;
-  };
-
-  struct CLICmdReady {};
-
   struct CLICmd {
     UserCmd::Cmd cmd;
   };
@@ -194,9 +187,9 @@ using Message =
                  FUT::ClientInitMsg, TX::SendMsg, TX::InterruptMsg,
                  TX::ReplyMsg, RX::GetcMsg, RX::GetcReplyMsg, RX::InterruptMsg,
                  RX::InterruptReplyMsg, ErrorMsg, TaskExitMsg, TC::UIReady,
-                 TC::UIUpdate, TC::CLICmdReady, TC::CLICmd, TC::CLIInput,
-                 TC::TX, TC::RX, TC::TXReady, TC::TreeReady, TC::TreeExit,
-                 TC::TreeMsg, TC::Ack, TC::CalSpeedReady, TC::CalSpeedParams>;
+                 TC::UIUpdate, TC::CLICmd, TC::Quit, TC::TX, TC::RX,
+                 TC::TXReady, TC::TreeReady, TC::TreeExit, TC::TreeMsg, TC::Ack,
+                 TC::CalSpeedReady, TC::CalSpeedParams>;
 
 static_assert(std::is_trivially_copyable<Message>::value,
               "MessageVar must be trivially copyable");

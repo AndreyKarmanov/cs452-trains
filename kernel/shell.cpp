@@ -173,14 +173,16 @@ static void fire_command(char *buf, size_t blen, int tx_tid) {
   } else if (strncmp(cmd, "t can", 5) == 0) {
     create(1, test_can_rx_irq_task);
   } else if (strncmp(cmd, "train", 5) == 0) {
-    await_task(create(1, train_controller_program_task));
+    auto tid    = create(1, train_controller_program_task);
+    std::ignore = send<TC::Ack>(tid, TC::UIReady{});
+    Puts(tx_tid, "\033[2J\033[1;1H");
+
   } else {
     Puts(tx_tid, "Unknown: p (parent tid), "
                  "m (my tid), y (yield), c (create), d (dump memory), "
                  "w (write memory), t k1, t map, t heap\n\r");
   }
 }
-
 void shell_task() {
   int rx_tid = WhoIs(UART_RX_Server::RX_SERVER_NAME);
   int tx_tid = WhoIs(UART_TX_Server::TX_SERVER_NAME);

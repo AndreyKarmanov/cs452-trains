@@ -1,7 +1,7 @@
-#include "clock_server.h"
 #include "io_helpers.h"
 #include "time.h"
 #include "train_control.h"
+#include "uart_tx_server.h"
 
 static constexpr int STATE_ROW_INT = 8;
 static constexpr int STATUS_ROW    = STATE_ROW_INT + 1;
@@ -83,5 +83,6 @@ void ui_update_worker() {
     }
     print_state(tx_tid, cans_reply->state);
   }
-  Debug_Puts(tx_tid, "ui_update_worker EXITING\n\r");
+
+  Offset_Puts(tx_tid, 1, "UI EXITING\n\r");
 }
