@@ -18,42 +18,25 @@ template <size_t TX_BUFFER_SIZE = 64> class TrainControlServer {
   int waiting_can_tx_worker_tid    = -1;
 
   struct TreeMailbox {
-    Buffer<TC::TreeMsg, 16> pending_msgs{};
+    Buffer<TC::TreeMsg, 16> msgs{};
     bool waiting = false;
   };
 
   Buffer<TC::TX, TX_BUFFER_SIZE> tx_buf;
-  Map<int, TreeMailbox, 10> tree_subscribers;
+  Map<int, TreeMailbox, 10> trees;
 
   State state{};
   static void tx_can_worker();
 
   void publish_tree_update(const TC::TreeUpdate &update) {
-    for (auto [tid, mailbox] : tree_subscribers) {
-      _assert(mailbox.pending_msgs.push(TC::TreeMsg{update}),
-              "TREE MAILBOX FULL");
+    for (auto [tid, mailbox] : trees) {
+      _assert(mailbox.msgs.push(TC::TreeMsg{update}), "TREE MAILBOX FULL");
       if (mailbox.waiting) {
-        auto next_msg = mailbox.pending_msgs.pop();
+        auto next_msg = mailbox.msgs.pop();
         reply(tid, next_msg.value());
         mailbox.waiting = false;
       }
     }
-  }
-
-  void register_tree_subscriber(int tid, uint32_t loco_id, uint32_t value) {
-    TreeMailbox mailbox{};
-    _assert(mailbox.pending_msgs.push(TC::InitTree{loco_id, value}),
-            "TREE INIT BUFFER FULL");
-    _assert(tree_subscribers.set(tid, mailbox), "TREE SUBSCRIBER SET FAILED");
-  }
-
-  void send_waiting_can_tx_worker_if_pending() {
-    if (waiting_can_tx_worker_tid < 0 || tx_buf.is_empty()) {
-      return;
-    }
-
-    reply(waiting_can_tx_worker_tid, tx_buf.pop().value());
-    waiting_can_tx_worker_tid = -1;
   }
 
   void expand_user_command(const UserCmd::Cmd &command) {
@@ -111,23 +94,10 @@ template <size_t TX_BUFFER_SIZE = 64> class TrainControlServer {
                 TC::TX{.mrk = ControlCmd(ControlCmd::CMD_REMOVE_TRAINS)});
           } else if constexpr (std::is_same_v<Command, UserCmd::RunTree>) {
             int tree_tid = create(4, train_tree_task);
-            _assert(tree_tid >= 0, "TREE TASK CREATE FAILED");
-            register_tree_subscriber(tree_tid, cmd.id, cmd.value);
+            trees.set(tree_tid, {TC::InitTree{cmd.id, cmd.value}});
           }
         },
         command);
-  }
-
-public:
-  static constexpr auto TC_SERVER_NAME = "TCSERVER";
-  TrainControlServer() {
-    auto response = RegisterAs(TC_SERVER_NAME);
-    _assert(response == 0, "TC_SERVER_NAME REGISTERAS FAILED");
-
-    create(2, tx_can_worker);
-
-    expand_user_command(UserCmd::RemoveTrains{});
-    expand_user_command(UserCmd::Reset{});
   }
 
   void handle(const int tid, const TC::RX &msg) {
@@ -138,27 +108,6 @@ public:
       reply(waiting_ui_update_worker_tid, TC::UIUpdate{state, 0});
       waiting_ui_update_worker_tid = -1;
     }
-    reply(tid, TC::Ack{});
-  }
-
-  void handle(const int tid, const TC::TreeReady &) {
-    auto *mailbox = tree_subscribers.get_ref(tid);
-    if (mailbox == nullptr) {
-      reply_with_error(tid);
-      return;
-    }
-
-    auto next_msg = mailbox->pending_msgs.pop();
-    if (next_msg.has_value()) {
-      reply(tid, next_msg.value());
-      return;
-    }
-
-    mailbox->waiting = true;
-  }
-
-  void handle(const int tid, const TC::TreeExit &) {
-    tree_subscribers.remove(tid);
     reply(tid, TC::Ack{});
   }
 
@@ -182,12 +131,48 @@ public:
 
   void handle(const int tid, const TC::CLICmd &msg) {
     expand_user_command(msg.cmd);
-    send_waiting_can_tx_worker_if_pending();
+    if (waiting_can_tx_worker_tid >= 0 && !tx_buf.is_empty()) {
+      reply(waiting_can_tx_worker_tid, tx_buf.pop().value());
+      waiting_can_tx_worker_tid = -1;
+    }
+    reply(tid, TC::Ack{});
+  }
+
+  void handle(const int tid, const TC::TreeReady &) {
+    auto *mailbox = trees.get_ref(tid);
+    if (mailbox == nullptr) {
+      reply_with_error(tid);
+      return;
+    }
+
+    auto next_msg = mailbox->msgs.pop();
+    if (next_msg.has_value()) {
+      reply(tid, next_msg.value());
+      return;
+    }
+
+    mailbox->waiting = true;
+  }
+
+  void handle(const int tid, const TC::TreeExit &) {
+    trees.remove(tid);
     reply(tid, TC::Ack{});
   }
 
   template <class T> void handle(int sender_tid, const T &) {
     reply_with_error(sender_tid);
+  }
+
+public:
+  static constexpr auto TC_SERVER_NAME = "TCSERVER";
+  TrainControlServer() {
+    auto response = RegisterAs(TC_SERVER_NAME);
+    _assert(response == 0, "TC_SERVER_NAME REGISTERAS FAILED");
+
+    create(2, tx_can_worker);
+
+    expand_user_command(UserCmd::RemoveTrains{});
+    expand_user_command(UserCmd::Reset{});
   }
 
   void run() {
