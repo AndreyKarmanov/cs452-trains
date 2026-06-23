@@ -71,7 +71,7 @@ int reply(int tid, const char *reply, int rplen);
 void reply_with_error(int tid, int error_code = 0);
 
 void await_task(int tid);
-void await_event(Event event);
+int await_event(Event event);
 void emit_event(Event event);
 
 bool tx_can(const CANFRAME &frame);
