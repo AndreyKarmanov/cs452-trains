@@ -45,6 +45,9 @@ public:
   std::optional<PathResult> shortest_path(const char *from, const char *to,
                                           bool allow_reverse = false) const;
 
+  std::optional<int> distance_between_nodes(const char *from, const char *to,
+                                            bool allow_reverse = false) const;
+
   const char *node_name(int node_idx) const;
 };
 

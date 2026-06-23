@@ -150,6 +150,15 @@ std::optional<PathResult> Pathfind::shortest_path(const char *from,
   return shortest_path(start_idx.value(), goal_idx.value(), allow_reverse);
 }
 
+std::optional<int> Pathfind::distance_between_nodes(const char *from,
+                                                    const char *to,
+                                                    bool allow_reverse) const {
+  auto path = shortest_path(from, to, allow_reverse);
+  if (!path.has_value())
+    return std::nullopt;
+  return path->dist;
+}
+
 const char *Pathfind::node_name(int node_idx) const {
   if (node_idx < 0 || node_idx >= TRACK_MAX)
     return "?";
