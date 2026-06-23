@@ -38,10 +38,10 @@ void cal_speed_task_at_speed(uint32_t loco_id, uint32_t speed, int tcs_tid,
 }
 
 void cal_speed_task() {
-  auto tcs_tid = WhoIs(TrainControlServer<>::TC_SERVER_NAME);
+  auto tcs_tid = WhoIs(TrainControlServer<>::NAME);
   _assert(tcs_tid >= 0, "TC SERVER NOT FOUND");
 
-  auto tx_tid = WhoIs(UART_TX_Server::TX_SERVER_NAME);
+  auto tx_tid = WhoIs(UART_TX_Server::NAME);
   _assert(tx_tid >= 0, "TX SERVER WHOIS FAILED");
 
   // debug sensor on to track times and sensor triggers

@@ -4,7 +4,7 @@
 #include "uart.h"
 
 static void rx_notifier_task() {
-  int rx_tid = WhoIs(UART_RX_Server::RX_SERVER_NAME);
+  int rx_tid = WhoIs(UART_RX_Server::NAME);
   _assert(rx_tid >= 0, "RX SERVER WHOIS FAILED");
 
   while (true) {

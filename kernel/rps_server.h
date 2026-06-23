@@ -5,10 +5,7 @@
 #include "name_server.h"
 #include "uart_tx_server.h"
 
-constexpr static char RPS_SERVER_NAME[]      = "RPS_SERVER";
-constexpr static size_t RPS_SERVER_MAX_GAMES = 32;
-
-class RPSServer {
+template <size_t MAX_GAMES = 32> class RPSServer {
   struct Game {
     enum class GameState {
       WaitingForBothPlayers,
@@ -26,9 +23,9 @@ class RPSServer {
 
   std::optional<int> waiting = std::nullopt;
 
-  Game games[RPS_SERVER_MAX_GAMES];
-  Allocator<RPS_SERVER_MAX_GAMES> game_index_allocator;
-  int player_to_game_ptr[RPS_SERVER_MAX_GAMES][2];
+  Game games[MAX_GAMES];
+  Allocator<MAX_GAMES> game_index_allocator;
+  int player_to_game_ptr[MAX_GAMES][2];
   int tx_tid;
   std::optional<int> find_game_index_for_player(int tid);
 
@@ -38,15 +35,17 @@ class RPSServer {
   template <class T> void handle(int tid, const T &) { reply_with_error(tid); }
 
 public:
+  constexpr static auto NAME = "RPS_SERVER";
+
   RPSServer() {
     // register with name server
-    RegisterAs(RPS_SERVER_NAME);
+    RegisterAs(NAME);
 
-    tx_tid = WhoIs(UART_TX_Server::TX_SERVER_NAME);
+    tx_tid = WhoIs(UART_TX_Server::NAME);
     _assert(tx_tid >= 0, "TX SERVER WHOIS FAILED");
 
     // initialize players to game ptrs to -1 (no players)
-    for (size_t i = 0; i < RPS_SERVER_MAX_GAMES; ++i) {
+    for (size_t i = 0; i < MAX_GAMES; ++i) {
       player_to_game_ptr[i][0] = -1;
       player_to_game_ptr[i][1] = -1;
     }

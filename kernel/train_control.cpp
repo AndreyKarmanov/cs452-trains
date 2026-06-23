@@ -5,10 +5,10 @@
 #include "uart_tx_server.h"
 
 template <> void TrainControlServer<>::tx_can_worker() {
-  auto tc_tid = WhoIs(TrainControlServer<>::TC_SERVER_NAME);
+  auto tc_tid = WhoIs(TrainControlServer<>::NAME);
   _assert(tc_tid >= 0, "TC SERVER WHOIS FAILED");
 
-  auto tx_tid = WhoIs(UART_TX_Server::TX_SERVER_NAME);
+  auto tx_tid = WhoIs(UART_TX_Server::NAME);
   _assert(tx_tid >= 0, "TX SERVER WHOIS FAILED");
 
   while (true) {
@@ -26,14 +26,14 @@ template <> void TrainControlServer<>::tx_can_worker() {
 }
 
 template <> void TrainControlServer<>::rx_can_worker() {
-  auto can_tid = WhoIs(TrainControlServer<>::TC_SERVER_NAME);
+  auto can_tid = WhoIs(TrainControlServer<>::NAME);
   _assert(can_tid >= 0, "CAN SERVER WHOIS FAILED");
   CANFRAME frame{};
 
-  auto tx_tid = WhoIs(UART_TX_Server::TX_SERVER_NAME);
+  auto tx_tid = WhoIs(UART_TX_Server::NAME);
   _assert(tx_tid >= 0, "TX SERVER WHOIS FAILED");
 
-  auto cs_tid = WhoIs(ClockServer<>::CLOCK_SERVER_NAME);
+  auto cs_tid = WhoIs(ClockServer<>::NAME);
   _assert(cs_tid >= 0, "CLOCK SERVER WHOIS FAILED");
 
   while (true) {

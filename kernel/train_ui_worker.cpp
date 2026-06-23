@@ -70,10 +70,10 @@ uint32_t print_state(int tx_tid, const State &state) {
 }
 
 void ui_update_worker() {
-  auto tcs_tid = WhoIs(TrainControlServer<>::TC_SERVER_NAME);
+  auto tcs_tid = WhoIs(TrainControlServer<>::NAME);
   _assert(tcs_tid >= 0, "TC SERVER NOT FOUND");
 
-  auto tx_tid = WhoIs(UART_TX_Server::TX_SERVER_NAME);
+  auto tx_tid = WhoIs(UART_TX_Server::NAME);
   _assert(tx_tid >= 0, "TX SERVER WHOIS FAILED");
 
   while (true) {

@@ -4,7 +4,8 @@
 #include "message.h"
 #include "syscall.h"
 
-void RPSServer::handle(const int sender_tid, const RPS::SetupMsg &) {
+template <>
+void RPSServer<32>::handle(const int sender_tid, const RPS::SetupMsg &) {
   if (find_game_index_for_player(sender_tid).has_value() ||
       (waiting.has_value() && waiting.value() == sender_tid)) {
     reply_with_error(sender_tid);
@@ -43,7 +44,8 @@ void RPSServer::handle(const int sender_tid, const RPS::SetupMsg &) {
   reply(p2, RPS::PlayReadyMsg{});
 }
 
-void RPSServer::handle(const int sender_tid, const RPS::PlayMsg &arg) {
+template <>
+void RPSServer<32>::handle(const int sender_tid, const RPS::PlayMsg &arg) {
   auto game_index = find_game_index_for_player(sender_tid);
   if (!game_index.has_value()) {
     reply_with_error(sender_tid);
@@ -125,7 +127,8 @@ void RPSServer::handle(const int sender_tid, const RPS::PlayMsg &arg) {
   }
 }
 
-void RPSServer::handle(const int sender_tid, const RPS::QuitMsg &) {
+template <>
+void RPSServer<32>::handle(const int sender_tid, const RPS::QuitMsg &) {
   auto game_index = find_game_index_for_player(sender_tid);
   if (!game_index.has_value()) {
     reply_with_error(sender_tid);
@@ -182,7 +185,7 @@ void RPSServer::handle(const int sender_tid, const RPS::QuitMsg &) {
   reply(sender_tid, RPS::QuitAckMsg{});
 }
 
-void RPSServer::run() {
+template <> void RPSServer<32>::run() {
   int sender_tid;
   Message msg{};
   receive(&sender_tid, msg);
@@ -190,8 +193,9 @@ void RPSServer::run() {
   std::visit([&](auto &&arg) { handle(sender_tid, arg); }, msg);
 }
 
-std::optional<int> RPSServer::find_game_index_for_player(int tid) {
-  for (size_t i = 0; i < RPS_SERVER_MAX_GAMES; ++i) {
+template <size_t MAX_GAMES>
+std::optional<int> RPSServer<MAX_GAMES>::find_game_index_for_player(int tid) {
+  for (size_t i = 0; i < MAX_GAMES; ++i) {
     if (player_to_game_ptr[i][0] == tid) {
       return i;
     }

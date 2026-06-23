@@ -6,11 +6,11 @@
 
 class UART_RX_Server {
 public:
-  static constexpr auto RX_SERVER_NAME   = "RXSERVER";
+  static constexpr auto NAME             = "RXSERVER";
   static constexpr size_t RX_BUFFER_SIZE = 1024;
 
   UART_RX_Server() {
-    auto response = RegisterAs(RX_SERVER_NAME);
+    auto response = RegisterAs(NAME);
     _assert(response == 0, "RX SERVER REGISTERAS FAILED");
   }
 

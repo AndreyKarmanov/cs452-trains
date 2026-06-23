@@ -3,7 +3,7 @@
 #include "uart.h"
 
 static void tx_notifier_task() {
-  int tx_tid = WhoIs(UART_TX_Server::TX_SERVER_NAME);
+  int tx_tid = WhoIs(UART_TX_Server::NAME);
   _assert(tx_tid >= 0, "TX SERVER WHOIS FAILED");
 
   while (true) {

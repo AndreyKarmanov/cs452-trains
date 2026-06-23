@@ -5,7 +5,7 @@
 #include "uart_tx_server.h"
 
 template <> void ClockServer<>::clock_tick_task() {
-  int cs_tid = WhoIs(ClockServer<>::CLOCK_SERVER_NAME);
+  int cs_tid = WhoIs(ClockServer<>::NAME);
   _assert(cs_tid >= 0, "CLOCK SERVER WHOIS FAILED");
 
   while (true) {
@@ -49,9 +49,9 @@ int DelayUntil(int tid, uint32_t ticks) {
 }
 
 void test_clock_server() {
-  auto cs_tid = WhoIs(ClockServer<>::CLOCK_SERVER_NAME);
+  auto cs_tid = WhoIs(ClockServer<>::NAME);
 
-  int tx_tid = WhoIs(UART_TX_Server::TX_SERVER_NAME);
+  int tx_tid = WhoIs(UART_TX_Server::NAME);
 
   auto time = Time(cs_tid);
   Printf(tx_tid, "Current time: %d ticks\n\r", time);
@@ -67,12 +67,12 @@ void test_clock_client_task() {
 
   int tid      = my_tid();
   int p_tid    = my_parent_tid();
-  int tx_tid   = WhoIs(UART_TX_Server::TX_SERVER_NAME);
+  int tx_tid   = WhoIs(UART_TX_Server::NAME);
   auto rcv_msg = send<FUT::ClientInitMsg>(p_tid, FUT::ClientParamRequestMsg{});
 
   _assert(rcv_msg.has_value(), "clock client task did not receive param msg");
 
-  int cs_tid       = WhoIs(ClockServer<>::CLOCK_SERVER_NAME);
+  int cs_tid       = WhoIs(ClockServer<>::NAME);
   auto delay_ticks = rcv_msg->delay_ticks;
   auto delay_count = rcv_msg->delay_count;
 

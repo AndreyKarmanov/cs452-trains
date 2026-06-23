@@ -238,15 +238,15 @@ template <size_t TX_BUFFER_SIZE = 64> class TrainControlServer {
   }
 
 public:
-  static constexpr auto TC_SERVER_NAME = "TCSERVER";
+  static constexpr auto NAME = "TCSERVER";
   TrainControlServer() {
-    auto response = RegisterAs(TC_SERVER_NAME);
-    _assert(response == 0, "TC_SERVER_NAME REGISTERAS FAILED");
+    auto response = RegisterAs(NAME);
+    _assert(response == 0, "TC  REGISTERAS FAILED");
 
-    cs_tid = WhoIs(ClockServer<>::CLOCK_SERVER_NAME);
+    cs_tid = WhoIs(ClockServer<>::NAME);
     _assert(cs_tid >= 0, "CLOCK SERVER WHOIS FAILED");
 
-    tx_tid = WhoIs(UART_TX_Server::TX_SERVER_NAME);
+    tx_tid = WhoIs(UART_TX_Server::NAME);
     _assert(tx_tid >= 0, "TX SERVER WHOIS FAILED");
 
     create(2, rx_can_worker);

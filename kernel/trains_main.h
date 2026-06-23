@@ -14,7 +14,7 @@ static void train_control_server() {
 }
 
 inline void train_controller_program_task() {
-  auto tx_tid = WhoIs(UART_TX_Server::TX_SERVER_NAME);
+  auto tx_tid = WhoIs(UART_TX_Server::NAME);
   _assert(tx_tid >= 0, "TX SERVER WHOIS FAILED");
   Puts(tx_tid, "\033[2J\033[1;1H");
 

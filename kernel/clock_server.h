@@ -19,14 +19,14 @@ template <size_t MAX_WAITING = MAX_TASKS> class ClockServer {
   static void clock_tick_task();
 
 public:
-  static constexpr auto CLOCK_SERVER_NAME = "CLOCKSERVER";
+  static constexpr auto NAME = "CLOCKSERVER";
 
   // perhaps make hte clock server self-sufficient? run the notifier from this.
   ClockServer() {
-    auto response = RegisterAs(CLOCK_SERVER_NAME);
+    auto response = RegisterAs(NAME);
     _assert(response == 0, "CLOCK SERVER REGISTERAS FAILED");
 
-    tx_tid = WhoIs(UART_TX_Server::TX_SERVER_NAME);
+    tx_tid = WhoIs(UART_TX_Server::NAME);
     _assert(tx_tid >= 0, "TX SERVER WHOIS FAILED");
 
     create(2, clock_tick_task);

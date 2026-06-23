@@ -10,7 +10,7 @@ namespace {
   struct LogNode : public LeafNode {
     NodeResult tick(Blackboard &bb) override {
       Puts(bb.txs_tid, "tree tick for loco ", bb.loco_id, " value ",
-           bb.requested_speed, "\n\r");
+           bb.req_speed, "\n\r");
       return NodeResult::Success;
     }
   };
@@ -35,13 +35,12 @@ namespace {
         return NodeResult::Failure;
       }
 
-      if (bb.requested_speed == bb.state.get_loco(bb.loco_id).requested_speed) {
+      if (bb.req_speed == bb.state.get_loco(bb.loco_id).requested_speed) {
         return NodeResult::Success;
       }
 
       auto resp = send<TC::Ack>(
-          bb.tcs_tid,
-          TC::Cmd::Speed{.id = bb.loco_id, .value = bb.requested_speed});
+          bb.tcs_tid, TC::Cmd::Speed{.id = bb.loco_id, .value = bb.req_speed});
       if (!resp.has_value()) {
         return NodeResult::Failure;
       }
@@ -97,9 +96,9 @@ namespace {
 } // namespace
 
 void train_tree_task() {
-  auto tcs_tid = WhoIs(TrainControlServer<>::TC_SERVER_NAME);
-  auto tx_tid  = WhoIs(UART_TX_Server::TX_SERVER_NAME);
-  auto cs_tid  = WhoIs(ClockServer<>::CLOCK_SERVER_NAME);
+  auto tcs_tid = WhoIs(TrainControlServer<>::NAME);
+  auto tx_tid  = WhoIs(UART_TX_Server::NAME);
+  auto cs_tid  = WhoIs(ClockServer<>::NAME);
 
   Blackboard bb{};
   bb.tcs_tid = tcs_tid;
@@ -120,8 +119,10 @@ void train_tree_task() {
   SetSpeedNode set_speed_node{};
   tree.children.push(&set_speed_node);
 
+  FallBackNode fallback_node{};
+
   ExpectPathNode expect_path_node(path);
-  tree.children.push(&expect_path_node);
+  fallback_node.children.push(&expect_path_node);
 
   while (true) {
     auto next_msg = send<TC::TreeMsg>(tcs_tid, TC::TreeReady{});
@@ -134,8 +135,8 @@ void train_tree_task() {
           using Event = std::decay_t<decltype(event)>;
 
           if constexpr (std::is_same_v<Event, TC::InitTree>) {
-            bb.loco_id         = event.loco_id;
-            bb.requested_speed = static_cast<uint16_t>(event.value);
+            bb.loco_id   = event.loco_id;
+            bb.req_speed = static_cast<uint16_t>(event.value);
           } else if constexpr (std::is_same_v<Event, TC::TreeUpdate>) {
             bb.state.update_from_mrk(event.mrk);
             bb.new_event  = event.mrk;

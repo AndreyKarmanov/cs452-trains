@@ -14,7 +14,7 @@ struct Blackboard {
   int cs_tid;
 
   uint16_t est_speed;
-  uint16_t requested_speed;
+  uint16_t req_speed;
 
   uint16_t last_seen_sensor;
   uint16_t expected_next_sensor;

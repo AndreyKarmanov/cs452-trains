@@ -6,10 +6,10 @@
 
 class UART_TX_Server {
 public:
-  static constexpr auto TX_SERVER_NAME = "TXSERVER";
+  static constexpr auto NAME = "TXSERVER";
 
   UART_TX_Server() {
-    auto response = RegisterAs(TX_SERVER_NAME);
+    auto response = RegisterAs(NAME);
     _assert(response == 0, "TX SERVER REGISTERAS FAILED");
   }
 

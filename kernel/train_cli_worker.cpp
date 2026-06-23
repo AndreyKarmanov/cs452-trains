@@ -207,13 +207,13 @@ TC::Cmd::Any parse_command(StaticString<CLI_BUFFER_SIZE> &buf) {
 }
 
 void cli_worker() {
-  auto rx_tid = WhoIs(UART_RX_Server::RX_SERVER_NAME);
+  auto rx_tid = WhoIs(UART_RX_Server::NAME);
   _assert(rx_tid >= 0, "SHELL: RX SERVER WHOIS FAILED");
 
-  auto tx_tid = WhoIs(UART_TX_Server::TX_SERVER_NAME);
+  auto tx_tid = WhoIs(UART_TX_Server::NAME);
   _assert(tx_tid >= 0, "TX SERVER WHOIS FAILED");
 
-  auto tcs_tid = WhoIs(TrainControlServer<>::TC_SERVER_NAME);
+  auto tcs_tid = WhoIs(TrainControlServer<>::NAME);
   _assert(tcs_tid >= 0, "TC SERVER NOT FOUND");
 
   StaticString<CLI_BUFFER_SIZE> buf{};
