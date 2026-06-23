@@ -67,21 +67,22 @@ template <size_t TX_BUFFER_SIZE = 64> class TrainControlServer {
     }
   }
 
-  void expand_user_command(const UserCmd::Cmd &command) {
+  void expand_user_command(const TC::Cmd::Any &command) {
     std::visit(
         [&](const auto &cmd) {
           // need to use decay_t to get the "raw" type, like LightCmd
           using Command = std::decay_t<decltype(cmd)>;
+          using namespace TC::Cmd;
 
-          if constexpr (std::is_same_v<Command, UserCmd::Light>) {
+          if constexpr (std::is_same_v<Command, Light>) {
             tx_buf.push(TC::TX{.mrk = LightCmd(cmd.id, cmd.flag)});
-          } else if constexpr (std::is_same_v<Command, UserCmd::Speed>) {
+          } else if constexpr (std::is_same_v<Command, Speed>) {
             tx_buf.push(TC::TX{
                 .mrk = SpeedCmd(cmd.id, user_speed_to_mrk_level(cmd.value))});
-          } else if constexpr (std::is_same_v<Command, UserCmd::Switch>) {
+          } else if constexpr (std::is_same_v<Command, Switch>) {
             tx_buf.push(TC::TX{
                 .mrk = SwitchCmd(static_cast<uint16_t>(cmd.id), cmd.flag)});
-          } else if constexpr (std::is_same_v<Command, UserCmd::Reverse>) {
+          } else if constexpr (std::is_same_v<Command, Reverse>) {
             auto loco = state.get_loco(cmd.id);
             if (loco.requested_speed == 0) {
               tx_buf.push(TC::TX{.mrk = DirectionCmd(cmd.id, !cmd.flag)});
@@ -93,11 +94,11 @@ template <size_t TX_BUFFER_SIZE = 64> class TrainControlServer {
                 .mrk = SpeedCmd(cmd.id,
                                 user_speed_to_mrk_level(loco.requested_speed)),
             });
-          } else if constexpr (std::is_same_v<Command, UserCmd::Stop>) {
+          } else if constexpr (std::is_same_v<Command, Stop>) {
             tx_buf.push(TC::TX{.mrk = ControlCmd(ControlCmd::CMD_STOP)});
-          } else if constexpr (std::is_same_v<Command, UserCmd::Go>) {
+          } else if constexpr (std::is_same_v<Command, Go>) {
             tx_buf.push(TC::TX{.mrk = ControlCmd(ControlCmd::CMD_GO)});
-          } else if constexpr (std::is_same_v<Command, UserCmd::Reset>) {
+          } else if constexpr (std::is_same_v<Command, Reset>) {
             State default_state{};
 
             tx_buf.push(
@@ -119,21 +120,21 @@ template <size_t TX_BUFFER_SIZE = 64> class TrainControlServer {
                                           default_state.is_switch_straight(
                                               State::switch_id(sw_id)))});
             }
-          } else if constexpr (std::is_same_v<Command, UserCmd::RemoveTrains>) {
+          } else if constexpr (std::is_same_v<Command, RemoveTrains>) {
             tx_buf.push(
                 TC::TX{.mrk = ControlCmd(ControlCmd::CMD_REMOVE_TRAINS)});
-          } else if constexpr (std::is_same_v<Command, UserCmd::RunTree>) {
+          } else if constexpr (std::is_same_v<Command, RunTree>) {
             int tree_tid = create(4, train_tree_task);
             TreeMailbox mailbox{};
             mailbox.msgs.push(TC::TreeMsg{TC::InitTree{cmd.id, cmd.value}});
             trees.set(tree_tid, mailbox);
             _assert(tree_tid >= 0, "TREE TASK CREATE FAILED");
-          } else if constexpr (std::is_same_v<Command, UserCmd::CalSpeed>) {
+          } else if constexpr (std::is_same_v<Command, CalSpeed>) {
             calibrating_train.num   = cmd.id;
             calibrating_train.speed = cmd.value;
             int cal_tid             = create(4, cal_speed_task);
             _assert(cal_tid >= 0, "CAL SPEED TASK CREATE FAILED");
-          } else if constexpr (std::is_same_v<Command, UserCmd::Quit>) {
+          } else if constexpr (std::is_same_v<Command, Quit>) {
             if (waiting_ui_update_worker_tid >= 0) {
               reply(waiting_ui_update_worker_tid, TC::Quit{});
               waiting_ui_update_worker_tid = -1;
@@ -142,7 +143,7 @@ template <size_t TX_BUFFER_SIZE = 64> class TrainControlServer {
               reply(waiting_can_tx_worker_tid, TC::Quit{});
               waiting_can_tx_worker_tid = -1;
             }
-          } else if constexpr (std::is_same_v<Command, UserCmd::DebugSensor>) {
+          } else if constexpr (std::is_same_v<Command, DebugSensor>) {
             debug_sensor = cmd.enabled;
           } else {
             _assert(false, "UNHANDLED USER COMMAND");
@@ -197,11 +198,11 @@ template <size_t TX_BUFFER_SIZE = 64> class TrainControlServer {
     maybe_tx();
   }
 
-  void handle(const int tid, const TC::CLICmd &msg) {
-    expand_user_command(msg.cmd);
+  void handle(const int tid, const TC::Cmd::Any &msg) {
+    expand_user_command(msg);
     maybe_tx();
     reply(tid, TC::Ack{});
-    if (std::get_if<UserCmd::Quit>(&msg.cmd)) {
+    if (std::get_if<TC::Cmd::Quit>(&msg)) {
       exit();
     }
   }
@@ -251,8 +252,8 @@ public:
     create(2, rx_can_worker);
     create(2, tx_can_worker);
 
-    expand_user_command(UserCmd::RemoveTrains{});
-    expand_user_command(UserCmd::Reset{});
+    expand_user_command(TC::Cmd::RemoveTrains{});
+    expand_user_command(TC::Cmd::Reset{});
   }
 
   void run() {

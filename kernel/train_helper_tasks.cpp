@@ -20,8 +20,7 @@ void switch_medium_loop(int tcs_tid) {
   }};
 
   for (const auto &[sw_id, straight] : switches) {
-    auto reply =
-        send<TC::Ack>(tcs_tid, TC::CLICmd{UserCmd::Switch{sw_id, straight}});
+    auto reply = send<TC::Ack>(tcs_tid, TC::Cmd::Switch{sw_id, straight});
     _assert(reply.has_value(), "SWITCH MEDIUM LOOP FAILED");
   }
 }
@@ -29,8 +28,7 @@ void switch_medium_loop(int tcs_tid) {
 void cal_speed_task_at_speed(uint32_t loco_id, uint32_t speed, int tcs_tid,
                              int tx_tid) {
   Debug_Puts(tx_tid, "calspeed: setting speed ", speed, " for train ", loco_id);
-  auto speed_reply =
-      send<TC::Ack>(tcs_tid, TC::CLICmd{UserCmd::Speed{loco_id, speed}});
+  auto speed_reply = send<TC::Ack>(tcs_tid, TC::Cmd::Speed{loco_id, speed});
   _assert(speed_reply.has_value(), "CAL SPEED SET SPEED FAILED");
 
   // run laps
@@ -47,8 +45,7 @@ void cal_speed_task() {
   _assert(tx_tid >= 0, "TX SERVER WHOIS FAILED");
 
   // debug sensor on to track times and sensor triggers
-  auto debug_on_reply =
-      send<TC::Ack>(tcs_tid, TC::CLICmd{UserCmd::DebugSensor{true}});
+  auto debug_on_reply = send<TC::Ack>(tcs_tid, TC::Cmd::DebugSensor{true});
   _assert(debug_on_reply.has_value(), "CAL SPEED DEBUG SENSOR ON FAILED");
 
   auto params = send<TC::CalSpeedParams>(tcs_tid, TC::CalSpeedReady{});
@@ -66,12 +63,10 @@ void cal_speed_task() {
   }
 
   // stop train
-  auto stop_reply =
-      send<TC::Ack>(tcs_tid, TC::CLICmd{UserCmd::Speed{params->loco_id, 0}});
+  auto stop_reply = send<TC::Ack>(tcs_tid, TC::Cmd::Speed{params->loco_id, 0});
   _assert(stop_reply.has_value(), "CAL SPEED STOP FAILED");
 
   // debug off
-  auto debug_off_reply =
-      send<TC::Ack>(tcs_tid, TC::CLICmd{UserCmd::DebugSensor{false}});
+  auto debug_off_reply = send<TC::Ack>(tcs_tid, TC::Cmd::DebugSensor{false});
   _assert(debug_off_reply.has_value(), "CAL SPEED DEBUG SENSOR OFF FAILED");
 }

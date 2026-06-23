@@ -9,8 +9,9 @@ struct Blackboard {
   State state;
   uint32_t loco_id;
 
-  int tx_server_tid;
-  int cs_server_tid;
+  int tcs_tid;
+  int txs_tid;
+  int cs_tid;
 
   uint16_t est_speed;
   uint16_t requested_speed;
@@ -79,9 +80,9 @@ struct WaitNode : public LeafNode {
 
   NodeResult tick(Blackboard &bb) override {
     if (start_tick == 0) {
-      start_tick = Time(bb.cs_server_tid);
+      start_tick = Time(bb.cs_tid);
     }
-    if (Time(bb.cs_server_tid) - start_tick >= wait_ticks) {
+    if (Time(bb.cs_tid) - start_tick >= wait_ticks) {
       return NodeResult::Success;
     }
     return NodeResult::Running;

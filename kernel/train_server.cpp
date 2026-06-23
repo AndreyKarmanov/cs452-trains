@@ -9,7 +9,7 @@ namespace {
 
   struct LogNode : public LeafNode {
     NodeResult tick(Blackboard &bb) override {
-      Puts(bb.tx_server_tid, "tree tick for loco ", bb.loco_id, " value ",
+      Puts(bb.txs_tid, "tree tick for loco ", bb.loco_id, " value ",
            bb.requested_speed, "\n\r");
       return NodeResult::Success;
     }
@@ -24,6 +24,26 @@ namespace {
         } else {
           return NodeResult::Running;
         }
+      }
+      return NodeResult::Success;
+    }
+  };
+
+  struct SetSpeedNode : public LeafNode {
+    NodeResult tick(Blackboard &bb) override {
+      if (bb.txs_tid < 0) {
+        return NodeResult::Failure;
+      }
+
+      if (bb.requested_speed == bb.state.get_loco(bb.loco_id).requested_speed) {
+        return NodeResult::Success;
+      }
+
+      auto resp = send<TC::Ack>(
+          bb.tcs_tid,
+          TC::Cmd::Speed{.id = bb.loco_id, .value = bb.requested_speed});
+      if (!resp.has_value()) {
+        return NodeResult::Failure;
       }
       return NodeResult::Success;
     }
@@ -54,13 +74,13 @@ namespace {
             }
           }
           path_idx++;
-          Debug_Puts(bb.tx_server_tid, "Path: ", path_idx, "/", N, " speed ",
+          Debug_Puts(bb.txs_tid, "Path: ", path_idx, "/", N, " speed ",
                      bb.est_speed / 10, ".", bb.est_speed % 10, "mm / tick ",
                      bb.event_tick - last_sensor_passed_tick,
                      " Tick delta\n\r");
           last_sensor_passed_tick = bb.event_tick;
           if (path_idx == N) {
-            Debug_Puts(bb.tx_server_tid, "path completed successfully\n\r");
+            Debug_Puts(bb.txs_tid, "path completed successfully\n\r");
             return NodeResult::Success;
           }
         } else {
@@ -82,8 +102,9 @@ void train_tree_task() {
   auto cs_tid  = WhoIs(ClockServer<>::CLOCK_SERVER_NAME);
 
   Blackboard bb{};
-  bb.tx_server_tid = tx_tid;
-  bb.cs_server_tid = cs_tid;
+  bb.tcs_tid = tcs_tid;
+  bb.txs_tid = tx_tid;
+  bb.cs_tid  = cs_tid;
 
   auto sid = [](char b, int n) -> uint16_t { return (b - 'A') * 16 + n; };
 
@@ -94,8 +115,13 @@ void train_tree_task() {
       sid('E', 9),  sid('D', 5),  sid('E', 6),  sid('D', 4),
   };
 
+  SequenceNode tree{};
+
+  SetSpeedNode set_speed_node{};
+  tree.children.push(&set_speed_node);
+
   ExpectPathNode expect_path_node(path);
-  auto tree = expect_path_node;
+  tree.children.push(&expect_path_node);
 
   while (true) {
     auto next_msg = send<TC::TreeMsg>(tcs_tid, TC::TreeReady{});
@@ -119,11 +145,11 @@ void train_tree_task() {
         next_msg.value());
     auto result = tree.tick(bb);
     if (result == NodeResult::Failure) {
-      Debug_Puts(bb.tx_server_tid, "tree failed\n\r");
-      Debug_Puts(bb.tx_server_tid, "Error: ", bb.error_msg, "\n\r");
+      Debug_Puts(bb.txs_tid, "tree failed\n\r");
+      Debug_Puts(bb.txs_tid, "Error: ", bb.error_msg, "\n\r");
       break;
     } else if (result == NodeResult::Success) {
-      Debug_Puts(bb.tx_server_tid, "tree succeeded\n\r");
+      Debug_Puts(bb.txs_tid, "tree succeeded\n\r");
       break;
     }
   }

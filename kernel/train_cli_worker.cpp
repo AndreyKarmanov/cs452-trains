@@ -1,5 +1,4 @@
 #include "train_cli_worker.h"
-#include "clock_server.h"
 #include "io_helpers.h"
 #include "mrk.h"
 #include "time.h"
@@ -40,8 +39,8 @@ namespace {
 
 } // namespace
 
-UserCmd::Cmd parse_command(StaticString<CLI_BUFFER_SIZE> &buf) {
-  UserCmd::Cmd out{};
+TC::Cmd::Any parse_command(StaticString<CLI_BUFFER_SIZE> &buf) {
+  TC::Cmd::Any out{};
 
   const char *begin = buf.data;
   const char *end   = buf.data + buf.len;
@@ -58,7 +57,7 @@ UserCmd::Cmd parse_command(StaticString<CLI_BUFFER_SIZE> &buf) {
   if (cmd_len == 1 && (cmd[0] == 'q' || cmd[0] == 'Q') &&
       done_parse(cur, end)) {
     buf.set("Success: q (quit)");
-    return UserCmd::Quit{};
+    return TC::Cmd::Quit{};
   }
 
   if (cmd_len == 2 && strncmp(cmd, "tr", 2) == 0) {
@@ -68,10 +67,10 @@ UserCmd::Cmd parse_command(StaticString<CLI_BUFFER_SIZE> &buf) {
     if (parse_uint(parse_cur, end, loco_id) &&
         parse_uint(parse_cur, end, speed) && speed <= MAX_USER_SPEED &&
         done_parse(parse_cur, end)) {
-      out = UserCmd::Speed{loco_id, speed};
+      out = TC::Cmd::Speed{loco_id, speed};
       buf.set("Success: tr ", loco_id, ' ', speed);
     } else {
-      out = UserCmd::Invalid{};
+      out = TC::Cmd::Invalid{};
       buf.set("Error: Format is tr <train number> <speed 0-", MAX_USER_SPEED,
               '>');
     }
@@ -84,10 +83,10 @@ UserCmd::Cmd parse_command(StaticString<CLI_BUFFER_SIZE> &buf) {
     const char *parse_cursor = cur;
     if (parse_uint(parse_cursor, end, loco_id) &&
         parse_uint(parse_cursor, end, light) && done_parse(parse_cursor, end)) {
-      out = UserCmd::Light{loco_id, light != 0};
+      out = TC::Cmd::Light{loco_id, light != 0};
       buf.set("Success: lr ", loco_id, ' ', light);
     } else {
-      out = UserCmd::Invalid{};
+      out = TC::Cmd::Invalid{};
       buf.set("Error: Format is lr <train number> <light state>");
     }
     return out;
@@ -105,10 +104,10 @@ UserCmd::Cmd parse_command(StaticString<CLI_BUFFER_SIZE> &buf) {
     }
     if (sw_id != 0 && (dir == 'S' || dir == 's' || dir == 'C' || dir == 'c') &&
         done_parse(parse_cursor, end)) {
-      out = UserCmd::Switch{sw_id, dir == 'S' || dir == 's'};
+      out = TC::Cmd::Switch{sw_id, dir == 'S' || dir == 's'};
       buf.set("Success: sw ", sw_id, ' ', dir);
     } else {
-      out = UserCmd::Invalid{};
+      out = TC::Cmd::Invalid{};
       buf.set("Error: Format is sw <switch number> <switch direction>");
     }
     return out;
@@ -119,35 +118,35 @@ UserCmd::Cmd parse_command(StaticString<CLI_BUFFER_SIZE> &buf) {
   //   const char *parse_cursor = cur;
   //   if (parse_uint(parse_cursor, end, loco_id) &&
   //       done_parse(parse_cursor, end)) {
-  //     out = UserCmd::Reverse{loco_id, state.get_loco(loco_id).backward};
+  //     out = TC::Cmd::Reverse{loco_id, state.get_loco(loco_id).backward};
   //     buf.set("Success: rv ", loco_id, " (stopping)");
   //   } else {
-  //     out = UserCmd::Invalid{};
+  //     out = TC::Cmd::Invalid{};
   //     buf.set("Error: Format is rv <train number>");
   //   }
   //   return out;
   // }
 
   if (cmd_len == 4 && strncmp(cmd, "stop", 4) == 0 && done_parse(cur, end)) {
-    out = UserCmd::Stop{};
+    out = TC::Cmd::Stop{};
     buf.set("Success: stop (stopping)");
     return out;
   }
 
   if (cmd_len == 2 && strncmp(cmd, "go", 2) == 0 && done_parse(cur, end)) {
-    out = UserCmd::Go{};
+    out = TC::Cmd::Go{};
     buf.set("Success: go (starting)");
     return out;
   }
 
   if (cmd_len == 5 && strncmp(cmd, "reset", 5) == 0 && done_parse(cur, end)) {
-    out = UserCmd::Reset{};
+    out = TC::Cmd::Reset{};
     buf.set("Success: reset (resetting all state)");
     return out;
   }
 
   if (cmd_len == 5 && strncmp(cmd, "quirk", 5) == 0 && done_parse(cur, end)) {
-    out = UserCmd::RemoveTrains{};
+    out = TC::Cmd::RemoveTrains{};
     buf.set("Success: quirk (marlin quirk clear)");
     return out;
   }
@@ -158,10 +157,10 @@ UserCmd::Cmd parse_command(StaticString<CLI_BUFFER_SIZE> &buf) {
     const char *parse_cur = cur;
     if (parse_uint(parse_cur, end, loco_id) &&
         parse_uint(parse_cur, end, value) && done_parse(parse_cur, end)) {
-      out = UserCmd::RunTree{loco_id, value};
+      out = TC::Cmd::RunTree{loco_id, value};
       buf.set("Success: rt ", loco_id, ' ', value);
     } else {
-      out = UserCmd::Invalid{};
+      out = TC::Cmd::Invalid{};
       buf.set("Error: Format is rt <train number> <value>");
     }
     return out;
@@ -174,10 +173,10 @@ UserCmd::Cmd parse_command(StaticString<CLI_BUFFER_SIZE> &buf) {
     if (parse_uint(parse_cur, end, loco_id) &&
         parse_uint(parse_cur, end, speed) && speed <= MAX_USER_SPEED &&
         done_parse(parse_cur, end)) {
-      out = UserCmd::CalSpeed{loco_id, speed};
+      out = TC::Cmd::CalSpeed{loco_id, speed};
       buf.set("Success: calspeed ", loco_id, ' ', speed);
     } else {
-      out = UserCmd::Invalid{};
+      out = TC::Cmd::Invalid{};
       buf.set("Error: Format is calspeed <train number> <speed 0-",
               MAX_USER_SPEED, '>');
     }
@@ -188,20 +187,20 @@ UserCmd::Cmd parse_command(StaticString<CLI_BUFFER_SIZE> &buf) {
     const char *parse_cur = skip_ws(cur, end);
     if (parse_cur + 2 <= end &&
         (strncmp(parse_cur, "on", 2) == 0 && done_parse(parse_cur + 2, end))) {
-      out = UserCmd::DebugSensor{true};
+      out = TC::Cmd::DebugSensor{true};
       buf.set("Success: debugsensor on");
     } else if (parse_cur + 3 <= end && (strncmp(parse_cur, "off", 3) == 0 &&
                                         done_parse(parse_cur + 3, end))) {
-      out = UserCmd::DebugSensor{false};
+      out = TC::Cmd::DebugSensor{false};
       buf.set("Success: debugsensor off");
     } else {
-      out = UserCmd::Invalid{};
+      out = TC::Cmd::Invalid{};
       buf.set("Error: Format is debugsensor on|off");
     }
     return out;
   }
 
-  out = UserCmd::Invalid{};
+  out = TC::Cmd::Invalid{};
   buf.set("Error: cmds: q, tr, sw, rv, lr, stop, go, reset, quirk, rt, "
           "calspeed, debugsensor");
   return out;
@@ -234,16 +233,16 @@ void cli_worker() {
       Puts(tx_tid, "\033[", CONSOLE_LINE, ";1H\033[K> ", buf, "\n\r");
       buf.clear();
 
-      if (std::get_if<UserCmd::Invalid>(&result)) {
+      if (std::get_if<TC::Cmd::Invalid>(&result)) {
         continue;
       }
 
-      auto cans_reply = send<TC::Ack>(tcs_tid, TC::CLICmd{result});
+      auto cans_reply = send<TC::Ack>(tcs_tid, result);
       if (cans_reply.error()) {
         break;
       }
 
-      if (std::get_if<UserCmd::Quit>(&result)) {
+      if (std::get_if<TC::Cmd::Quit>(&result)) {
         break;
       }
     }

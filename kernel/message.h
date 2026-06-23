@@ -144,9 +144,48 @@ namespace TC {
     uint32_t time;
   };
 
-  struct CLICmd {
-    UserCmd::Cmd cmd;
-  };
+  namespace Cmd {
+    struct Invalid {};
+    struct Quit {};
+    struct Light {
+      uint32_t id;
+      bool flag;
+    };
+    struct Speed {
+      uint32_t id;
+      uint32_t value;
+    };
+    struct Switch {
+      uint32_t id;
+      bool flag;
+    };
+    struct Reverse {
+      uint32_t id;
+      bool flag;
+    };
+    struct Stop {};
+    struct Go {};
+    struct Reset {};
+    struct RemoveTrains {};
+    struct RunTree {
+      uint32_t id;
+      uint32_t value;
+    };
+
+    struct CalSpeed {
+      uint32_t id;
+      uint32_t value;
+    };
+
+    struct DebugSensor {
+      bool enabled;
+    };
+
+    using Any =
+        std::variant<Invalid, Quit, Light, Speed, Switch, Reverse, Stop, Go,
+                     Reset, RemoveTrains, RunTree, CalSpeed, DebugSensor>;
+
+  } // namespace Cmd
 
   struct TreeReady {};
   struct TreeExit {};
@@ -189,7 +228,7 @@ using Message =
                  FUT::ClientInitMsg, TX::SendMsg, TX::InterruptMsg,
                  TX::ReplyMsg, RX::GetcMsg, RX::GetcReplyMsg, RX::InterruptMsg,
                  RX::InterruptReplyMsg, ErrorMsg, TaskExitMsg, TC::UIReady,
-                 TC::UIUpdate, TC::CLICmd, TC::Quit, TC::TX, TC::RX,
+                 TC::UIUpdate, TC::Cmd::Any, TC::Quit, TC::TX, TC::RX,
                  TC::TXReady, TC::TreeReady, TC::TreeExit, TC::TreeMsg, TC::Ack,
                  TC::CalSpeedReady, TC::CalSpeedParams>;
 
