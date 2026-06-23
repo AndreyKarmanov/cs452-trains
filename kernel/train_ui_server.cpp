@@ -174,21 +174,8 @@ static constexpr int STATUS_ROW    = STATE_ROW_INT + 1;
 static constexpr int TRAIN_ROW     = STATE_ROW_INT + 3;
 static constexpr int SENSOR_ROW    = TRAIN_ROW + MAX_TRAINS + 2;
 static constexpr int SWITCH_ROW    = SENSOR_ROW + 3;
-static constexpr int TIMING_ROW    = SWITCH_ROW + 8;
 
-static constexpr const char *cmd_name_for_index(size_t index) {
-  const char *cmd_names[] = {"Invalid ", "Quit    ", "Light   ",
-                             "Speed   ", "Switch  ", "Reverse ",
-                             "Stop    ", "Go      ", "Reset   "};
-  if (index < sizeof(cmd_names) / sizeof(cmd_names[0])) {
-    return cmd_names[index];
-  }
-  return "Unknown ";
-}
-
-uint32_t print_state(int tx_tid, const State &state,
-                     const std::array<uint32_t, UserCmd::COUNT> &timings,
-                     bool timings_dirty) {
+uint32_t print_state(int tx_tid, const State &state) {
   uint32_t draws = 0;
   StaticString<512> line;
 
@@ -245,18 +232,6 @@ uint32_t print_state(int tx_tid, const State &state,
     ++draws;
   }
 
-  if (timings_dirty) {
-    line.set("\033[", TIMING_ROW, ";2HCommand Timings\n\r");
-    for (size_t i = 0; i < timings.size(); ++i) {
-      if (timings[i] > 0) {
-        line.append("\033[K   ", cmd_name_for_index(i), ": ", timings[i],
-                    " ticks (", timings[i] * TICK_TIME_US / 1000, " ms)\n\r");
-      }
-    }
-    Puts(tx_tid, line);
-    ++draws;
-  }
-
   return draws;
 }
 
@@ -296,7 +271,7 @@ template <> void TrainUIServer<>::ui_print_worker() {
     if (!print.has_value()) {
       break;
     }
-    print_state(tx_tid, print->state, print->timings, print->timings_dirty);
+    print_state(tx_tid, print->state);
   }
 }
 

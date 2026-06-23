@@ -1,6 +1,7 @@
 #include "train_server.h"
 #include "behaviour_tree.h"
 #include "io_helpers.h"
+#include "message.h"
 #include "train_control.h"
 
 namespace {
@@ -71,20 +72,12 @@ namespace {
 
 void train_tree_task() {
   auto tcs_tid = WhoIs(TrainControlServer<>::TC_SERVER_NAME);
-  _assert(tcs_tid >= 0, "TC SERVER WHOIS FAILED");
-
-  auto tx_tid = WhoIs(UART_TX_Server::TX_SERVER_NAME);
-  _assert(tx_tid >= 0, "TX SERVER WHOIS FAILED");
-
-  auto cs_tid = WhoIs(ClockServer<>::CLOCK_SERVER_NAME);
-  _assert(cs_tid >= 0, "CLOCK SERVER WHOIS FAILED");
+  auto tx_tid  = WhoIs(UART_TX_Server::TX_SERVER_NAME);
+  auto cs_tid  = WhoIs(ClockServer<>::CLOCK_SERVER_NAME);
 
   Blackboard bb{};
   bb.tx_server_tid = tx_tid;
   bb.cs_server_tid = cs_tid;
-
-  // char bank     = 'A' + ((s_id - 1) / 16);
-  // int number    = ((s_id - 1) % 16) + 1;
 
   auto sid = [](char b, int n) -> uint16_t { return (b - 'A') * 16 + n; };
 
@@ -127,5 +120,5 @@ void train_tree_task() {
       break;
     }
   }
-  auto next_msg = send<TC::TreeMsg>(tcs_tid, TC::TreeExit{});
+  std::ignore = send<TC::Ack>(tcs_tid, TC::TreeExit{});
 }

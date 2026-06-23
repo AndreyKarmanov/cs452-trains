@@ -69,6 +69,17 @@ struct State {
   bool sensors_dirty : 1  = true;
   bool status_dirty : 1   = true;
 
+  bool is_dirty() const {
+    return trains_dirty || switches_dirty || sensors_dirty || status_dirty;
+  };
+
+  void clear_dirty() {
+    trains_dirty   = false;
+    switches_dirty = false;
+    sensors_dirty  = false;
+    status_dirty   = false;
+  }
+
   void update_from_mrk(const MRKCmd &cmd);
   TrainState get_loco(uint32_t loco_id) const {
     for (const TrainState &train : trains) {
@@ -79,5 +90,3 @@ struct State {
     return TrainState{loco_id, 0, false, false};
   }
 };
-
-void apply_state(const State &state);

@@ -118,24 +118,6 @@ template <size_t TX_BUFFER_SIZE = 64> class TrainControlServer {
         command);
   }
 
-  bool has_dirty_state() const {
-    return state.sensors_dirty || state.switches_dirty || state.trains_dirty ||
-           state.status_dirty;
-  }
-
-  void reply_waiting_ui_update_worker_if_dirty() {
-    if (waiting_ui_update_worker_tid < 0 || !has_dirty_state()) {
-      return;
-    }
-
-    reply(waiting_ui_update_worker_tid, TC::UIUpdate{state, 0});
-    waiting_ui_update_worker_tid = -1;
-    state.sensors_dirty          = false;
-    state.switches_dirty         = false;
-    state.trains_dirty           = false;
-    state.status_dirty           = false;
-  }
-
 public:
   static constexpr auto TC_SERVER_NAME = "TCSERVER";
   TrainControlServer() {
@@ -151,7 +133,11 @@ public:
   void handle(const int tid, const TC::RX &msg) {
     state.update_from_mrk(msg.mrk);
     publish_tree_update(TC::TreeUpdate{.mrk = msg.mrk});
-    reply_waiting_ui_update_worker_if_dirty();
+    if (state.is_dirty() && waiting_ui_update_worker_tid >= 0) {
+      state.clear_dirty();
+      reply(waiting_ui_update_worker_tid, TC::UIUpdate{state, 0});
+      waiting_ui_update_worker_tid = -1;
+    }
     reply(tid, TC::Ack{});
   }
 
@@ -177,15 +163,11 @@ public:
   }
 
   void handle(const int tid, const TC::UIReady &) {
-    if (has_dirty_state()) {
+    if (state.is_dirty()) {
       reply(tid, TC::UIUpdate{state, 0});
-      state.sensors_dirty  = false;
-      state.switches_dirty = false;
-      state.trains_dirty   = false;
-      state.status_dirty   = false;
+      state.clear_dirty();
       return;
     }
-
     waiting_ui_update_worker_tid = tid;
   }
 

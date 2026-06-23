@@ -182,17 +182,15 @@ namespace TC {
     State state;
     uint32_t time;
   };
+
   struct UIPrintReady {};
   struct UIPrint {
     State state;
-    std::array<uint32_t, UserCmd::COUNT> timings;
-    bool timings_dirty;
   };
 
   struct TXReady {};
   struct TX {
     MRKCmd mrk;
-    // uint32_t delay_ticks = 0;
   };
 
   struct RX {

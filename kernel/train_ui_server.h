@@ -8,28 +8,17 @@
 #include "syscall.h"
 #include "train_state.h"
 #include "uart_tx_server.h"
-#include <array>
 #include <cstddef>
 #include <ctype.h>
-#include <type_traits>
 
-uint32_t print_state(int tx_tid, const State &state,
-                     const std::array<uint32_t, UserCmd::COUNT> &timings,
-                     bool timings_dirty);
+uint32_t print_state(int tx_tid, const State &state);
 
 template <size_t CLI_BUFFER_SIZE = 64> class TrainUIServer {
-  struct PendingTiming {
-    UserCmd::Cmd cmd;
-    uint32_t start_time;
-  };
 
   StaticString<CLI_BUFFER_SIZE> buf{};
   Buffer<UserCmd::Cmd, 8> cmd_buf;
-  std::array<PendingTiming, UserCmd::COUNT> pending_timings{};
 
   State state{};
-  std::array<uint32_t, UserCmd::COUNT> command_timings{};
-  bool timings_dirty = true;
 
   int tx_tid;
 
@@ -37,100 +26,11 @@ template <size_t CLI_BUFFER_SIZE = 64> class TrainUIServer {
   static void ui_update_worker();
   static void cli_worker();
   static void command_worker();
-  int waiting_command_worker_tid       = -1;
-  int waiting_ui_print_worker_tid      = -1;
-  uint32_t waiting_command_worker_time = 0;
+
+  int waiting_command_worker_tid  = -1;
+  int waiting_ui_print_worker_tid = -1;
 
   UserCmd::Cmd parse_command();
-  void enqueue_command_timing(const UserCmd::Cmd &command,
-                              uint32_t start_ticks) {
-    if (user_command_applied(state, command)) {
-      return;
-    }
-
-    auto &pending      = pending_timings[command.index()];
-    pending.cmd        = command;
-    pending.start_time = start_ticks;
-  }
-
-  void update_pending_timings(uint32_t now) {
-    for (auto &pending : pending_timings) {
-      if (pending.start_time == 0) {
-        continue;
-      }
-
-      if (!user_command_applied(state, pending.cmd)) {
-        continue;
-      }
-
-      auto cmd_index             = pending.cmd.index();
-      command_timings[cmd_index] = now - pending.start_time;
-      pending.start_time         = 0;
-      timings_dirty              = true;
-    }
-  }
-
-  static bool user_command_applied(const State &current,
-                                   const UserCmd::Cmd &command) {
-    return std::visit(
-        [&](const auto &cmd) -> bool {
-          using Command = std::decay_t<decltype(cmd)>;
-
-          if constexpr (std::is_same_v<Command, UserCmd::Light>) {
-            for (const TrainState &train : current.trains) {
-              if (train.loco_id == cmd.id) {
-                return train.light_on == cmd.flag;
-              }
-            }
-            return false;
-          } else if constexpr (std::is_same_v<Command, UserCmd::Speed>) {
-            for (const TrainState &train : current.trains) {
-              if (train.loco_id == cmd.id) {
-                return train.requested_speed ==
-                       static_cast<uint16_t>(cmd.value);
-              }
-            }
-            return false;
-          } else if constexpr (std::is_same_v<Command, UserCmd::Switch>) {
-            return State::is_switch_id(static_cast<uint16_t>(cmd.id)) &&
-                   current.is_switch_straight(static_cast<uint16_t>(cmd.id)) ==
-                       cmd.flag;
-          } else if constexpr (std::is_same_v<Command, UserCmd::Reverse>) {
-            const TrainState current_train = current.get_loco(cmd.id);
-            return current_train.backward != cmd.flag;
-          } else if constexpr (std::is_same_v<Command, UserCmd::Stop>) {
-            return current.stopped;
-          } else if constexpr (std::is_same_v<Command, UserCmd::Go>) {
-            return !current.stopped;
-          } else if constexpr (std::is_same_v<Command, UserCmd::Reset>) {
-            State default_state{};
-            if (current.stopped != default_state.stopped ||
-                current.switches != default_state.switches) {
-              return false;
-            }
-
-            for (size_t i = 0; i < MAX_TRAINS; ++i) {
-              const TrainState &lhs_train = current.trains[i];
-              const TrainState &rhs_train = default_state.trains[i];
-              if (lhs_train.loco_id != rhs_train.loco_id ||
-                  lhs_train.requested_speed != rhs_train.requested_speed ||
-                  lhs_train.backward != rhs_train.backward ||
-                  lhs_train.light_on != rhs_train.light_on) {
-                return false;
-              }
-            }
-
-            return true;
-          } else if constexpr (std::is_same_v<Command, UserCmd::RemoveTrains>) {
-            return true;
-          } else if constexpr (std::is_same_v<Command, UserCmd::RunTree>) {
-            return true;
-          } else {
-            return false;
-          }
-        },
-        command);
-  }
 
   static constexpr auto CONSOLE_LINE = 3;
 
@@ -164,7 +64,6 @@ public:
       auto result = parse_command();
       Puts(tx_tid, "\033[", CONSOLE_LINE, ";2H> ", buf, "\n\r");
       buf.clear();
-      enqueue_command_timing(result, msg.time);
       if (waiting_command_worker_tid >= 0 &&
           !std::holds_alternative<UserCmd::Invalid>(result)) {
         reply(waiting_command_worker_tid, TC::CLICmd{result});
@@ -179,28 +78,20 @@ public:
 
   void handle(int sender_tid, const TC::UIUpdate &msg) {
     state = msg.state;
-    update_pending_timings(msg.time);
     if (waiting_ui_print_worker_tid >= 0) {
-      reply(waiting_ui_print_worker_tid,
-            TC::UIPrint{state, command_timings, timings_dirty});
+      reply(waiting_ui_print_worker_tid, TC::UIPrint{state});
       waiting_ui_print_worker_tid = -1;
     }
-    timings_dirty = false;
     reply(sender_tid, TC::Ack{});
   }
 
   void handle(int sender_tid, const TC::UIPrintReady &) {
-    if (state.sensors_dirty || state.switches_dirty || state.trains_dirty ||
-        state.status_dirty || timings_dirty) {
-      reply(sender_tid, TC::UIPrint{state, command_timings, timings_dirty});
-      timings_dirty        = false;
-      state.sensors_dirty  = false;
-      state.switches_dirty = false;
-      state.trains_dirty   = false;
-      state.status_dirty   = false;
-    } else {
-      waiting_ui_print_worker_tid = sender_tid;
+    if (state.is_dirty()) {
+      reply(sender_tid, TC::UIPrint{state});
+      state.clear_dirty();
+      return;
     }
+    waiting_ui_print_worker_tid = sender_tid;
   }
 
   void handle(int sender_tid, const TC::CLICmdReady &) {

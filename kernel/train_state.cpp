@@ -9,7 +9,6 @@
 #define TRAIN_ROW (STATE_ROW_INT + 3)
 #define SENSOR_ROW (TRAIN_ROW + MAX_TRAINS + 2)
 #define SWITCH_ROW (SENSOR_ROW + 3)
-#define TIMING_ROW (SWITCH_ROW + 8)
 
 void State::update_from_mrk(const MRKCmd &cmd) {
   std::visit(
@@ -93,29 +92,4 @@ void State::update_from_mrk(const MRKCmd &cmd) {
         }
       },
       cmd);
-}
-
-void apply_state(const State &state) {
-  // stop all trains first
-  mcp2515_send(ControlCmd(ControlCmd::CMD_HALT).to_frame());
-
-  for (const TrainState &train : state.trains) {
-    mcp2515_send(LightCmd(train.loco_id, train.light_on).to_frame(),
-                 train.loco_id * 1'000);
-    mcp2515_send(SpeedCmd(train.loco_id, train.requested_speed).to_frame(),
-                 train.loco_id * 1'000);
-    mcp2515_send(DirectionCmd(train.loco_id, train.backward).to_frame(),
-                 train.loco_id * 1'000);
-  }
-
-  for (int sw_id = 0; sw_id < 22; ++sw_id) {
-    mcp2515_send(SwitchCmd(State::switch_id(sw_id),
-                           state.is_switch_straight(State::switch_id(sw_id)))
-                     .to_frame(),
-                 sw_id * 1'000);
-  }
-
-  mcp2515_send(
-      ControlCmd(state.stopped ? ControlCmd::CMD_STOP : ControlCmd::CMD_GO)
-          .to_frame());
 }
