@@ -149,7 +149,7 @@ namespace TC {
     struct Quit {};
     struct Light {
       uint32_t id;
-      bool flag;
+      bool on;
     };
     struct Speed {
       uint32_t id;
@@ -157,7 +157,7 @@ namespace TC {
     };
     struct Switch {
       uint32_t id;
-      bool flag;
+      bool straight;
     };
     struct Reverse {
       uint32_t id;

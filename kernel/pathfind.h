@@ -47,6 +47,7 @@ public:
 
   std::optional<int> distance_between_nodes(const char *from, const char *to,
                                             bool allow_reverse = false) const;
+  bool is_curved(int from_idx, int to_idx) const;
 
   const char *node_name(int node_idx) const;
 };

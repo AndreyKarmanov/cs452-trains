@@ -167,8 +167,16 @@ namespace {
       StaticString<32> path_str{};
       path_str.append("Path: ");
       for (size_t i = 0; i < path->len; ++i) {
-        if (pathfind.track[path->nodes[i]].type == NODE_SENSOR) {
+        auto node = pathfind.track[path->nodes[i]];
+        if (node.type == NODE_SENSOR) {
           bb.path.push(path->nodes[i] + 1);
+        } else if (node.type == NODE_BRANCH) {
+          pathfind.is_curved(path->nodes[i], path->nodes[i + 1]);
+          std::ignore = send<TC::Ack>(
+              bb.tcs_tid,
+              TC::Cmd::Switch{.id       = static_cast<uint32_t>(node.num),
+                              .straight = !pathfind.is_curved(
+                                  path->nodes[i], path->nodes[i + 1])});
         }
       }; // remove the first sesnor since we already passed it
 
@@ -195,10 +203,10 @@ namespace {
 
     SequenceNode seq{};
     LocalizerTree localizer_tree{};
-    CreateLoopStartNode create_loop_start_node{'b'};
+    CreateLoopStartNode create_loop_start_node{'a'};
     SetSpeedNode max_speed{14};
 
-    TracePathNode expect_path_node{'b'};
+    TracePathNode expect_path_node{'a'};
     SaveSensorNode save_sensor_node{};
 
     SetSpeedNode zero_speed{0};

@@ -158,6 +158,33 @@ std::optional<int> Pathfind::distance_between_nodes(const char *from,
   return path->dist;
 }
 
+bool Pathfind::is_curved(int from_idx, int to_idx) const {
+  if (from_idx < 0 || from_idx >= TRACK_MAX || to_idx < 0 ||
+      to_idx >= TRACK_MAX)
+    return false;
+
+  const track_node &from_node = track[from_idx];
+  switch (from_node.type) {
+  case NODE_BRANCH:
+    if (node_index(from_node.edge[DIR_STRAIGHT].dest) == to_idx)
+      return false;
+    if (node_index(from_node.edge[DIR_CURVED].dest) == to_idx)
+      return true;
+    break;
+
+  case NODE_SENSOR:
+  case NODE_MERGE:
+  case NODE_ENTER:
+    return false;
+    break;
+
+  default:
+    break;
+  }
+
+  return false;
+}
+
 const char *Pathfind::node_name(int node_idx) const {
   if (node_idx < 0 || node_idx >= TRACK_MAX)
     return "?";

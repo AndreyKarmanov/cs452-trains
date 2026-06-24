@@ -75,13 +75,13 @@ template <size_t TX_BUFFER_SIZE = 64> class TrainControlServer {
           using namespace TC::Cmd;
 
           if constexpr (std::is_same_v<Command, Light>) {
-            tx_buf.push(TC::TX{.mrk = LightCmd(cmd.id, cmd.flag)});
+            tx_buf.push(TC::TX{.mrk = LightCmd(cmd.id, cmd.on)});
           } else if constexpr (std::is_same_v<Command, Speed>) {
             tx_buf.push(TC::TX{
                 .mrk = SpeedCmd(cmd.id, user_speed_to_mrk_level(cmd.value))});
           } else if constexpr (std::is_same_v<Command, Switch>) {
             tx_buf.push(TC::TX{
-                .mrk = SwitchCmd(static_cast<uint16_t>(cmd.id), cmd.flag)});
+                .mrk = SwitchCmd(static_cast<uint16_t>(cmd.id), cmd.straight)});
           } else if constexpr (std::is_same_v<Command, Reverse>) {
             auto loco = state.get_loco(cmd.id);
             if (loco.requested_speed == 0) {
