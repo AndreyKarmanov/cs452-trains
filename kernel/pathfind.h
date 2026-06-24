@@ -21,11 +21,10 @@ public:
   int dist = 0;
   Buffer<PathNode, TRACK_MAX> nodes;
 
-  size_t len() const { return nodes.size(); }
-  bool empty() const { return nodes.empty(); }
+  // in place addition of two paths
+  Path &operator+(const Path &other);
 
-  std::optional<PathNode> peek() const { return nodes.peek(); }
-  std::optional<PathNode> pop_front() { return nodes.pop(); }
+  // search all nodes within distance.
 };
 
 class Pathfind {

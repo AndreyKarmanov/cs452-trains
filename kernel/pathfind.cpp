@@ -1,10 +1,37 @@
 #include "pathfind.h"
 
 #include "debug.h"
+#include "kernel_state.h"
 #include "uart.h"
 #include <climits>
 
 static constexpr int INF = INT_MAX / 2;
+
+Path &Path::operator+(const Path &other) {
+  if (other.nodes.empty())
+    return *this;
+
+  auto last_opt  = this->nodes.peek_last();
+  auto first_opt = other.nodes.peek();
+
+  if (!(last_opt->node_idx == first_opt->node_idx)) {
+    _assert(false, "other must start at last node of this");
+    return *this;
+  }
+
+  if (this->nodes.size() + other.nodes.size() - 1 > TRACK_MAX) {
+    _assert(false, "Path overflow");
+    return *this;
+  }
+
+  this->dist += other.dist;
+  for (size_t i = 1; i < other.nodes.size(); ++i) {
+    auto node = other.nodes[i];
+    _assert(node.has_value(), "unexpected empty path node");
+    this->nodes.push(node.value());
+  }
+  return *this;
+}
 
 track_node Pathfind::track[TRACK_MAX];
 
@@ -74,9 +101,10 @@ void Pathfind::relax(int from_idx, int from_dist, int to_idx, int edge_dist,
   }
 }
 
-std::optional<Path> Pathfind::build_path(int start_idx, int goal_idx,
-                                         const int best_dist[TRACK_MAX],
-                                         const int predecessor[TRACK_MAX]) const {
+std::optional<Path>
+Pathfind::build_path(int start_idx, int goal_idx,
+                     const int best_dist[TRACK_MAX],
+                     const int predecessor[TRACK_MAX]) const {
   (void)start_idx;
 
   if (best_dist[goal_idx] >= INF)
@@ -252,27 +280,27 @@ static void print_path(const Pathfind &pathfind, const char *label,
   }
 
   debug_printf(CONSOLE, "%s: dist=%d len=%d ", label, path->dist,
-               static_cast<int>(path->len()));
-  for (size_t step = 0; step < path->len(); ++step) {
+               static_cast<int>(path->nodes.size()));
+  for (size_t step = 0; step < path->nodes.size(); ++step) {
     auto node = path->nodes[step];
     if (!node.has_value())
       continue;
     debug_printf(CONSOLE, "%s", pathfind.node_name(node->node_idx));
-    if (step + 1 < path->len())
+    if (step + 1 < path->nodes.size())
       debug_puts(CONSOLE, " -> ");
   }
   debug_puts(CONSOLE, "\n\r");
 
-  for (size_t step = 0; step < path->len(); ++step) {
+  for (size_t step = 0; step < path->nodes.size(); ++step) {
     auto node = path->nodes[step];
     if (!node.has_value())
       continue;
-    debug_printf(CONSOLE,
-                 "  [%d] node_idx=%d name=%s type=%s dist_next=%d curved=%d\n\r",
-                 static_cast<int>(step), node->node_idx,
-                 pathfind.node_name(node->node_idx),
-                 node_type_name(node->type), node->distance_to_next_node,
-                 node->should_br_be_curved ? 1 : 0);
+    debug_printf(
+        CONSOLE,
+        "  [%d] node_idx=%d name=%s type=%s dist_next=%d curved=%d\n\r",
+        static_cast<int>(step), node->node_idx,
+        pathfind.node_name(node->node_idx), node_type_name(node->type),
+        node->distance_to_next_node, node->should_br_be_curved ? 1 : 0);
   }
 }
 
