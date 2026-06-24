@@ -106,8 +106,17 @@ namespace {
         if (data->new_state == 0) {
           return NodeResult::Running;
         }
-        auto in_path =
-            std::ranges::find(bb.path, data->sensor_id) != bb.path.end();
+        auto idx = std::ranges::find(bb.path, data->sensor_id);
+        if (idx == bb.path.end()) {
+          Debug_Puts(bb.txs_tid, "Couldn't find self in path\n\r");
+          return NodeResult::Failure;
+        }
+        auto skipped_nodes = std::distance(bb.path.begin(), idx);
+        Debug_Puts(bb.txs_tid, "Skipping ", skipped_nodes, "\n\r");
+        bb.path.pop(skipped_nodes + 1);
+        if (bb.path.empty()) {
+          return NodeResult::Success;
+        }
       }
       return NodeResult::Running;
     }
@@ -219,10 +228,12 @@ namespace {
 
     SequenceNode seq{};
     LocalizerTree localizer_tree{};
-    CreateLoopStartNode create_loop_start_node{'a'};
+    CreateLoopStartNode create_loop_start_node{'b'};
     SetSpeedNode max_speed{14};
 
-    TracePathNode expect_path_node{'a'};
+    FallBackNode path_follow{};
+    TracePathNode expect_path_node{'b'};
+    PathLocalizerNode path_localizer{};
     SaveSensorNode save_sensor_node{};
 
     SetSpeedNode zero_speed{0};
@@ -232,7 +243,9 @@ namespace {
       seq.children.push(&localizer_tree);
       seq.children.push(&create_loop_start_node);
       seq.children.push(&max_speed);
-      seq.children.push(&expect_path_node);
+      path_follow.children.push(&expect_path_node);
+      path_follow.children.push(&path_localizer);
+      seq.children.push(&path_follow);
       seq.children.push(&zero_speed);
 
       tree.children.push(&seq);

@@ -33,6 +33,12 @@ public:
     return arr[(head + _size - 1) % SIZE];
   }
 
+  constexpr void pop(size_t n) {
+    n      = std::min(n, _size);
+    head   = (head + n) % SIZE;
+    _size -= n;
+  }
+
   constexpr std::optional<T> pop() {
     if (empty())
       return std::nullopt;
