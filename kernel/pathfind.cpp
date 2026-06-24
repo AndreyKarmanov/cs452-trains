@@ -246,6 +246,66 @@ bool Pathfind::is_curved(int from_idx, int to_idx) const {
   return false;
 }
 
+// returns number of nodes found
+int Pathfind::search_within_distance(int node_idx, int distance, int *result,
+                                     int length, bool allow_reverse) {
+  int best_dist[TRACK_MAX];
+  int predecessor[TRACK_MAX];
+
+  for (int i = 0; i < TRACK_MAX; ++i) {
+    best_dist[i]   = INF;
+    predecessor[i] = -1;
+  }
+
+  best_dist[node_idx] = 0;
+  Heap<std::pair<int, int>, TRACK_MAX> frontier;
+  frontier.push({0, node_idx});
+
+  int result_count = 0;
+  while (!frontier.empty() && result_count < length) {
+    auto [pop_dist, curr_idx] = frontier.pop().value();
+    if (pop_dist > best_dist[curr_idx])
+      continue;
+    if (pop_dist > distance)
+      break;
+
+    result[result_count++] = curr_idx;
+
+    const track_node &curr_node = track[curr_idx];
+    int curr_dist               = best_dist[curr_idx];
+
+    switch (curr_node.type) {
+    case NODE_SENSOR:
+    case NODE_MERGE:
+    case NODE_ENTER:
+      relax(curr_idx, curr_dist, node_index(curr_node.edge[DIR_AHEAD].dest),
+            curr_node.edge[DIR_AHEAD].dist, best_dist, predecessor, frontier);
+      break;
+
+    case NODE_BRANCH:
+      relax(curr_idx, curr_dist, node_index(curr_node.edge[DIR_STRAIGHT].dest),
+            curr_node.edge[DIR_STRAIGHT].dist, best_dist, predecessor,
+            frontier);
+      relax(curr_idx, curr_dist, node_index(curr_node.edge[DIR_CURVED].dest),
+            curr_node.edge[DIR_CURVED].dist, best_dist, predecessor, frontier);
+      break;
+
+    case NODE_EXIT:
+      break;
+
+    default:
+      break;
+    }
+
+    if (allow_reverse) {
+      relax(curr_idx, curr_dist, node_index(curr_node.reverse), REVERSE_COST,
+            best_dist, predecessor, frontier);
+    }
+  }
+
+  return result_count;
+}
+
 const char *Pathfind::node_name(int node_idx) const {
   if (node_idx < 0 || node_idx >= TRACK_MAX)
     return "?";

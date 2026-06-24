@@ -22,8 +22,6 @@ public:
 
   // in place addition of two paths
   Path &operator+(const Path &other);
-
-  // search all nodes within distance.
 };
 
 class Pathfind {
@@ -60,6 +58,10 @@ public:
                                     bool allow_reverse = false) const;
 
   bool is_curved(int from_idx, int to_idx) const;
+
+  // search all nodes within distance.
+  int search_within_distance(int node_idx, int distance, int *result,
+                             int length, bool allow_reverse = false);
 
   const char *node_name(int node_idx) const;
 };
