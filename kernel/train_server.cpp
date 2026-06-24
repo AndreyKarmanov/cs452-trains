@@ -191,17 +191,18 @@ namespace {
 
       StaticString<32> path_str{};
       path_str.append("Path: ");
-      for (size_t i = 0; i < path->len; ++i) {
-        auto node = pathfind.track[path->nodes[i]];
+      for (size_t i = 0; i < path->len(); ++i) {
+        auto path_node = path->nodes[i];
+        if (!path_node.has_value())
+          continue;
+        const track_node &node = pathfind.track[path_node->node_idx];
         if (node.type == NODE_SENSOR) {
-          bb.path.push(path->nodes[i] + 1);
+          bb.path.push(path_node->node_idx + 1);
         } else if (node.type == NODE_BRANCH) {
-          pathfind.is_curved(path->nodes[i], path->nodes[i + 1]);
           std::ignore = send<TC::Ack>(
               bb.tcs_tid,
               TC::Cmd::Switch{.id       = static_cast<uint32_t>(node.num),
-                              .straight = !pathfind.is_curved(
-                                  path->nodes[i], path->nodes[i + 1])});
+                              .straight = !path_node->should_br_be_curved});
         }
       }; // remove the first sesnor since we already passed it
 
