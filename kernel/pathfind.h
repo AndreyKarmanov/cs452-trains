@@ -27,6 +27,13 @@ public:
 
   // in place addition of two paths
   Path &operator+(const Path &other);
+
+  constexpr std::optional<PathNode> pop() {
+    auto elem = Buffer<PathNode, TRACK_MAX>::pop();
+    if (elem.has_value())
+      dist -= elem->distance_to_next_node;
+    return elem;
+  }
 };
 
 class Pathfind {
