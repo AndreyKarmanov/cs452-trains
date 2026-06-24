@@ -10,8 +10,8 @@ static constexpr int DEBUG_LINE_START = 40;
 static int debug_scroll_line          = 0;
 
 int Debug_Puts(int tid, const char *str) {
-  const int row = DEBUG_LINE_START + debug_scroll_line;
-  debug_scroll_line++;
+  const int row     = DEBUG_LINE_START + debug_scroll_line;
+  debug_scroll_line = (debug_scroll_line + 1) % 40;
 
   StaticString<TX::MAX_DATA_LENGTH> out;
   out.append("\033[s\033[", row, ";1H\033[K");

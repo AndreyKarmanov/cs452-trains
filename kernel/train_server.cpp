@@ -54,6 +54,9 @@ namespace {
     NodeResult tick(Blackboard &bb) override {
       if (auto data = std::get_if<SensorData>(&bb.new_event);
           data && data->new_state == 1) {
+        if (bb.seen_sensors.size() == bb.seen_sensors.capacity()) {
+          bb.seen_sensors.pop();
+        }
         bb.seen_sensors.push({.sid = data->sensor_id, .tick = bb.event_tick});
         Debug_Puts(bb.txs_tid, "Saw sensor ", data->sensor_id);
       }
@@ -122,6 +125,19 @@ namespace {
     };
   };
 
+  struct StopAtDonePath : public LeafNode {
+    NodeResult tick(Blackboard &bb) override {
+      if (bb.path.empty()) {
+        auto res = send<TC::Ack>(bb.tcs_tid, TC::Cmd::Speed(bb.loco_id, 0));
+        if (!res.has_value()) {
+          return NodeResult::Failure;
+        }
+        return NodeResult::Success;
+      }
+      return NodeResult::Running;
+    };
+  };
+
   struct FailOnSensor : public LeafNode {
 
     uint16_t sens_id;
@@ -165,16 +181,22 @@ namespace {
     }
   };
 
-  struct CreateLoopStartNode : public LeafNode {
-    NodeResult tick(Blackboard &bb) override {
+  struct GoToNode : public LeafNode {
+    bool path_initalized = false;
 
-      if (bb.path_initialized) {
+    NodeResult tick(Blackboard &bb) override {
+      if (path_initalized) {
         return NodeResult::Success;
       }
 
+      if (bb.seen_sensors.empty()) {
+        bb.error_msg = "Failed to find start";
+        return NodeResult::Failure;
+      }
+
       auto goal_idx = bb.pathfinder.get_idx("B6");
-      if (bb.seen_sensors.empty() || !goal_idx.has_value()) {
-        bb.error_msg = "Failed to find start or goal node";
+      if (!goal_idx.has_value()) {
+        bb.error_msg = "Failed to find goal";
         return NodeResult::Failure;
       }
 
@@ -185,15 +207,38 @@ namespace {
         bb.error_msg = "Failed to find path";
         return NodeResult::Failure;
       }
-      bb.path             = path_opt.value();
-      bb.path_initialized = true;
+      bb.path         = path_opt.value();
+      path_initalized = true;
 
-      StaticString<32> path_str{};
+      StaticString<128> path_str{};
       path_str.append("Path: ");
       for (auto node : bb.path) {
         path_str.append(bb.pathfinder.track[node.node_idx].name, " ");
       }
       Debug_Puts(bb.txs_tid, path_str);
+      return NodeResult::Success;
+    }
+  };
+
+  struct AddLoop : public LeafNode {
+    NodeResult tick(Blackboard &bb) override {
+      if (bb.path.empty()) {
+        bb.error_msg = "No path to loop";
+        return NodeResult::Failure;
+      }
+
+      if (bb.path.peek()->node_idx == bb.path.peek_last()->node_idx) {
+        return NodeResult::Success;
+      }
+
+      auto path_opt = bb.pathfinder.shortest_path(bb.path.peek_last()->node_idx,
+                                                  bb.path.peek()->node_idx);
+
+      if (!path_opt.has_value()) {
+        bb.error_msg = "Failed to find path";
+        return NodeResult::Failure;
+      }
+      bb.path = bb.path + path_opt.value();
       return NodeResult::Success;
     }
   };
@@ -213,11 +258,12 @@ namespace {
     SaveSensorNode save_sensor{};
     LocalizerTree localizer_tree{};
 
-    CreateLoopStartNode create_loop_start_node{};
+    GoToNode create_loop_start_node{};
+    AddLoop add_loop{};
     SetSpeedNode max_speed{14};
-    FallBackNode path_follow{};
+
     PathLocalizerNode path_localizer{};
-    StopAtDistance stop_at_dist_node{};
+    StopAtDonePath stop_on_finish_path{};
     FailOnSensor fail_on_sensor{sid('B', 6)};
     SaveSensorNode save_sensor_node{};
 
@@ -233,10 +279,10 @@ namespace {
 
       // try to run the stop distance thing
       seq.children.push(&create_loop_start_node);
+      seq.children.push(&add_loop);
       seq.children.push(&max_speed);
       seq.children.push(&path_localizer);
-      seq.children.push(&stop_at_dist_node);
-      seq.children.push(&fail_on_sensor);
+      seq.children.push(&stop_on_finish_path);
       seq.children.push(&zero_speed);
 
       // set to zero speed and print failure

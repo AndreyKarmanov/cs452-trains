@@ -60,6 +60,8 @@ public:
 
   constexpr inline size_t size() const { return _size; }
 
+  constexpr inline size_t capacity() const { return SIZE; }
+
   constexpr std::optional<T> operator[](size_t i) const {
     if (i >= _size)
       return std::nullopt;

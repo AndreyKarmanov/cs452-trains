@@ -17,14 +17,13 @@ struct Blackboard {
   uint32_t loco_id{};
 
   Path path;
+  bool maintain_loop;
 
   struct SensorSighting {
     uint16_t sid;
     uint32_t tick;
   };
   Buffer<SensorSighting, TRACK_MAX> seen_sensors;
-
-  bool path_initialized = false;
 
   uint16_t est_speed;
   uint16_t stop_distance;

@@ -14,6 +14,11 @@ struct PathNode {
   node_type type;
   int distance_to_next_node;
   bool should_br_be_curved;
+
+  bool operator==(const PathNode &other) const {
+    return node_idx == other.node_idx && type == other.type &&
+           should_br_be_curved == other.should_br_be_curved;
+  }
 };
 
 class Path : public Buffer<PathNode, TRACK_MAX> {
