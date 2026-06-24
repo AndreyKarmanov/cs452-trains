@@ -97,7 +97,7 @@ std::optional<Path> Pathfind::shortest_path(int start_idx, int goal_idx,
   Heap<std::pair<int, int>, TRACK_MAX> frontier;
   frontier.push({0, start_idx});
 
-  while (!frontier.is_empty()) {
+  while (!frontier.empty()) {
     auto [pop_dist, curr_idx] = frontier.pop().value();
     if (pop_dist > best_dist[curr_idx])
       continue;

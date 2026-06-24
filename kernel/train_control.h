@@ -48,7 +48,7 @@ template <size_t TX_BUFFER_SIZE = 64> class TrainControlServer {
   static void tx_can_worker();
 
   void maybe_tx() {
-    if (!tx_buf.is_empty() && waiting_can_tx_worker_tid >= 0 &&
+    if (!tx_buf.empty() && waiting_can_tx_worker_tid >= 0 &&
         simple_pacing_can_send) {
       reply(waiting_can_tx_worker_tid, tx_buf.pop().value());
       waiting_can_tx_worker_tid = -1;

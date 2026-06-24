@@ -15,13 +15,13 @@ class Heap {
 
 public:
   std::optional<T> peek() const {
-    if (is_empty())
+    if (empty())
       return std::nullopt;
     return buf[0];
   }
 
   std::optional<T> pop() {
-    if (is_empty())
+    if (empty())
       return std::nullopt;
     if (count == 1) {
       --count;
@@ -74,7 +74,7 @@ public:
   }
 
   size_t size() const { return count; }
-  bool is_empty() const { return count == 0; }
+  bool empty() const { return count == 0; }
 };
 
 void test_heap();

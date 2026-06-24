@@ -211,7 +211,7 @@ void mcp2515_send(const TXBnFrame frame, uint32_t delay) {
 }
 
 void mcp2515_send_pending() {
-  while (!pending_frames.is_empty()) {
+  while (!pending_frames.empty()) {
     const auto &pending = pending_frames.peek();
     if (time_get() >= pending->time) {
       mcp2515_send(pending->frame);

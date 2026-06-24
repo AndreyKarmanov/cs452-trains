@@ -2,8 +2,10 @@
 #include "behaviour_tree.h"
 #include "io_helpers.h"
 #include "message.h"
+#include "mrk.h"
 #include "pathfind.h"
 #include "train_control.h"
+#include <algorithm>
 #include <array>
 
 namespace {
@@ -58,7 +60,7 @@ namespace {
     TracePathNode(const char track_layout) : pathfind(track_layout) {}
 
     NodeResult tick(Blackboard &bb) override {
-      if (bb.path.is_empty()) {
+      if (bb.path.empty()) {
         return NodeResult::Success;
       } else if (std::get_if<SensorData>(&bb.new_event)) {
         const SensorData &data = std::get<SensorData>(bb.new_event);
@@ -82,7 +84,7 @@ namespace {
                      " Tick delta\n\r");
           bb.last_seen_sensor_tick = bb.event_tick;
           bb.last_seen_sensor      = bb.path.pop().value();
-          if (bb.path.is_empty()) {
+          if (bb.path.empty()) {
             Debug_Puts(bb.txs_tid, "path completed successfully\n\r");
             return NodeResult::Success;
           }
@@ -96,14 +98,28 @@ namespace {
     }
   };
 
-  struct SaveSensorNode : public LeafNode {
+  struct PathLocalizerNode : public LeafNode {
     NodeResult tick(Blackboard &bb) override {
-      if (std::get_if<SensorData>(&bb.new_event)) {
-        const SensorData &data = std::get<SensorData>(bb.new_event);
-        if (data.new_state == 0) {
+      if (bb.path.empty()) {
+        return NodeResult::Success;
+      } else if (auto data = std::get_if<SensorData>(&bb.new_event)) {
+        if (data->new_state == 0) {
           return NodeResult::Running;
         }
-        bb.last_seen_sensor      = data.sensor_id;
+        auto in_path =
+            std::ranges::find(bb.path, data->sensor_id) != bb.path.end();
+      }
+      return NodeResult::Running;
+    }
+  };
+
+  struct SaveSensorNode : public LeafNode {
+    NodeResult tick(Blackboard &bb) override {
+      if (auto data = std::get_if<SensorData>(&bb.new_event)) {
+        if (data->new_state == 0) {
+          return NodeResult::Running;
+        }
+        bb.last_seen_sensor      = data->sensor_id;
         bb.last_seen_sensor_tick = bb.event_tick;
         Debug_Puts(bb.txs_tid, "Saved sensor: ", bb.last_seen_sensor, "\n\r");
         return NodeResult::Success;

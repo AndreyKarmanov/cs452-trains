@@ -234,7 +234,7 @@ static void handle_event(Event event, int arg0) {
       scheduler.schedule(*td_opt.value());
 
       // reset the delay for the next task.
-      if (!event_buf->is_empty()) {
+      if (!event_buf->empty()) {
         initalize_event(event);
       }
       return; // return if only the first should wake

@@ -26,7 +26,7 @@ void uart_tx_server_task() {
 }
 
 void UART_TX_Server::drain() {
-  while (!tx_buffer.is_empty()) {
+  while (!tx_buffer.empty()) {
     if (!can_transmit_io()) {
       break;
     }
@@ -34,7 +34,7 @@ void UART_TX_Server::drain() {
     putc(c.value());
   }
 
-  buffer_has_pending_tx = !tx_buffer.is_empty();
+  buffer_has_pending_tx = !tx_buffer.empty();
 }
 
 void UART_TX_Server::reply_to_notifier() {

@@ -4,7 +4,7 @@
 void test_heap() {
   {
     Heap<int, 8> heap;
-    _assert(heap.is_empty(), "Expected new heap to be empty");
+    _assert(heap.empty(), "Expected new heap to be empty");
     _assert(!heap.peek().has_value(), "Expected empty heap peek to be nullopt");
 
     _assert(heap.push(4), "Expected push to succeed");
@@ -26,7 +26,7 @@ void test_heap() {
       _assert(value.value() == expected[i], "Expected sorted pop order");
     }
 
-    _assert(heap.is_empty(), "Expected heap to be empty after pops");
+    _assert(heap.empty(), "Expected heap to be empty after pops");
     _assert(!heap.pop().has_value(), "Expected pop on empty heap to fail");
   }
 

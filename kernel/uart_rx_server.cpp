@@ -24,7 +24,7 @@ void uart_rx_server_task() {
 }
 
 void UART_RX_Server::try_reply_getc() {
-  if (waiting_getc_tid < 0 || rx_buffer.is_empty()) {
+  if (waiting_getc_tid < 0 || rx_buffer.empty()) {
     return;
   }
 
@@ -49,7 +49,7 @@ void UART_RX_Server::handle(const int tid, const RX::InterruptMsg &) {
 }
 
 void UART_RX_Server::handle(const int tid, const RX::GetcMsg &) {
-  if (!rx_buffer.is_empty()) {
+  if (!rx_buffer.empty()) {
     auto c = rx_buffer.pop();
     _assert(c.has_value(), "RX SERVER: GETC POP FAILED");
 

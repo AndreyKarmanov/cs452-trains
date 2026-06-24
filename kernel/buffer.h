@@ -2,7 +2,9 @@
 
 #include <array>
 #include <cstddef>
+#include <iterator>
 #include <optional>
+#include <type_traits>
 
 // TODO: make a linked list version to enable removing arbitrary
 template <typename T, size_t SIZE> class alignas(16) Buffer {
@@ -32,7 +34,7 @@ public:
   }
 
   constexpr std::optional<T> pop() {
-    if (is_empty())
+    if (empty())
       return std::nullopt;
     auto elem = arr[head];
 
@@ -43,12 +45,12 @@ public:
   }
 
   constexpr std::optional<T> peek() const {
-    if (is_empty())
+    if (empty())
       return std::nullopt;
     return arr[head];
   }
 
-  constexpr inline bool is_empty() const { return _size == 0; }
+  constexpr inline bool empty() const { return _size == 0; }
 
   constexpr inline size_t size() const { return _size; }
 
@@ -58,19 +60,111 @@ public:
     return arr[(head + i) % SIZE];
   }
 
-  class Iterator {
-    const Buffer *buf;
-    size_t i; // offset from head
+  template <bool IsConst> class IteratorBase {
+    using BufferType = std::conditional_t<IsConst, const Buffer, Buffer>;
+
+    BufferType *buf = nullptr;
+    size_t i        = 0; // offset from head
+
   public:
-    Iterator(const Buffer *b, size_t i) : buf(b), i(i) {}
-    bool operator!=(const Iterator &other) const { return i != other.i; }
-    Iterator &operator++() {
+    using element_type    = T;
+    using difference_type = std::ptrdiff_t;
+    using reference       = std::conditional_t<IsConst, const T &, T &>;
+
+    constexpr IteratorBase() = default;
+    constexpr IteratorBase(BufferType *b, size_t index) : buf(b), i(index) {}
+
+    constexpr bool operator==(const IteratorBase &) const = default;
+
+    constexpr reference operator*() const {
+      return buf->arr[(buf->head + i) % SIZE];
+    }
+
+    constexpr IteratorBase &operator++() {
       ++i;
       return *this;
     }
-    T operator*() const { return buf->arr[(buf->head + i) % SIZE]; }
+
+    constexpr IteratorBase operator++(int) {
+      auto copy = *this;
+      ++(*this);
+      return copy;
+    }
+
+    constexpr IteratorBase &operator--() {
+      --i;
+      return *this;
+    }
+
+    constexpr IteratorBase operator--(int) {
+      auto copy = *this;
+      --(*this);
+      return copy;
+    }
+
+    constexpr IteratorBase &operator+=(difference_type n) {
+      if (n >= 0)
+        i += static_cast<size_t>(n);
+      else
+        i -= static_cast<size_t>(-n);
+      return *this;
+    }
+
+    constexpr IteratorBase operator+(difference_type n) const {
+      auto copy  = *this;
+      copy      += n;
+      return copy;
+    }
+
+    friend constexpr IteratorBase operator+(difference_type n,
+                                            const IteratorBase &it) {
+      return it + n;
+    }
+
+    constexpr IteratorBase &operator-=(difference_type n) {
+      return *this += -n;
+    }
+
+    constexpr IteratorBase operator-(difference_type n) const {
+      auto copy  = *this;
+      copy      -= n;
+      return copy;
+    }
+
+    constexpr difference_type operator-(const IteratorBase &other) const {
+      return static_cast<difference_type>(static_cast<std::ptrdiff_t>(i) -
+                                          static_cast<std::ptrdiff_t>(other.i));
+    }
+
+    constexpr reference operator[](difference_type n) const {
+      return *(*this + n);
+    }
+
+    constexpr bool operator<(const IteratorBase &other) const {
+      return i < other.i;
+    }
+    constexpr bool operator>(const IteratorBase &other) const {
+      return i > other.i;
+    }
+    constexpr bool operator<=(const IteratorBase &other) const {
+      return i <= other.i;
+    }
+    constexpr bool operator>=(const IteratorBase &other) const {
+      return i >= other.i;
+    }
   };
 
-  Iterator begin() const { return Iterator(this, 0); }
-  Iterator end() const { return Iterator(this, _size); }
+  using Iterator      = IteratorBase<false>;
+  using ConstIterator = IteratorBase<true>;
+
+  static_assert(std::forward_iterator<Iterator>);
+  static_assert(std::bidirectional_iterator<Iterator>);
+  static_assert(std::random_access_iterator<Iterator>);
+
+  constexpr Iterator begin() { return Iterator(this, 0); }
+  constexpr Iterator end() { return Iterator(this, _size); }
+  constexpr ConstIterator begin() const { return ConstIterator(this, 0); }
+  constexpr ConstIterator end() const { return ConstIterator(this, _size); }
+  constexpr ConstIterator cbegin() const { return begin(); }
+  constexpr ConstIterator cend() const { return end(); }
 };
