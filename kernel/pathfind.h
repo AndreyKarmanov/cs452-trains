@@ -1,5 +1,6 @@
 #pragma once
 
+#include "buffer.h"
 #include "heap.h"
 #include "map.h"
 #include "static_string.h"
@@ -8,10 +9,24 @@
 #include <cstddef>
 #include <optional>
 
-struct Path {
+struct PathNode {
+  int node_idx;
+  int distance_to_next_node;
+};
+
+class Path {
   int dist;
-  std::array<int, TRACK_MAX> nodes;
   size_t len;
+
+  Buffer<PathNode, TRACK_MAX> nodes;
+  int distance_to_next_branch;
+  int distance_until_reverse;
+
+  void pop_front();
+  void add_path();
+
+  // std::array<int, TRACK_MAX> nodes;
+  // std::array<int, TRACK_MAX> distances;
 };
 
 class Pathfind {
@@ -22,6 +37,8 @@ class Pathfind {
   }
 
   bool can_visit(int node_idx) const;
+
+  int edge_dist_between(int from_idx, int to_idx) const;
 
   void relax(int from_idx, int from_dist, int to_idx, int edge_dist,
              int best_dist[TRACK_MAX], int predecessor[TRACK_MAX],
