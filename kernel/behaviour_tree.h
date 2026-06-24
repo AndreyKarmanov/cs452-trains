@@ -13,11 +13,14 @@ struct Blackboard {
   int txs_tid;
   int cs_tid;
 
+  Buffer<uint16_t, 32> path;
+  bool path_initialized = false;
+
   uint16_t est_speed;
   uint16_t req_speed;
 
   uint16_t last_seen_sensor;
-  uint16_t expected_next_sensor;
+  uint16_t last_seen_sensor_tick;
 
   MRKCmd new_event;
   uint32_t event_tick;
@@ -40,6 +43,7 @@ struct TreeNode {
 
 struct DecoratorNode : public TreeNode {
   TreeNode *child;
+  DecoratorNode(TreeNode *child) : child(child) {}
 };
 
 struct ControlNode : public TreeNode {
@@ -67,6 +71,19 @@ struct SequenceNode : public ControlNode {
       }
     }
     return NodeResult::Success;
+  }
+};
+
+struct InvertNode : public DecoratorNode {
+  InvertNode(TreeNode *child) : DecoratorNode(child) {}
+  NodeResult tick(Blackboard &bb) override {
+    NodeResult result = child->tick(bb);
+    if (result == NodeResult::Success) {
+      return NodeResult::Failure;
+    } else if (result == NodeResult::Failure) {
+      return NodeResult::Success;
+    }
+    return result;
   }
 };
 

@@ -15,7 +15,6 @@ struct Path {
 };
 
 class Pathfind {
-  static track_node track[TRACK_MAX];
   Map<StaticString<8>, int, TRACK_MAX> node_to_idx;
 
   int node_index(const track_node *node) const {
@@ -33,6 +32,7 @@ class Pathfind {
                                  const int predecessor[TRACK_MAX]) const;
 
 public:
+  static track_node track[TRACK_MAX];
   static constexpr int REVERSE_COST = 500;
 
   explicit Pathfind(char track_layout);

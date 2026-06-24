@@ -1,3 +1,5 @@
+#pragma once
+
 typedef enum {
   NODE_NONE,
   NODE_SENSOR,
