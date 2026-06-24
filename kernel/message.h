@@ -193,6 +193,7 @@ namespace TC {
   struct InitTree {
     uint32_t loco_id;
     uint32_t value;
+    State state;
   };
 
   struct TreeUpdate {

@@ -3,21 +3,25 @@
 #include "buffer.h"
 #include "clock_server.h"
 #include "mrk.h"
+#include "pathfind.h"
 #include "train_state.h"
+#include <cstdint>
 
 struct Blackboard {
-  State state;
-  uint32_t loco_id;
-
   int tcs_tid;
   int txs_tid;
   int cs_tid;
+
+  Pathfind pathfinder;
+  State state{};
+  uint32_t loco_id{};
 
   Buffer<uint16_t, 32> path;
   bool path_initialized = false;
 
   uint16_t est_speed;
   uint16_t req_speed;
+  uint16_t stop_distance;
 
   uint16_t last_seen_sensor;
   uint16_t last_seen_sensor_tick;
@@ -47,7 +51,7 @@ struct DecoratorNode : public TreeNode {
 };
 
 struct ControlNode : public TreeNode {
-  Buffer<TreeNode *, 8> children;
+  Buffer<TreeNode *, 12> children;
 };
 
 struct FallBackNode : public ControlNode {
