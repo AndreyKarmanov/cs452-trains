@@ -149,6 +149,8 @@ namespace {
       }
 
       if (total_dist <= bb.stop_distance) {
+        Debug_Puts(bb.txs_tid, "Stopping train ", bb.loco_id, " at distance ",
+                   total_dist, "mm\n\r");
         auto res = send<TC::Ack>(bb.tcs_tid, TC::Cmd::Speed(bb.loco_id, 0));
         if (!res.has_value()) {
           return NodeResult::Failure;
@@ -228,17 +230,18 @@ namespace {
 
       StaticString<32> path_str{};
       path_str.append("Path: ");
-      for (size_t i = 0; i < path->len; ++i) {
-        auto node = bb.pathfinder.track[path->nodes[i]];
+      for (size_t i = 0; i < path->len(); ++i) {
+        auto path_node = path->nodes[i];
+        if (!path_node.has_value())
+          continue;
+        const track_node &node = bb.pathfinder.track[path_node->node_idx];
         if (node.type == NODE_SENSOR) {
-          bb.path.push(path->nodes[i] + 1);
+          bb.path.push(path_node->node_idx + 1);
         } else if (node.type == NODE_BRANCH) {
-          bb.pathfinder.is_curved(path->nodes[i], path->nodes[i + 1]);
           std::ignore = send<TC::Ack>(
               bb.tcs_tid,
               TC::Cmd::Switch{.id       = static_cast<uint32_t>(node.num),
-                              .straight = !bb.pathfinder.is_curved(
-                                  path->nodes[i], path->nodes[i + 1])});
+                              .straight = !path_node->should_br_be_curved});
         }
       }; // remove the first sesnor since we already passed it
 

@@ -31,6 +31,35 @@ bool Pathfind::can_visit(int node_idx) const {
   return true;
 }
 
+int Pathfind::edge_dist_between(int from_idx, int to_idx) const {
+  const track_node &from    = track[from_idx];
+  const track_node &to_node = track[to_idx];
+
+  if (from.reverse == &to_node)
+    return 0;
+
+  switch (from.type) {
+  case NODE_SENSOR:
+  case NODE_MERGE:
+  case NODE_ENTER:
+    if (from.edge[DIR_AHEAD].dest == &to_node)
+      return from.edge[DIR_AHEAD].dist;
+    break;
+
+  case NODE_BRANCH:
+    if (from.edge[DIR_STRAIGHT].dest == &to_node)
+      return from.edge[DIR_STRAIGHT].dist;
+    if (from.edge[DIR_CURVED].dest == &to_node)
+      return from.edge[DIR_CURVED].dist;
+    break;
+
+  default:
+    break;
+  }
+
+  return 0;
+}
+
 void Pathfind::relax(int from_idx, int from_dist, int to_idx, int edge_dist,
                      int best_dist[TRACK_MAX], int predecessor[TRACK_MAX],
                      Heap<std::pair<int, int>, TRACK_MAX> &frontier) const {
@@ -45,10 +74,9 @@ void Pathfind::relax(int from_idx, int from_dist, int to_idx, int edge_dist,
   }
 }
 
-std::optional<Path>
-Pathfind::build_path(int start_idx, int goal_idx,
-                     const int best_dist[TRACK_MAX],
-                     const int predecessor[TRACK_MAX]) const {
+std::optional<Path> Pathfind::build_path(int start_idx, int goal_idx,
+                                         const int best_dist[TRACK_MAX],
+                                         const int predecessor[TRACK_MAX]) const {
   (void)start_idx;
 
   if (best_dist[goal_idx] >= INF)
@@ -59,14 +87,30 @@ Pathfind::build_path(int start_idx, int goal_idx,
        node_idx     = predecessor[node_idx])
     ++path_len;
 
-  Path result{};
-  result.dist = best_dist[goal_idx];
-  result.len  = path_len;
-
+  std::array<int, TRACK_MAX> node_indices{};
   size_t write_idx = path_len;
   for (int node_idx = goal_idx; node_idx != -1;
        node_idx     = predecessor[node_idx])
-    result.nodes[--write_idx] = node_idx;
+    node_indices[--write_idx] = node_idx;
+
+  Path result{};
+  result.dist = best_dist[goal_idx];
+
+  for (size_t step = 0; step < path_len; ++step) {
+    int node_idx           = node_indices[step];
+    const track_node &node = track[node_idx];
+
+    int dist_to_next = 0;
+    bool curved      = false;
+    if (step + 1 < path_len) {
+      int next_idx = node_indices[step + 1];
+      dist_to_next = edge_dist_between(node_idx, next_idx);
+      if (node.type == NODE_BRANCH)
+        curved = is_curved(node_idx, next_idx);
+    }
+
+    result.nodes.push({node_idx, node.type, dist_to_next, curved});
+  }
 
   return result;
 }
@@ -78,10 +122,10 @@ std::optional<Path> Pathfind::shortest_path(int start_idx, int goal_idx,
     return std::nullopt;
 
   if (start_idx == goal_idx) {
+    const track_node &node = track[start_idx];
     Path result{};
-    result.dist     = 0;
-    result.len      = 1;
-    result.nodes[0] = start_idx;
+    result.dist = 0;
+    result.nodes.push({start_idx, node.type, 0, false});
     return result;
   }
 
@@ -149,15 +193,6 @@ std::optional<Path> Pathfind::shortest_path(const char *from, const char *to,
   return shortest_path(start_idx.value(), goal_idx.value(), allow_reverse);
 }
 
-std::optional<int> Pathfind::distance_between_nodes(const char *from,
-                                                    const char *to,
-                                                    bool allow_reverse) const {
-  auto path = shortest_path(from, to, allow_reverse);
-  if (!path.has_value())
-    return std::nullopt;
-  return path->dist;
-}
-
 bool Pathfind::is_curved(int from_idx, int to_idx) const {
   if (from_idx < 0 || from_idx >= TRACK_MAX || to_idx < 0 ||
       to_idx >= TRACK_MAX)
@@ -199,10 +234,13 @@ static void print_path(const Pathfind &pathfind, const char *label,
     return;
   }
 
-  debug_printf(CONSOLE, "%s: dist=%d len=%zu ", label, path->dist, path->len);
-  for (size_t step = 0; step < path->len; ++step) {
-    debug_printf(CONSOLE, "%s", pathfind.node_name(path->nodes[step]));
-    if (step + 1 < path->len)
+  debug_printf(CONSOLE, "%s: dist=%d len=%zu ", label, path->dist, path->len());
+  for (size_t step = 0; step < path->len(); ++step) {
+    auto node = path->nodes[step];
+    if (!node.has_value())
+      continue;
+    debug_printf(CONSOLE, "%s", pathfind.node_name(node->node_idx));
+    if (step + 1 < path->len())
       debug_puts(CONSOLE, " -> ");
   }
   debug_puts(CONSOLE, "\n\r");

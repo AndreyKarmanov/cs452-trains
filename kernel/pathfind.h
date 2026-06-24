@@ -11,22 +11,21 @@
 
 struct PathNode {
   int node_idx;
+  node_type type;
   int distance_to_next_node;
+  bool should_br_be_curved;
 };
 
 class Path {
-  int dist;
-  size_t len;
-
+public:
+  int dist = 0;
   Buffer<PathNode, TRACK_MAX> nodes;
-  int distance_to_next_branch;
-  int distance_until_reverse;
 
-  void pop_front();
-  void add_path();
+  size_t len() const { return nodes.size(); }
+  bool empty() const { return nodes.empty(); }
 
-  // std::array<int, TRACK_MAX> nodes;
-  // std::array<int, TRACK_MAX> distances;
+  std::optional<PathNode> peek() const { return nodes.peek(); }
+  std::optional<PathNode> pop_front() { return nodes.pop(); }
 };
 
 class Pathfind {
@@ -62,8 +61,6 @@ public:
   std::optional<Path> shortest_path(const char *from, const char *to,
                                     bool allow_reverse = false) const;
 
-  std::optional<int> distance_between_nodes(const char *from, const char *to,
-                                            bool allow_reverse = false) const;
   bool is_curved(int from_idx, int to_idx) const;
 
   const char *node_name(int node_idx) const;
