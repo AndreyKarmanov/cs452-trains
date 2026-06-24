@@ -16,14 +16,18 @@ struct Blackboard {
   State state{};
   uint32_t loco_id{};
 
-  Buffer<uint16_t, 32> path;
+  Path path;
+
+  struct SensorSighting {
+    uint16_t sid;
+    uint32_t tick;
+  };
+  Buffer<SensorSighting, TRACK_MAX> seen_sensors;
+
   bool path_initialized = false;
 
   uint16_t est_speed;
   uint16_t stop_distance;
-
-  uint16_t last_seen_sensor;
-  uint16_t last_seen_sensor_tick;
 
   MRKCmd new_event;
   uint32_t event_tick;

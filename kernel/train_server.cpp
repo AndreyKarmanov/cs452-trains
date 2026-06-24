@@ -6,8 +6,8 @@
 #include "pathfind.h"
 #include "train_control.h"
 #include <algorithm>
-#include <array>
 #include <cstdint>
+#include <numeric>
 
 namespace {
 
@@ -52,79 +52,46 @@ namespace {
 
   struct SaveSensorNode : public LeafNode {
     NodeResult tick(Blackboard &bb) override {
-      if (auto data = std::get_if<SensorData>(&bb.new_event)) {
-        if (data->new_state == 0) {
-          return NodeResult::Running;
-        }
-        bb.last_seen_sensor      = data->sensor_id;
-        bb.last_seen_sensor_tick = bb.event_tick;
-        Debug_Puts(bb.txs_tid, "Saved sensor: ", bb.last_seen_sensor, "\n\r");
-        return NodeResult::Success;
+      if (auto data = std::get_if<SensorData>(&bb.new_event);
+          data && data->new_state == 1) {
+        bb.seen_sensors.push({.sid = data->sensor_id, .tick = bb.event_tick});
+        Debug_Puts(bb.txs_tid, "Saw sensor ", data->sensor_id);
       }
-      return NodeResult::Running;
+      return NodeResult::Success;
     }
   };
 
-  struct TracePathNode : public LeafNode {
-    Pathfind pathfind;
-    uint32_t last_sensor_passed_tick = 0;
-
-    TracePathNode(const char track_layout) : pathfind(track_layout) {}
-
+  struct AwaitSensorNode : public LeafNode {
     NodeResult tick(Blackboard &bb) override {
-      if (bb.path.empty()) {
-        return NodeResult::Success;
-      } else if (std::get_if<SensorData>(&bb.new_event)) {
-        const SensorData &data = std::get<SensorData>(bb.new_event);
-        if (data.new_state == 0) {
-          return NodeResult::Running;
-        }
-        if (data.sensor_id == bb.path.peek().value()) {
-          if (bb.last_seen_sensor != 0 &&
-              bb.last_seen_sensor != data.sensor_id) {
-            auto distance = pathfind.shortest_path(bb.last_seen_sensor - 1,
-                                                   bb.path.peek().value() - 1);
-            if (distance.has_value()) {
-              bb.est_speed = (distance.value().dist * 10) /
-                             (bb.event_tick - bb.last_seen_sensor_tick);
-            }
-          }
-
-          Debug_Puts(bb.txs_tid, "Nodes left: ", bb.path.size(), " speed ",
-                     bb.est_speed / 10, ".", bb.est_speed % 10, "mm / tick ",
-                     bb.event_tick - bb.last_seen_sensor_tick,
-                     " Tick delta\n\r");
-          bb.last_seen_sensor_tick = bb.event_tick;
-          bb.last_seen_sensor      = bb.path.pop().value();
-          if (bb.path.empty()) {
-            Debug_Puts(bb.txs_tid, "path completed successfully\n\r");
-            return NodeResult::Success;
-          }
-        } else {
-          Debug_Puts(bb.txs_tid, "Unexpected sid: ", data.sensor_id,
-                     " expected ", bb.path.peek().value(), "\n\r");
-          return NodeResult::Failure;
-        }
+      if (bb.seen_sensors.empty()) {
+        return NodeResult::Running;
       }
-      return NodeResult::Running;
+      return NodeResult::Success;
     }
   };
 
   struct PathLocalizerNode : public LeafNode {
     NodeResult tick(Blackboard &bb) override {
+
       if (bb.path.empty()) {
         return NodeResult::Success;
       } else if (auto data = std::get_if<SensorData>(&bb.new_event);
                  data && data->new_state == 1) {
-        auto idx = std::ranges::find(bb.path, data->sensor_id);
+
+        auto sensor_id_cmp = [&](PathNode &node) {
+          if (node.type == NODE_SENSOR) {
+            return node.node_idx + 1;
+          }
+          return -1;
+        };
+
+        auto idx = std::ranges::find(bb.path, data->sensor_id, sensor_id_cmp);
         if (idx == bb.path.end()) {
           Debug_Puts(bb.txs_tid, "Couldn't find self in path\n\r");
           return NodeResult::Failure;
         }
         auto skipped_nodes = std::distance(bb.path.begin(), idx) + 1;
-        Debug_Puts(bb.txs_tid, "Passed ", skipped_nodes, " nodes \n\r");
         bb.path.pop(skipped_nodes);
-        bb.last_seen_sensor_tick = bb.event_tick;
       }
       return NodeResult::Success;
     }
@@ -137,18 +104,14 @@ namespace {
         return NodeResult::Success;
       }
 
-      auto total_dist = 0;
-      auto prev_node  = bb.path[0].value();
-      for (size_t i = 1; i < bb.path.size(); ++i) {
-        auto p =
-            bb.pathfinder.shortest_path(prev_node - 1, bb.path[i].value() - 1);
-        total_dist += p->dist;
-      }
-      Debug_Puts(bb.txs_tid, " distance left ", total_dist, "mm\n\r");
+      auto total_dist = std::accumulate(
+          bb.path.begin(), bb.path.end(), 0, [](int acc, const PathNode &node) {
+            return acc + node.distance_to_next_node;
+          });
 
       if (total_dist <= bb.stop_distance) {
-        Debug_Puts(bb.txs_tid, "Stopping train ", bb.loco_id, " at distance ",
-                   total_dist, "mm\n\r");
+        Debug_Puts(bb.txs_tid, "Stopping ", bb.loco_id, " stop dist ",
+                   bb.stop_distance, " at distance ", total_dist, "mm\n\r");
         auto res = send<TC::Ack>(bb.tcs_tid, TC::Cmd::Speed(bb.loco_id, 0));
         if (!res.has_value()) {
           return NodeResult::Failure;
@@ -170,7 +133,9 @@ namespace {
       if (auto data = std::get_if<SensorData>(&bb.new_event);
           data && data->new_state == 1 && data->sensor_id == sens_id) {
         return NodeResult::Failure;
-      } else if (bb.event_tick - bb.last_seen_sensor_tick > timout_ticks) {
+      } else if (!bb.seen_sensors.empty() &&
+                 bb.event_tick - bb.seen_sensors.peek_last()->tick >
+                     timout_ticks) {
         return NodeResult::Success;
       }
       return NodeResult::Running;
@@ -183,17 +148,17 @@ namespace {
   struct LocalizerTree : public LeafNode {
     SequenceNode tree{};
     SetSpeedNode set_speed{4};
-    SaveSensorNode save_sensor{};
+    AwaitSensorNode await_sensor{};
     SetSpeedNode zero_speed{0};
 
     LocalizerTree() {
       tree.children.push(&set_speed);
-      tree.children.push(&save_sensor);
+      tree.children.push(&await_sensor);
       tree.children.push(&zero_speed);
     }
 
     NodeResult tick(Blackboard &bb) override {
-      if (bb.last_seen_sensor != 0) {
+      if (!bb.seen_sensors.empty()) {
         return NodeResult::Success;
       }
       return tree.tick(bb);
@@ -207,48 +172,27 @@ namespace {
         return NodeResult::Success;
       }
 
-      if (bb.last_seen_sensor == sid('B', 6)) {
-        bb.path_initialized = true;
-        return NodeResult::Success;
-      }
-
       auto goal_idx = bb.pathfinder.get_idx("B6");
-      if (bb.last_seen_sensor == 0 || !goal_idx.has_value()) {
+      if (bb.seen_sensors.empty() || !goal_idx.has_value()) {
         bb.error_msg = "Failed to find start or goal node";
         return NodeResult::Failure;
       }
 
-      auto path = bb.pathfinder.shortest_path(bb.last_seen_sensor - 1,
-                                              goal_idx.value());
+      auto path_opt = bb.pathfinder.shortest_path(
+          bb.seen_sensors.peek_last()->sid - 1, goal_idx.value());
 
-      if (!path.has_value()) {
-        bb.error_msg = "Failed to find path from to";
+      if (!path_opt.has_value()) {
+        bb.error_msg = "Failed to find path";
         return NodeResult::Failure;
       }
+      bb.path             = path_opt.value();
+      bb.path_initialized = true;
 
       StaticString<32> path_str{};
       path_str.append("Path: ");
-      for (size_t i = 0; i < path->len(); ++i) {
-        auto path_node = path->nodes[i];
-        if (!path_node.has_value())
-          continue;
-        const track_node &node = bb.pathfinder.track[path_node->node_idx];
-        if (node.type == NODE_SENSOR) {
-          bb.path.push(path_node->node_idx + 1);
-        } else if (node.type == NODE_BRANCH) {
-          std::ignore = send<TC::Ack>(
-              bb.tcs_tid,
-              TC::Cmd::Switch{.id       = static_cast<uint32_t>(node.num),
-                              .straight = !path_node->should_br_be_curved});
-        }
-      }; // remove the first sesnor since we already passed it
-
-      bb.path_initialized = true;
-
-      for (int i : bb.path) {
-        path_str.append(bb.pathfinder.track[i - 1].name, " ");
+      for (auto node : bb.path) {
+        path_str.append(bb.pathfinder.track[node.node_idx].name, " ");
       }
-
       Debug_Puts(bb.txs_tid, path_str);
       return NodeResult::Success;
     }
@@ -265,10 +209,12 @@ namespace {
     FallBackNode tree{};
 
     SequenceNode seq{};
+
+    SaveSensorNode save_sensor{};
     LocalizerTree localizer_tree{};
+
     CreateLoopStartNode create_loop_start_node{};
     SetSpeedNode max_speed{14};
-
     FallBackNode path_follow{};
     PathLocalizerNode path_localizer{};
     StopAtDistance stop_at_dist_node{};
@@ -279,7 +225,13 @@ namespace {
     InvertNode invert_zero_speed{&zero_speed};
 
     PathFollower() {
+      // default always
+      seq.children.push(&save_sensor);
+
+      // localize if nothing is saved
       seq.children.push(&localizer_tree);
+
+      // try to run the stop distance thing
       seq.children.push(&create_loop_start_node);
       seq.children.push(&max_speed);
       seq.children.push(&path_localizer);
@@ -287,6 +239,7 @@ namespace {
       seq.children.push(&fail_on_sensor);
       seq.children.push(&zero_speed);
 
+      // set to zero speed and print failure
       tree.children.push(&seq);
       tree.children.push(&invert_zero_speed);
     }

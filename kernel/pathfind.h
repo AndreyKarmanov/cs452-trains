@@ -16,10 +16,9 @@ struct PathNode {
   bool should_br_be_curved;
 };
 
-class Path {
+class Path : public Buffer<PathNode, TRACK_MAX> {
 public:
   int dist = 0;
-  Buffer<PathNode, TRACK_MAX> nodes;
 
   // in place addition of two paths
   Path &operator+(const Path &other);

@@ -49,3 +49,28 @@ template <> void TrainControlServer<>::rx_can_worker() {
 
   Offset_Puts(tx_tid, 3, "rx can worker EXITING\n\r");
 }
+
+template <> void TrainControlServer<>::train_tick_worker() {
+  auto can_tid = WhoIs(TrainControlServer<>::NAME);
+  _assert(can_tid >= 0, "CAN SERVER WHOIS FAILED");
+
+  auto tx_tid = WhoIs(UART_TX_Server::NAME);
+  _assert(tx_tid >= 0, "TX SERVER WHOIS FAILED");
+
+  auto cs_tid = WhoIs(ClockServer<>::NAME);
+  _assert(cs_tid >= 0, "CLOCK SERVER WHOIS FAILED");
+
+  auto time = static_cast<uint32_t>(Time(cs_tid));
+
+  while (true) {
+    time = static_cast<uint32_t>(
+        DelayUntil(cs_tid, time + TICKS_BETWEEN_TRAIN_TICKS));
+
+    auto rcv_msg = send<TC::Ack>(can_tid, TC::TreeTick{.time = time});
+    if (!rcv_msg.has_value()) {
+      break;
+    }
+  }
+
+  Offset_Puts(tx_tid, 3, "rx can worker EXITING\n\r");
+}

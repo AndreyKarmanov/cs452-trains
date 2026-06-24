@@ -210,6 +210,9 @@ namespace TC {
     uint32_t speed;
   };
 
+  struct TreeTick {
+    uint32_t time;
+  };
   struct Ack {};
   struct Quit {};
 } // namespace TC
@@ -230,8 +233,8 @@ using Message =
                  TX::ReplyMsg, RX::GetcMsg, RX::GetcReplyMsg, RX::InterruptMsg,
                  RX::InterruptReplyMsg, ErrorMsg, TaskExitMsg, TC::UIReady,
                  TC::UIUpdate, TC::Cmd::Any, TC::Quit, TC::TX, TC::RX,
-                 TC::TXReady, TC::TreeReady, TC::TreeExit, TC::TreeMsg, TC::Ack,
-                 TC::CalSpeedReady, TC::CalSpeedParams>;
+                 TC::TXReady, TC::TreeReady, TC::TreeExit, TC::TreeMsg,
+                 TC::TreeTick, TC::Ack, TC::CalSpeedReady, TC::CalSpeedParams>;
 
 static_assert(std::is_trivially_copyable<Message>::value,
               "MessageVar must be trivially copyable");

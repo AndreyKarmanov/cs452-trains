@@ -46,6 +46,7 @@ template <size_t TX_BUFFER_SIZE = 64> class TrainControlServer {
 
   static void rx_can_worker();
   static void tx_can_worker();
+  static void train_tick_worker();
 
   void maybe_tx() {
     if (!tx_buf.empty() && waiting_can_tx_worker_tid >= 0 &&
@@ -224,6 +225,11 @@ template <size_t TX_BUFFER_SIZE = 64> class TrainControlServer {
     mailbox->waiting = true;
   }
 
+  void handle(const int tid, const TC::TreeTick &msg) {
+    reply(tid, TC::Ack{});
+    publish_tree_update(TC::TreeUpdate{.mrk = UnknownCmd{}, .time = msg.time});
+  }
+
   void handle(const int tid, const TC::TreeExit &) {
     trees.remove(tid);
     reply(tid, TC::Ack{});
@@ -239,7 +245,8 @@ template <size_t TX_BUFFER_SIZE = 64> class TrainControlServer {
   }
 
 public:
-  static constexpr auto NAME = "TCSERVER";
+  static constexpr auto NAME                      = "TCSERVER";
+  static constexpr auto TICKS_BETWEEN_TRAIN_TICKS = 10;
   TrainControlServer() {
     auto response = RegisterAs(NAME);
     _assert(response == 0, "TC  REGISTERAS FAILED");
@@ -252,6 +259,7 @@ public:
 
     create(2, rx_can_worker);
     create(2, tx_can_worker);
+    create(3, train_tick_worker);
 
     expand_user_command(TC::Cmd::RemoveTrains{});
     expand_user_command(TC::Cmd::Reset{});
