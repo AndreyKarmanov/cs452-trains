@@ -28,6 +28,15 @@ public:
   // in place addition of two paths
   Path &operator+(const Path &other);
 
+  constexpr void pop(int n) {
+    for (int i = 0; i < n; i++) {
+      auto elem = Buffer<PathNode, TRACK_MAX>::pop();
+      if (!elem.has_value())
+        break;
+      dist -= elem->distance_to_next_node;
+    }
+  }
+
   constexpr std::optional<PathNode> pop() {
     auto elem = Buffer<PathNode, TRACK_MAX>::pop();
     if (elem.has_value())

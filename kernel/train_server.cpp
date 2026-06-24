@@ -10,17 +10,14 @@
 #include <numeric>
 
 namespace {
-
-  struct RepeatForeverNode : public DecoratorNode {
+  struct DebugPrintPath : public LeafNode {
     NodeResult tick(Blackboard &bb) override {
-      while (true) {
-        NodeResult result = child->tick(bb);
-        if (result == NodeResult::Failure) {
-          return NodeResult::Failure;
-        } else {
-          return NodeResult::Running;
-        }
+      StaticString<128> path_str{};
+      path_str.append("Path: ");
+      for (auto node : bb.path) {
+        path_str.append(bb.pathfinder.track[node.node_idx].name, " ");
       }
+      Debug_Puts(bb.txs_tid, path_str);
       return NodeResult::Success;
     }
   };
@@ -58,18 +55,22 @@ namespace {
           bb.seen_sensors.pop();
         }
         bb.seen_sensors.push({.sid = data->sensor_id, .tick = bb.event_tick});
-        Debug_Puts(bb.txs_tid, "Saw sensor ", data->sensor_id);
       }
       return NodeResult::Success;
     }
   };
 
   struct AwaitSensorNode : public LeafNode {
+    int sensor_id     = -1;
+    AwaitSensorNode() = default;
+    AwaitSensorNode(int sensor_id) : sensor_id(sensor_id) {}
     NodeResult tick(Blackboard &bb) override {
-      if (bb.seen_sensors.empty()) {
-        return NodeResult::Running;
+      if (auto data = std::get_if<SensorData>(&bb.new_event);
+          data && data->new_state == 1 &&
+          (data->sensor_id == sensor_id || sensor_id == -1)) {
+        return NodeResult::Success;
       }
-      return NodeResult::Success;
+      return NodeResult::Running;
     }
   };
 
@@ -209,13 +210,6 @@ namespace {
       }
       bb.path         = path_opt.value();
       path_initalized = true;
-
-      StaticString<128> path_str{};
-      path_str.append("Path: ");
-      for (auto node : bb.path) {
-        path_str.append(bb.pathfinder.track[node.node_idx].name, " ");
-      }
-      Debug_Puts(bb.txs_tid, path_str);
       return NodeResult::Success;
     }
   };
@@ -244,13 +238,6 @@ namespace {
   };
 
   struct PathFollower : public TreeNode {
-    // B6 C12 A4 B16 C10 B1 D14 E14 E9 D5 E6 D4
-    // std::array<uint16_t, 12> path{
-    //     sid('B', 6),  sid('C', 12), sid('A', 4),  sid('B', 16),
-    //     sid('C', 10), sid('B', 1),  sid('D', 14), sid('E', 14),
-    //     sid('E', 9),  sid('D', 5),  sid('E', 6),  sid('D', 4),
-    // };
-
     FallBackNode tree{};
 
     SequenceNode seq{};
@@ -264,7 +251,8 @@ namespace {
 
     PathLocalizerNode path_localizer{};
     StopAtDonePath stop_on_finish_path{};
-    FailOnSensor fail_on_sensor{sid('B', 6)};
+    AwaitSensorNode await_sensor_node{sid('B', 6)};
+    RepeatNode repeat_node{&await_sensor_node, 5};
     SaveSensorNode save_sensor_node{};
 
     SetSpeedNode zero_speed{0};
@@ -282,7 +270,7 @@ namespace {
       seq.children.push(&add_loop);
       seq.children.push(&max_speed);
       seq.children.push(&path_localizer);
-      seq.children.push(&stop_on_finish_path);
+      seq.children.push(&repeat_node);
       seq.children.push(&zero_speed);
 
       // set to zero speed and print failure

@@ -47,6 +47,8 @@ struct TreeNode {
   virtual NodeResult tick(Blackboard &bb) = 0;
 };
 
+struct LeafNode : public TreeNode {};
+
 struct DecoratorNode : public TreeNode {
   TreeNode *child;
   DecoratorNode(TreeNode *child) : child(child) {}
@@ -93,7 +95,62 @@ struct InvertNode : public DecoratorNode {
   }
 };
 
-struct LeafNode : public TreeNode {};
+struct RepeatForeverNode : public DecoratorNode {
+  NodeResult tick(Blackboard &bb) override {
+    while (true) {
+      NodeResult result = child->tick(bb);
+      if (result == NodeResult::Failure) {
+        return NodeResult::Failure;
+      } else {
+        return NodeResult::Running;
+      }
+    }
+    return NodeResult::Success;
+  }
+};
+
+struct RepeatNode : public DecoratorNode {
+  int times              = 0;
+  NodeResult last_result = NodeResult::Success;
+  RepeatNode(TreeNode *child, int times) : DecoratorNode(child), times(times) {}
+  NodeResult tick(Blackboard &bb) override {
+    if (times == 0) {
+      return last_result;
+    }
+    last_result = child->tick(bb);
+
+    if (last_result == NodeResult::Success ||
+        last_result == NodeResult::Failure) {
+      times--;
+    }
+    if (times > 0) {
+      return NodeResult::Running;
+    }
+    return last_result;
+  }
+};
+
+struct TimeoutNode : public DecoratorNode {
+  uint32_t start_tick = 0;
+  uint32_t timeout    = 0;
+  TimeoutNode(TreeNode *child, int timeout)
+      : DecoratorNode(child), timeout(timeout) {}
+  NodeResult tick(Blackboard &bb) override {
+    NodeResult result = child->tick(bb);
+
+    if (result != NodeResult::Running) {
+      start_tick = 0;
+      return result;
+    }
+
+    if (start_tick == 0) {
+      start_tick = bb.event_tick;
+    } else if (bb.event_tick - start_tick > timeout) {
+      return NodeResult::Failure;
+    }
+    return NodeResult::Running;
+  }
+};
 
 struct WaitNode : public LeafNode {
   uint32_t wait_ticks;
@@ -103,9 +160,9 @@ struct WaitNode : public LeafNode {
 
   NodeResult tick(Blackboard &bb) override {
     if (start_tick == 0) {
-      start_tick = Time(bb.cs_tid);
+      start_tick = bb.event_tick;
     }
-    if (Time(bb.cs_tid) - start_tick >= wait_ticks) {
+    if (bb.event_tick - start_tick >= wait_ticks) {
       return NodeResult::Success;
     }
     return NodeResult::Running;
