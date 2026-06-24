@@ -25,6 +25,12 @@ struct Blackboard {
   };
   Buffer<SensorSighting, TRACK_MAX> seen_sensors;
 
+  struct DistLog {
+    uint16_t distance;
+    uint32_t tick;
+  };
+  Buffer<DistLog, TRACK_MAX> travelled_dist;
+
   uint16_t est_speed;
   uint16_t stop_distance;
 

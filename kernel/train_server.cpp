@@ -15,7 +15,8 @@ namespace {
       StaticString<128> path_str{};
       path_str.append("Path: ");
       for (auto node : bb.path) {
-        path_str.append(bb.pathfinder.track[node.node_idx].name, " ");
+        path_str.append(bb.pathfinder.track[node.node_idx].name, " ",
+                        node.distance_to_next_node, "mm -> ");
       }
       Debug_Puts(bb.txs_tid, path_str);
       return NodeResult::Success;
@@ -54,7 +55,11 @@ namespace {
         if (bb.seen_sensors.size() == bb.seen_sensors.capacity()) {
           bb.seen_sensors.pop();
         }
-        bb.seen_sensors.push({.sid = data->sensor_id, .tick = bb.event_tick});
+
+        bb.seen_sensors.push({
+            .sid  = data->sensor_id,
+            .tick = bb.event_tick,
+        });
       }
       return NodeResult::Success;
     }
@@ -94,6 +99,18 @@ namespace {
           Debug_Puts(bb.txs_tid, "Couldn't find self in path\n\r");
           return NodeResult::Failure;
         }
+
+        if (bb.travelled_dist.size() == bb.travelled_dist.capacity()) {
+          bb.travelled_dist.pop();
+        }
+        bb.travelled_dist.push({
+            .distance = std::accumulate(bb.path.begin(), idx + 1, uint16_t(0),
+                                        [](uint16_t acc, const PathNode &node) {
+                                          return acc +
+                                                 node.distance_to_prev_node;
+                                        }),
+            .tick     = bb.event_tick,
+        });
         auto skipped_nodes = std::distance(bb.path.begin(), idx) + 1;
         bb.path.pop(skipped_nodes);
       }
@@ -133,26 +150,6 @@ namespace {
         if (!res.has_value()) {
           return NodeResult::Failure;
         }
-        return NodeResult::Success;
-      }
-      return NodeResult::Running;
-    };
-  };
-
-  struct FailOnSensor : public LeafNode {
-
-    uint16_t sens_id;
-    uint16_t timout_ticks = 5000;
-
-    FailOnSensor(uint16_t sens_id) : sens_id(sens_id) {}
-
-    NodeResult tick(Blackboard &bb) override {
-      if (auto data = std::get_if<SensorData>(&bb.new_event);
-          data && data->new_state == 1 && data->sensor_id == sens_id) {
-        return NodeResult::Failure;
-      } else if (!bb.seen_sensors.empty() &&
-                 bb.event_tick - bb.seen_sensors.peek_last()->tick >
-                     timout_ticks) {
         return NodeResult::Success;
       }
       return NodeResult::Running;
@@ -246,13 +243,16 @@ namespace {
     LocalizerTree localizer_tree{};
 
     GoToNode create_loop_start_node{};
+    DebugPrintPath debug_print{};
+    RepeatNode debug_print_path{&debug_print, 1};
+
     AddLoop add_loop{};
     SetSpeedNode max_speed{14};
 
     PathLocalizerNode path_localizer{};
     StopAtDonePath stop_on_finish_path{};
     AwaitSensorNode await_sensor_node{sid('B', 6)};
-    RepeatNode repeat_node{&await_sensor_node, 5};
+    RepeatNode repeat_node{&await_sensor_node, 3};
     SaveSensorNode save_sensor_node{};
 
     SetSpeedNode zero_speed{0};
@@ -268,6 +268,7 @@ namespace {
       // try to run the stop distance thing
       seq.children.push(&create_loop_start_node);
       seq.children.push(&add_loop);
+      seq.children.push(&debug_print_path);
       seq.children.push(&max_speed);
       seq.children.push(&path_localizer);
       seq.children.push(&repeat_node);

@@ -22,7 +22,8 @@ Path &Path::operator+(const Path &other) {
     return *this;
   }
 
-  this->dist += other.dist;
+  this->dist                      += other.dist;
+  last_opt->distance_to_next_node  = first_opt->distance_to_next_node;
   for (size_t i = 1; i < other.size(); ++i) {
     auto node = other[i];
     _assert(node.has_value(), "unexpected empty path node");
@@ -126,8 +127,13 @@ Pathfind::build_path(int start_idx, int goal_idx,
     int node_idx           = node_indices[step];
     const track_node &node = track[node_idx];
 
+    int dist_to_prev = 0;
     int dist_to_next = 0;
     bool curved      = false;
+    if (step > 0) {
+      int prev_idx = node_indices[step - 1];
+      dist_to_prev = edge_dist_between(prev_idx, node_idx);
+    }
     if (step + 1 < path_len) {
       int next_idx = node_indices[step + 1];
       dist_to_next = edge_dist_between(node_idx, next_idx);
@@ -135,7 +141,7 @@ Pathfind::build_path(int start_idx, int goal_idx,
         curved = is_curved(node_idx, next_idx);
     }
 
-    result.push({node_idx, node.type, dist_to_next, curved});
+    result.push({node_idx, node.type, dist_to_prev, dist_to_next, curved});
   }
 
   return result;
@@ -151,7 +157,7 @@ std::optional<Path> Pathfind::shortest_path(int start_idx, int goal_idx,
     const track_node &node = track[start_idx];
     Path result{};
     result.dist = 0;
-    result.push({start_idx, node.type, 0, false});
+    result.push({start_idx, node.type, 0, 0, false});
     return result;
   }
 
@@ -353,14 +359,16 @@ static void print_path(const Pathfind &pathfind, const char *label,
 
   for (size_t step = 0; step < path.size(); ++step) {
     auto node = path[step];
-    if (!node.has_value())
+    if (!node.has_value()) {
       continue;
-    debug_printf(
-        CONSOLE,
-        "  [%d] node_idx=%d name=%s type=%s dist_next=%d curved=%d\n\r",
-        static_cast<int>(step), node->node_idx,
-        pathfind.node_name(node->node_idx), node_type_name(node->type),
-        node->distance_to_next_node, node->should_br_be_curved ? 1 : 0);
+    }
+    debug_printf(CONSOLE,
+                 "  [%d] node_idx=%d name=%s type=%s dist_prev=%d dist_next=%d "
+                 "curved=%d\n\r",
+                 static_cast<int>(step), node->node_idx,
+                 pathfind.node_name(node->node_idx), node_type_name(node->type),
+                 node->distance_to_prev_node, node->distance_to_next_node,
+                 node->should_br_be_curved ? 1 : 0);
   }
 }
 

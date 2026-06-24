@@ -5,18 +5,19 @@
 #include "map.h"
 #include "static_string.h"
 #include "track_data.h"
-#include <array>
-#include <cstddef>
 #include <optional>
 
 struct PathNode {
   int node_idx;
   node_type type;
+  int distance_to_prev_node = 0;
   int distance_to_next_node;
   bool should_br_be_curved;
 
   bool operator==(const PathNode &other) const {
     return node_idx == other.node_idx && type == other.type &&
+           distance_to_prev_node == other.distance_to_prev_node &&
+           distance_to_next_node == other.distance_to_next_node &&
            should_br_be_curved == other.should_br_be_curved;
   }
 };

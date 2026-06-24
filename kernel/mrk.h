@@ -163,6 +163,7 @@ struct SensorData {
   bool old_state;
   bool new_state;
 
+  SensorData() = default;
   SensorData(const CANFRAME &frame)
       : sensor_id((frame.decode_data_0_4() & 0xFFFF)), old_state(frame.data[4]),
         new_state(frame.data[5]) {
