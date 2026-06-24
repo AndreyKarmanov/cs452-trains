@@ -11,14 +11,6 @@
 
 namespace {
 
-  struct LogNode : public LeafNode {
-    NodeResult tick(Blackboard &bb) override {
-      Puts(bb.txs_tid, "tree tick for loco ", bb.loco_id, " value ",
-           bb.req_speed, "\n\r");
-      return NodeResult::Success;
-    }
-  };
-
   struct RepeatForeverNode : public DecoratorNode {
     NodeResult tick(Blackboard &bb) override {
       while (true) {
@@ -35,13 +27,16 @@ namespace {
 
   struct SetSpeedNode : public LeafNode {
     uint16_t req_speed;
+    bool set_speed = false;
+
     SetSpeedNode(uint16_t speed) : req_speed(speed) {}
     NodeResult tick(Blackboard &bb) override {
       if (bb.txs_tid < 0) {
         return NodeResult::Failure;
       }
 
-      if (req_speed == bb.state.get_loco(bb.loco_id).requested_speed) {
+      if (set_speed ||
+          req_speed == bb.state.get_loco(bb.loco_id).requested_speed) {
         return NodeResult::Success;
       }
 
@@ -50,6 +45,7 @@ namespace {
       if (!resp.has_value()) {
         return NodeResult::Failure;
       }
+      set_speed = true;
       return NodeResult::Success;
     }
   };
@@ -136,7 +132,8 @@ namespace {
 
   struct StopAtDistance : public LeafNode {
     NodeResult tick(Blackboard &bb) override {
-      if (bb.path.size() <= 1 || bb.req_speed == 0) {
+      if (bb.path.size() <= 1 ||
+          bb.state.get_loco(bb.loco_id).requested_speed == 0) {
         return NodeResult::Success;
       }
 
@@ -147,6 +144,7 @@ namespace {
             bb.pathfinder.shortest_path(prev_node - 1, bb.path[i].value() - 1);
         total_dist += p->dist;
       }
+      Debug_Puts(bb.txs_tid, " distance left ", total_dist, "mm\n\r");
 
       if (total_dist <= bb.stop_distance) {
         Debug_Puts(bb.txs_tid, "Stopping train ", bb.loco_id, " at distance ",

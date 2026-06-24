@@ -20,7 +20,6 @@ struct Blackboard {
   bool path_initialized = false;
 
   uint16_t est_speed;
-  uint16_t req_speed;
   uint16_t stop_distance;
 
   uint16_t last_seen_sensor;
