@@ -227,6 +227,23 @@ const char *Pathfind::node_name(int node_idx) const {
   return (name != nullptr && name[0] != '\0') ? name : "?";
 }
 
+static const char *node_type_name(node_type type) {
+  switch (type) {
+  case NODE_SENSOR:
+    return "SENSOR";
+  case NODE_BRANCH:
+    return "BRANCH";
+  case NODE_MERGE:
+    return "MERGE";
+  case NODE_ENTER:
+    return "ENTER";
+  case NODE_EXIT:
+    return "EXIT";
+  default:
+    return "NONE";
+  }
+}
+
 static void print_path(const Pathfind &pathfind, const char *label,
                        const std::optional<Path> &path) {
   if (!path.has_value()) {
@@ -234,7 +251,8 @@ static void print_path(const Pathfind &pathfind, const char *label,
     return;
   }
 
-  debug_printf(CONSOLE, "%s: dist=%d len=%zu ", label, path->dist, path->len());
+  debug_printf(CONSOLE, "%s: dist=%d len=%d ", label, path->dist,
+               static_cast<int>(path->len()));
   for (size_t step = 0; step < path->len(); ++step) {
     auto node = path->nodes[step];
     if (!node.has_value())
@@ -244,6 +262,18 @@ static void print_path(const Pathfind &pathfind, const char *label,
       debug_puts(CONSOLE, " -> ");
   }
   debug_puts(CONSOLE, "\n\r");
+
+  for (size_t step = 0; step < path->len(); ++step) {
+    auto node = path->nodes[step];
+    if (!node.has_value())
+      continue;
+    debug_printf(CONSOLE,
+                 "  [%d] node_idx=%d name=%s type=%s dist_next=%d curved=%d\n\r",
+                 static_cast<int>(step), node->node_idx,
+                 pathfind.node_name(node->node_idx),
+                 node_type_name(node->type), node->distance_to_next_node,
+                 node->should_br_be_curved ? 1 : 0);
+  }
 }
 
 void test_pathfind() {
