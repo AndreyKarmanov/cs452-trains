@@ -13,16 +13,42 @@ namespace {
   struct DebugPrintPath : public LeafNode {
     NodeResult tick(Blackboard &bb) override {
       StaticString<128> path_str{};
-      path_str.append("Path: ");
+      path_str.append("Path: ", bb.path.size(), " ");
       for (auto node : bb.path) {
-        path_str.append(bb.pathfinder.track[node.node_idx].name, " ",
-                        node.distance_to_next_node, "mm -> ");
+        path_str.append(bb.pathfinder.track[node.node_idx].name, " ");
       }
       Debug_Puts(bb.txs_tid, path_str);
       return NodeResult::Success;
     }
   };
 
+  struct SteadyStateSpeed : public LeafNode {
+    NodeResult tick(Blackboard &bb) override {
+      auto measurements_to_use = size_t{12};
+
+      if (bb.dists.size() < measurements_to_use) {
+        return NodeResult::Running;
+      }
+
+      auto total_dist =
+          std::accumulate(bb.dists.end() - measurements_to_use, bb.dists.end(),
+                          0, [](int acc, const Blackboard::DistLog &log) {
+                            return acc + log.distance;
+                          });
+
+      auto last_measurement  = bb.dists.end() - 1;
+      auto first_measurement = bb.dists.end() - measurements_to_use;
+      auto total_ticks = (*last_measurement).tick - (*first_measurement).tick;
+      auto estimated_speed = (total_dist * 100) / total_ticks;
+
+      Debug_Puts(bb.txs_tid, "Total dist: ", total_dist,
+                 "mm, total ticks: ", total_ticks,
+                 " speed: ", estimated_speed / 100, ".", estimated_speed % 100,
+                 "mm/tick\n\r");
+
+      return NodeResult::Success;
+    }
+  };
   struct SetSpeedNode : public LeafNode {
     uint16_t req_speed;
     bool set_speed = false;
@@ -100,10 +126,10 @@ namespace {
           return NodeResult::Failure;
         }
 
-        if (bb.travelled_dist.size() == bb.travelled_dist.capacity()) {
-          bb.travelled_dist.pop();
+        if (bb.dists.size() == bb.dists.capacity()) {
+          bb.dists.pop();
         }
-        bb.travelled_dist.push({
+        bb.dists.push({
             .distance = std::accumulate(bb.path.begin(), idx + 1, uint16_t(0),
                                         [](uint16_t acc, const PathNode &node) {
                                           return acc +
@@ -252,13 +278,14 @@ namespace {
     PathLocalizerNode path_localizer{};
     StopAtDonePath stop_on_finish_path{};
     AwaitSensorNode await_sensor_node{sid('B', 6)};
-    RepeatNode repeat_node{&await_sensor_node, 3};
+    RepeatNode repeat_node{&await_sensor_node, 4};
     SaveSensorNode save_sensor_node{};
+    SteadyStateSpeed steady_state_speed{};
 
     SetSpeedNode zero_speed{0};
     InvertNode invert_zero_speed{&zero_speed};
 
-    PathFollower() {
+    PathFollower(uint16_t speed) : max_speed(speed) {
       // default always
       seq.children.push(&save_sensor);
 
@@ -268,11 +295,12 @@ namespace {
       // try to run the stop distance thing
       seq.children.push(&create_loop_start_node);
       seq.children.push(&add_loop);
-      seq.children.push(&debug_print_path);
+      // seq.children.push(&debug_print_path);
       seq.children.push(&max_speed);
       seq.children.push(&path_localizer);
       seq.children.push(&repeat_node);
       seq.children.push(&zero_speed);
+      seq.children.push(&steady_state_speed);
 
       // set to zero speed and print failure
       tree.children.push(&seq);
@@ -284,21 +312,9 @@ namespace {
 
 } // namespace
 
-void train_tree_task() {
-  auto tcs_tid = WhoIs(TrainControlServer<>::NAME);
-  auto tx_tid  = WhoIs(UART_TX_Server::NAME);
-  auto cs_tid  = WhoIs(ClockServer<>::NAME);
-
-  Blackboard bb{
-      .pathfinder{'a'},
-  };
-  bb.tcs_tid = tcs_tid;
-  bb.txs_tid = tx_tid;
-  bb.cs_tid  = cs_tid;
-  PathFollower tree{};
-
+static void run_tree(TreeNode &tree, Blackboard &bb) {
   while (true) {
-    auto next_msg = send<TC::TreeMsg>(tcs_tid, TC::TreeReady{});
+    auto next_msg = send<TC::TreeMsg>(bb.tcs_tid, TC::TreeReady{});
     if (!next_msg.has_value()) {
       break;
     }
@@ -320,13 +336,35 @@ void train_tree_task() {
         next_msg.value());
     auto result = tree.tick(bb);
     if (result == NodeResult::Failure) {
-      Debug_Puts(bb.txs_tid, "tree failed\n\r");
-      Debug_Puts(bb.txs_tid, "Error: ", bb.error_msg, "\n\r");
+      Debug_Puts(bb.txs_tid, "Tree Error: ", bb.error_msg);
       break;
     } else if (result == NodeResult::Success) {
-      Debug_Puts(bb.txs_tid, "tree succeeded\n\r");
       break;
     }
+  }
+}
+
+void train_tree_task() {
+  auto tcs_tid     = WhoIs(TrainControlServer<>::NAME);
+  auto tx_tid      = WhoIs(UART_TX_Server::NAME);
+  auto cs_tid      = WhoIs(ClockServer<>::NAME);
+  uint32_t loco_id = 1;
+  State state{};
+
+  for (uint16_t i = 14; i > 1; --i) {
+    Debug_Puts(tx_tid, "Running tree with speed ", i, "\n\r");
+    PathFollower tree{i};
+    Blackboard bb{
+        .pathfinder{'a'},
+    };
+    bb.tcs_tid = tcs_tid;
+    bb.txs_tid = tx_tid;
+    bb.cs_tid  = cs_tid;
+    bb.state   = state;
+    bb.loco_id = loco_id;
+    run_tree(tree, bb);
+    loco_id = bb.loco_id;
+    state   = bb.state;
   }
   std::ignore = send<TC::Ack>(tcs_tid, TC::TreeExit{});
 }

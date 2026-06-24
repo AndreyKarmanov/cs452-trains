@@ -29,7 +29,7 @@ struct Blackboard {
     uint16_t distance;
     uint32_t tick;
   };
-  Buffer<DistLog, TRACK_MAX> travelled_dist;
+  Buffer<DistLog, TRACK_MAX> dists;
 
   uint16_t est_speed;
   uint16_t stop_distance;
