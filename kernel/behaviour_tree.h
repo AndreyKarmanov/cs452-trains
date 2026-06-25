@@ -16,7 +16,7 @@ struct Blackboard {
   uint32_t loco_id{};
 
   Path path{};
-  int prev_lookahead_node = -1;
+  PathNode prev_lookahead_node = {.node_idx = -1};
 
   struct SensorSighting {
     uint16_t sid;

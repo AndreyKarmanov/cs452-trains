@@ -409,6 +409,7 @@ void test_pathfind() {
   print_path(track_a, "A1->E16", track_a.shortest_path("A1", "E16"));
   print_path(track_a, "A1->A1", track_a.shortest_path("A1", "A1"));
   print_path(track_a, "A1->ZZZ", track_a.shortest_path("A1", "ZZZ"));
+  print_path(track_a, "A13->B6", track_a.shortest_path("A13", "B6"));
 
   // Pathfind track_b('b');
   // print_path(track_b, "B1->B16", track_b.shortest_path("B1", "B16"));

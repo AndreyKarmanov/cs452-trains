@@ -258,7 +258,7 @@ namespace {
     NodeResult tick(Blackboard &bb) override {
 
       if (bb.path.empty()) {
-        bb.prev_lookahead_node = -1;
+        bb.prev_lookahead_node = {.node_idx = -1};
         return NodeResult::Success;
       }
 
@@ -289,7 +289,7 @@ namespace {
 
       // lookahead to nodes within the next 500
       // assumption that dist 500 is within 20 nodes.
-      int node_buffer[20];
+      PathNode node_buffer[20];
       int count = bb.path.lookahead(lookahead, node_buffer, 20);
 
       // index prev path node
@@ -304,7 +304,7 @@ namespace {
       // process all subsequent lookahead nodes
       for (int i = prev_lookahead_node + 1; i < count; i++) {
         Debug_Puts(bb.txs_tid, "Lookahead process for node: ",
-                   bb.pathfinder.node_name(node_buffer[i]), "\n\r");
+                   bb.pathfinder.node_name(node_buffer[i].node_idx), "\n\r");
         // process lookahead here
         // TODO
 
