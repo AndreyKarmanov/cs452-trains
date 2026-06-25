@@ -218,6 +218,26 @@ namespace {
       // then, calculate distance based on velocity. suppose distance is 500
       int lookahead = 500;
 
+      auto total_dist = 0;
+      for (auto &node : bb.path) {
+        total_dist += node.distance_to_prev_node;
+        if (total_dist > lookahead) {
+          break;
+        }
+
+        if (node.type == NODE_BRANCH) {
+          if (node.should_br_be_curved &&
+              bb.state.is_switch_straight(node.num)) {
+            auto res =
+                send<TC::Ack>(bb.tcs_tid, TC::Cmd::Switch(node.num, false));
+            if (!res.has_value()) {
+              return NodeResult::Failure;
+            }
+          }
+        }
+      }
+      return NodeResult::Success;
+
       // lookahead to nodes within the next 500
       // assumption that dist 500 is within 20 nodes.
       int node_buffer[20];

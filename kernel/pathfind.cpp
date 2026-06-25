@@ -41,8 +41,8 @@ int Path::lookahead(int distance, int *result, int length) {
       break;
     if (travelled > distance)
       break;
-    result[count++] = node_opt->node_idx;
-    travelled      += node_opt->distance_to_next_node;
+    result[count++]  = node_opt->node_idx;
+    travelled       += node_opt->distance_to_next_node;
   }
   return count;
 }
@@ -156,7 +156,8 @@ Pathfind::build_path(int start_idx, int goal_idx,
         curved = is_curved(node_idx, next_idx);
     }
 
-    result.push({node_idx, node.type, dist_to_prev, dist_to_next, curved});
+    result.push(
+        {node_idx, node.type, node.num, dist_to_prev, dist_to_next, curved});
   }
 
   return result;
@@ -172,7 +173,7 @@ std::optional<Path> Pathfind::shortest_path(int start_idx, int goal_idx,
     const track_node &node = track[start_idx];
     Path result{};
     result.dist = 0;
-    result.push({start_idx, node.type, 0, 0, false});
+    result.push({start_idx, node.type, node.num, 0, 0, false});
     return result;
   }
 

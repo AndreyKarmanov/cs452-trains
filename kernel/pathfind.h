@@ -10,6 +10,7 @@
 struct PathNode {
   int node_idx;
   node_type type;
+  int num;
   int distance_to_prev_node = 0;
   int distance_to_next_node;
   bool should_br_be_curved;
