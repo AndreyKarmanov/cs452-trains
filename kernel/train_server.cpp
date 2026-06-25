@@ -56,8 +56,8 @@ namespace {
 
   struct PrintStoppingDistance : public LeafNode {
     NodeResult tick(Blackboard &bb) override {
-      auto loco               = bb.state.get_loco(bb.loco_id);
-      auto b                  = loco.top_speed[loco.requested_speed];
+      auto loco = bb.state.get_loco(bb.loco_id);
+      auto b    = loco.top_speed[mrk_level_to_user_speed(loco.requested_speed)];
       auto measured_dist      = (bb.last_checkpoint - bb.event_tick) * b;
       auto stopped_sensor_cmd = sid('B', 6);
 
@@ -378,6 +378,7 @@ namespace {
     SetSpeedNode max_speed{14};
 
     PathLocalizerNode path_localizer{};
+    PathLookaheadNode path_lookahead{};
     StopAtDonePath stop_on_finish_path{};
     AwaitSensorNode await_sensor_node{sid('B', 6)};
     RepeatNode repeat_node{&await_sensor_node, 3};
@@ -405,6 +406,7 @@ namespace {
       loop.children.push(&add_loop);
       loop.children.push(&max_speed);
       loop.children.push(&path_localizer);
+      loop.children.push(&path_lookahead);
       loop.children.push(&repeat_node);
       loop.children.push(&zero_speed);
       loop.children.push(&steady_state_speed);
