@@ -361,7 +361,7 @@ namespace {
         Debug_Puts(bb.txs_tid, "Sensor Delta ", bb.dist_to_next_sensor,
                    " Est Speed ", bb.est_speed, "um/ms Lookahead ",
                    bb.lookahead, "mm\n\r");
-        bb.lookahead = (bb.est_speed * TICKS_PER_S * 3) / 1000;
+        bb.lookahead = std::max((bb.est_speed * TICKS_PER_S * 3) / 1000, 1000);
 
         auto next_sensor_idx = std::ranges::find_if(
             bb.path, [](PathNode &node) { return node.type == NODE_SENSOR; });
@@ -374,6 +374,17 @@ namespace {
                             [](uint16_t acc, const PathNode &node) {
                               return acc + node.distance_to_prev_node;
                             });
+
+        StaticString<256> path_str{};
+        path_str.append("Path: ", bb.path.size(), " ");
+        for (auto node : bb.path) {
+          path_str.append(bb.pathfinder.track[node.node_idx].name, " ");
+          if (node.type == NODE_BRANCH) {
+            path_str.append(node.should_br_be_curved ? "C" : "S", " ");
+          }
+          path_str.append(node.distance_to_next_node, ">");
+        }
+        Debug_Puts(bb.txs_tid, path_str);
       }
       return NodeResult::Success;
     }
@@ -515,7 +526,13 @@ namespace {
         bb.error_msg = "Failed to find loop";
         return NodeResult::Failure;
       }
-      bb.path = bb.path + path_opt.value();
+      auto new_path = path_opt.value();
+      if (bb.path.peek()->type == NODE_BRANCH) {
+        auto &last_node               = *(new_path.end() - 1);
+        auto &first_node              = *(bb.path.begin());
+        last_node.should_br_be_curved = first_node.should_br_be_curved;
+      }
+      bb.path = bb.path + new_path;
       return NodeResult::Success;
     }
   };
