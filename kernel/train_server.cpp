@@ -347,19 +347,21 @@ namespace {
     NodeResult tick(Blackboard &bb) override {
       auto loco = bb.state.get_loco(bb.loco_id);
 
-      uint16_t accel_spd =
-          ((bb.event_tick - loco.req_spd_tick) * loco.accel) / 1000;
+      auto delta_tick_cmd = bb.event_tick - loco.req_spd_tick;
+      uint16_t accel_spd  = (delta_tick_cmd * loco.accel) / 1000;
       bb.est_speed = std::min(loco.top_speed[loco.requested_speed], accel_spd);
-      bb.dist_to_next_sensor -=
-          bb.est_speed * (bb.event_tick - bb.last_tick) / 1000;
-      bb.last_tick = bb.event_tick;
-      bb.lookahead = (bb.est_speed * TICKS_PER_S * 2) / 1000;
+
+      auto delta_tick_evnt    = bb.event_tick - bb.last_tick;
+      bb.dist_to_next_sensor -= (bb.est_speed * delta_tick_evnt) / 1000;
+      bb.lookahead           += (bb.est_speed * delta_tick_evnt) / 1000;
+      bb.last_tick            = bb.event_tick;
 
       if (auto data = std::get_if<SensorData>(&bb.new_event);
           data && data->new_state == 1) {
         Debug_Puts(bb.txs_tid, "Sensor Delta ", bb.dist_to_next_sensor,
-                   " Est Speed ", bb.est_speed, " Lookahead ", bb.lookahead,
-                   "\n\r");
+                   " Est Speed ", bb.est_speed, "um/ms Lookahead ",
+                   bb.lookahead, "mm\n\r");
+        bb.lookahead = (bb.est_speed * TICKS_PER_S * 3) / 1000;
 
         auto next_sensor_idx = std::ranges::find_if(
             bb.path, [](PathNode &node) { return node.type == NODE_SENSOR; });
@@ -381,7 +383,6 @@ namespace {
     NodeResult tick(Blackboard &bb) override {
 
       if (bb.path.empty()) {
-        bb.prev_lookahead_node = {.node_idx = -1};
         return NodeResult::Success;
       }
 
@@ -402,6 +403,15 @@ namespace {
                        " to curved\n\r");
             auto res =
                 send<TC::Ack>(bb.tcs_tid, TC::Cmd::Switch(node.num, false));
+            if (!res.has_value()) {
+              return NodeResult::Failure;
+            }
+          } else if (!node.should_br_be_curved &&
+                     !bb.state.is_switch_straight(node.num)) {
+            Debug_Puts(bb.txs_tid, "Setting switch ", node.num,
+                       " to straight\n\r");
+            auto res =
+                send<TC::Ack>(bb.tcs_tid, TC::Cmd::Switch(node.num, true));
             if (!res.has_value()) {
               return NodeResult::Failure;
             }
@@ -733,7 +743,7 @@ void train_tree_task() {
       .tcs_tid = tcs_tid,
       .txs_tid = tx_tid,
       .cs_tid  = cs_tid,
-      .pathfinder{'a'},
+      .pathfinder{'b'},
   };
   run_tree(tree, bb);
   std::ignore = send<TC::Ack>(tcs_tid, TC::TreeExit{});
