@@ -32,7 +32,8 @@ Path &Path::operator+(const Path &other) {
   return *this;
 }
 
-int Path::lookahead(int distance, int *result, int length) {
+int Path::lookahead(int distance, PathNode *result, int length,
+                    node_type filter_node_type) {
   int count     = 0;
   int travelled = 0;
   for (size_t i = 0; i < size() && count < length; ++i) {
@@ -41,8 +42,13 @@ int Path::lookahead(int distance, int *result, int length) {
       break;
     if (travelled > distance)
       break;
-    result[count++]  = node_opt->node_idx;
-    travelled       += node_opt->distance_to_next_node;
+
+    travelled += node_opt->distance_to_next_node;
+
+    // filter by node type if provided
+    if (filter_node_type != NODE_NONE && node_opt->type != filter_node_type)
+      continue;
+    result[count++] = *node_opt;
   }
   return count;
 }
