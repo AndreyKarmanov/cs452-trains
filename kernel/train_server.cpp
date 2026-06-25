@@ -43,7 +43,8 @@ namespace {
 
       Debug_Puts(bb.txs_tid, "Total dist: ", total_dist,
                  "mm, total ticks: ", total_ticks,
-                 " speed: ", estimated_speed / 100, ".", estimated_speed % 100,
+                 " speed: ", estimated_speed / 100, ".",
+                 (estimated_speed % 100) / 10, estimated_speed % 10,
                  "mm/tick\n\r");
 
       return NodeResult::Success;
@@ -235,7 +236,7 @@ namespace {
     }
   };
 
-  struct PathFollower : public TreeNode {
+  struct SpeedTester : public TreeNode {
     FallBackNode tree{};
 
     SequenceNode seq{};
@@ -260,7 +261,7 @@ namespace {
     SetSpeedNode zero_speed{0};
     InvertNode invert_zero_speed{&zero_speed};
 
-    PathFollower(uint16_t speed) : max_speed(speed) {
+    SpeedTester(uint16_t speed) : max_speed(speed) {
       // default always
       seq.children.push(&save_sensor);
 
@@ -327,7 +328,7 @@ void train_tree_task() {
 
   for (uint16_t i = 14; i > 0; --i) {
     Debug_Puts(tx_tid, "Running tree with speed ", i, "\n\r");
-    PathFollower tree{i};
+    SpeedTester tree{i};
     Blackboard bb{
         .tcs_tid = tcs_tid,
         .txs_tid = tx_tid,
@@ -342,3 +343,19 @@ void train_tree_task() {
   }
   std::ignore = send<TC::Ack>(tcs_tid, TC::TreeExit{});
 }
+
+// void train_tree_task() {
+//   auto tcs_tid = WhoIs(TrainControlServer<>::NAME);
+//   auto tx_tid  = WhoIs(UART_TX_Server::NAME);
+//   auto cs_tid  = WhoIs(ClockServer<>::NAME);
+
+//   SpeedTester tree{};
+//   Blackboard bb{
+//       .tcs_tid = tcs_tid,
+//       .txs_tid = tx_tid,
+//       .cs_tid  = cs_tid,
+//       .pathfinder{'a'},
+//   };
+//   run_tree(tree, bb);
+//   std::ignore = send<TC::Ack>(tcs_tid, TC::TreeExit{});
+// }
