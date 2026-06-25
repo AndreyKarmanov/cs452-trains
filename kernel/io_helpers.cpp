@@ -14,9 +14,7 @@ int Debug_Puts(int tid, const char *str) {
   debug_scroll_line = (debug_scroll_line + 1) % 40;
 
   StaticString<TX::MAX_DATA_LENGTH> out;
-  out.append("\033[s\033[", row, ";1H\033[K");
-  out.append(str);
-  out.append("\033[u");
+  out.set("\033[s\033[", row, ";1H\033[K", str, "\033[u");
   return Puts(tid, out.c_str());
 }
 

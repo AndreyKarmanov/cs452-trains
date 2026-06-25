@@ -1,4 +1,5 @@
 #include "io_helpers.h"
+#include "message.h"
 #include "time.h"
 #include "train_control.h"
 #include "uart_tx_server.h"
@@ -11,7 +12,7 @@ static constexpr int SWITCH_ROW    = SENSOR_ROW + 3;
 
 uint32_t print_state(int tx_tid, const State &state) {
   uint32_t draws = 0;
-  StaticString<512> line;
+  StaticString<TX::MAX_DATA_LENGTH> line;
 
   if (state.status_dirty) {
     line.set("\033[", STATUS_ROW, ";2HTrack ",

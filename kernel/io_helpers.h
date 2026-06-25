@@ -15,7 +15,7 @@ template <size_t SIZE> int Puts(int tid, const StaticString<SIZE> &str) {
 
 template <typename... Args> int Debug_Puts(int tid, const Args &...args) {
   StaticString<TX::MAX_DATA_LENGTH> str;
-  str.append(args...);
+  str.set(args...);
   return Debug_Puts(tid, str.c_str());
 }
 
@@ -23,7 +23,7 @@ template <typename... Args>
 int Offset_Puts(int tid, int offset, const Args &...args) {
   static constexpr int DEBUG_LINE = 40;
   StaticString<TX::MAX_DATA_LENGTH> str;
-  str.append("\033[s\033[", DEBUG_LINE + offset, ";1H", args..., "\033[u");
+  str.set("\033[s\033[", DEBUG_LINE + offset, ";1H", args..., "\033[u");
   return Puts(tid, str);
 }
 

@@ -37,7 +37,7 @@ void RPSServer<32>::handle(const int sender_tid, const RPS::SetupMsg &) {
   player_to_game_ptr[game_index.value()][1] = p2;
   waiting.reset();
 
-  Printf(tx_tid, "RPS server: Game started between player %d and player %d\r\n",
+  Printf(tx_tid, "RPS server: Game started between player %d and player %d\n\r",
          p1, p2);
 
   reply(p1, RPS::PlayReadyMsg{});
@@ -60,7 +60,7 @@ void RPSServer<32>::handle(const int sender_tid, const RPS::PlayMsg &arg) {
   if (game->game_state == Game::GameState::PartnerHasQuit) {
     game_index_allocator.free(game_index.value());
     player_to_game_ptr[game_index.value()][1 - partner_index] = -1;
-    Printf(tx_tid, "RPS server: Game ended between player %d and player %d\r\n",
+    Printf(tx_tid, "RPS server: Game ended between player %d and player %d\n\r",
            sender_tid, partner_tid);
     reply(sender_tid, RPS::PlayResultMsg{
                           .result = RPS::PlayResultMsg::Result::PLAYER_QUIT});
@@ -117,7 +117,7 @@ void RPSServer<32>::handle(const int sender_tid, const RPS::PlayMsg &arg) {
       p2_result = Result::WIN;
     }
 
-    Printf(tx_tid, "RPS server: Game result: player %d %s, player %d %s\r\n",
+    Printf(tx_tid, "RPS server: Game result: player %d %s, player %d %s\n\r",
            game->player1_tid, RPS::result_str(p1_result), game->player2_tid,
            RPS::result_str(p2_result));
 
@@ -175,7 +175,7 @@ void RPSServer<32>::handle(const int sender_tid, const RPS::QuitMsg &) {
     player_to_game_ptr[game->game_index][0] = -1;
     player_to_game_ptr[game->game_index][1] = -1;
     game_index_allocator.free(game->game_index);
-    Printf(tx_tid, "RPS server: Game ended between player %d and player %d\r\n",
+    Printf(tx_tid, "RPS server: Game ended between player %d and player %d\n\r",
            sender_tid, partner_tid);
   }
 

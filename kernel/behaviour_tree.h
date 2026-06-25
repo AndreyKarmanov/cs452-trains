@@ -1,43 +1,40 @@
 #pragma once
 
 #include "buffer.h"
-#include "clock_server.h"
 #include "mrk.h"
 #include "pathfind.h"
 #include "train_state.h"
 #include <cstdint>
 
 struct Blackboard {
-  int tcs_tid;
-  int txs_tid;
-  int cs_tid;
+  int tcs_tid{0};
+  int txs_tid{0};
+  int cs_tid{0};
 
   Pathfind pathfinder;
   State state{};
   uint32_t loco_id{};
 
-  Path path;
-  bool maintain_loop;
+  Path path{};
 
   struct SensorSighting {
     uint16_t sid;
     uint32_t tick;
   };
-  Buffer<SensorSighting, TRACK_MAX> seen_sensors;
+  Buffer<SensorSighting, TRACK_MAX> seen_sensors{};
 
   struct DistLog {
     uint16_t distance;
     uint32_t tick;
   };
-  Buffer<DistLog, TRACK_MAX> dists;
+  Buffer<DistLog, TRACK_MAX> dists{};
 
-  uint16_t est_speed;
-  uint16_t stop_distance;
+  uint16_t est_speed{0};
 
-  MRKCmd new_event;
-  uint32_t event_tick;
+  MRKCmd new_event{};
+  uint32_t event_tick{};
 
-  StaticString<32> error_msg;
+  StaticString<32> error_msg{};
 };
 
 enum class NodeResult {

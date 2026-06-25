@@ -15,22 +15,22 @@ RPSClient::RPSClient() {
 }
 
 std::optional<Message> RPSClient::signup() {
-  Printf(tx_tid, "RPS client %d: signup\r\n", my_tid());
+  Printf(tx_tid, "RPS client %d: signup\n\r", my_tid());
   auto reply_msg = send<RPS::PlayReadyMsg>(rps_server_tid, RPS::SetupMsg{});
   if (!reply_msg.has_value()) {
-    Printf(tx_tid, "RPS client %d: signup -> failed\r\n", my_tid());
+    Printf(tx_tid, "RPS client %d: signup -> failed\n\r", my_tid());
     return std::nullopt;
   }
   return *reply_msg;
 }
 
 std::optional<Message> RPSClient::play(RPS::PlayMsg::Choice choice) {
-  Printf(tx_tid, "RPS client %d: play %s\r\n", my_tid(),
+  Printf(tx_tid, "RPS client %d: play %s\n\r", my_tid(),
          RPS::choice_str(choice));
   auto reply_msg =
       send<RPS::PlayResultMsg>(rps_server_tid, RPS::PlayMsg{.choice = choice});
   if (!reply_msg.has_value()) {
-    Printf(tx_tid, "RPS client %d: play %s -> failed\r\n", my_tid(),
+    Printf(tx_tid, "RPS client %d: play %s -> failed\n\r", my_tid(),
            RPS::choice_str(choice));
     return std::nullopt;
   }
@@ -38,10 +38,10 @@ std::optional<Message> RPSClient::play(RPS::PlayMsg::Choice choice) {
 }
 
 std::optional<Message> RPSClient::quit() {
-  Printf(tx_tid, "RPS client %d: quit\r\n", my_tid());
+  Printf(tx_tid, "RPS client %d: quit\n\r", my_tid());
   auto reply_msg = send<RPS::QuitAckMsg>(rps_server_tid, RPS::QuitMsg{});
   if (!reply_msg.has_value()) {
-    Printf(tx_tid, "RPS client %d: quit -> failed\r\n", my_tid());
+    Printf(tx_tid, "RPS client %d: quit -> failed\n\r", my_tid());
     return std::nullopt;
   }
   return *reply_msg;

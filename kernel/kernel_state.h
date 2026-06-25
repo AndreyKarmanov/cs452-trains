@@ -2,7 +2,6 @@
 
 #include "allocator.h"
 #include "buffer.h"
-#include "debug.h"
 #include "idle_manager.h"
 #include "map.h"
 #include "scheduler.h"
@@ -13,7 +12,7 @@
 
 #define PRIORITY_LEVELS 8
 #define MAX_TASKS 32
-#define TASK_STACK_SIZE 524288
+#define TASK_STACK_SIZE 1048576
 
 namespace Kernel {
   struct alignas(16) TrapFrame {

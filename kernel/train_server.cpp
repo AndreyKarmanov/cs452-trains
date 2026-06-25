@@ -144,31 +144,6 @@ namespace {
     }
   };
 
-  struct StopAtDistance : public LeafNode {
-    NodeResult tick(Blackboard &bb) override {
-      if (bb.path.size() <= 1 ||
-          bb.state.get_loco(bb.loco_id).requested_speed == 0) {
-        return NodeResult::Success;
-      }
-
-      auto total_dist = std::accumulate(
-          bb.path.begin(), bb.path.end(), 0, [](int acc, const PathNode &node) {
-            return acc + node.distance_to_next_node;
-          });
-
-      if (total_dist <= bb.stop_distance) {
-        Debug_Puts(bb.txs_tid, "Stopping ", bb.loco_id, " stop dist ",
-                   bb.stop_distance, " at distance ", total_dist, "mm\n\r");
-        auto res = send<TC::Ack>(bb.tcs_tid, TC::Cmd::Speed(bb.loco_id, 0));
-        if (!res.has_value()) {
-          return NodeResult::Failure;
-        }
-        return NodeResult::Success;
-      }
-      return NodeResult::Running;
-    };
-  };
-
   struct StopAtDonePath : public LeafNode {
     NodeResult tick(Blackboard &bb) override {
       if (bb.path.empty()) {
@@ -324,9 +299,8 @@ static void run_tree(TreeNode &tree, Blackboard &bb) {
           using Event = std::decay_t<decltype(event)>;
 
           if constexpr (std::is_same_v<Event, TC::InitTree>) {
-            bb.state         = event.state;
-            bb.loco_id       = event.loco_id;
-            bb.stop_distance = static_cast<uint16_t>(event.value);
+            bb.state   = event.state;
+            bb.loco_id = event.loco_id;
           } else if constexpr (std::is_same_v<Event, TC::TreeUpdate>) {
             bb.state.update_from_mrk(event.mrk);
             bb.new_event  = event.mrk;
@@ -336,7 +310,7 @@ static void run_tree(TreeNode &tree, Blackboard &bb) {
         next_msg.value());
     auto result = tree.tick(bb);
     if (result == NodeResult::Failure) {
-      Debug_Puts(bb.txs_tid, "Tree Error: ", bb.error_msg);
+      Debug_Puts(bb.txs_tid, "Error: ", bb.error_msg);
       break;
     } else if (result == NodeResult::Success) {
       break;
@@ -351,17 +325,17 @@ void train_tree_task() {
   uint32_t loco_id = 1;
   State state{};
 
-  for (uint16_t i = 14; i > 1; --i) {
+  for (uint16_t i = 14; i > 0; --i) {
     Debug_Puts(tx_tid, "Running tree with speed ", i, "\n\r");
     PathFollower tree{i};
     Blackboard bb{
+        .tcs_tid = tcs_tid,
+        .txs_tid = tx_tid,
+        .cs_tid  = cs_tid,
         .pathfinder{'a'},
+        .state   = state,
+        .loco_id = loco_id,
     };
-    bb.tcs_tid = tcs_tid;
-    bb.txs_tid = tx_tid;
-    bb.cs_tid  = cs_tid;
-    bb.state   = state;
-    bb.loco_id = loco_id;
     run_tree(tree, bb);
     loco_id = bb.loco_id;
     state   = bb.state;
