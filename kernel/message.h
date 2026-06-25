@@ -163,6 +163,10 @@ namespace TC {
       uint32_t id;
       bool flag;
     };
+    struct Direction {
+      uint32_t id;
+      bool backward;
+    };
     struct Stop {};
     struct Go {};
     struct Reset {};
@@ -181,9 +185,9 @@ namespace TC {
       bool enabled;
     };
 
-    using Any =
-        std::variant<Invalid, Quit, Light, Speed, Switch, Reverse, Stop, Go,
-                     Reset, RemoveTrains, RunTree, CalSpeed, DebugSensor>;
+    using Any = std::variant<Invalid, Quit, Light, Speed, Switch, Reverse, Stop,
+                             Go, Reset, RemoveTrains, RunTree, CalSpeed,
+                             DebugSensor, Direction>;
 
   } // namespace Cmd
 

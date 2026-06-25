@@ -22,7 +22,7 @@ namespace {
     }
   };
 
-  struct SteadyStateSpeed : public LeafNode {
+  struct PrintSteadyStateSpeed : public LeafNode {
     NodeResult tick(Blackboard &bb) override {
       auto measurements_to_use = size_t{12};
 
@@ -50,6 +50,7 @@ namespace {
       return NodeResult::Success;
     }
   };
+
   struct SetSpeedNode : public LeafNode {
     uint16_t req_speed;
     bool set_speed = false;
@@ -71,6 +72,28 @@ namespace {
         return NodeResult::Failure;
       }
       set_speed = true;
+      return NodeResult::Success;
+    }
+  };
+
+  struct SetDirectionNode : public LeafNode {
+    bool backward;
+    SetDirectionNode(bool backward) : backward(backward) {}
+    NodeResult tick(Blackboard &bb) override {
+      if (bb.txs_tid < 0) {
+        return NodeResult::Failure;
+      }
+
+      if (backward == bb.state.get_loco(bb.loco_id).backward) {
+        return NodeResult::Success;
+      }
+
+      auto resp =
+          send<TC::Ack>(bb.tcs_tid, TC::Cmd::Direction{.id       = bb.loco_id,
+                                                       .backward = backward});
+      if (!resp.has_value()) {
+        return NodeResult::Failure;
+      }
       return NodeResult::Success;
     }
   };
@@ -232,10 +255,14 @@ namespace {
         return NodeResult::Success;
       }
 
-      if (bb.seen_sensors.empty()) {
+      if (bb.seen_sensors.empty() && bb.path.empty()) {
         bb.error_msg = "Failed to find start";
         return NodeResult::Failure;
       }
+
+      auto start_idx = bb.seen_sensors.peek_last().has_value()
+                           ? bb.seen_sensors.peek_last()->sid - 1
+                           : bb.path.peek_last().value().node_idx;
 
       auto goal_idx = bb.pathfinder.get_idx("B6");
       if (!goal_idx.has_value()) {
@@ -243,8 +270,7 @@ namespace {
         return NodeResult::Failure;
       }
 
-      auto path_opt = bb.pathfinder.shortest_path(
-          bb.seen_sensors.peek_last()->sid - 1, goal_idx.value());
+      auto path_opt = bb.pathfinder.shortest_path(start_idx, goal_idx.value());
 
       if (!path_opt.has_value()) {
         bb.error_msg = "Failed to find path";
@@ -279,6 +305,69 @@ namespace {
     }
   };
 
+  struct StoppingDistance : public LeafNode {
+    FallBackNode tree{};
+
+    SequenceNode seq{};
+    SequenceNode loop{};
+
+    SaveSensorNode save_sensor{};
+    LocalizerTree localizer_tree{};
+
+    GoToNode create_loop_start_node{};
+    DebugPrintPath debug_print{};
+    RepeatNode debug_print_path{&debug_print, 1};
+
+    AddLoop add_loop{};
+    SetSpeedNode max_speed{14};
+
+    PathLocalizerNode path_localizer{};
+    StopAtDonePath stop_on_finish_path{};
+    AwaitSensorNode await_sensor_node{sid('B', 6)};
+    RepeatNode repeat_node{&await_sensor_node, 3};
+    SaveSensorNode save_sensor_node{};
+    PrintSteadyStateSpeed steady_state_speed{};
+
+    SetDirectionNode set_forwards{false};
+    RepeatNode set_forwards1{&set_forwards, 1};
+
+    SetDirectionNode set_backwards{true};
+    RepeatNode set_backwards1{&set_backwards, 1};
+
+    SetSpeedNode zero_speed{0};
+    InvertNode invert_zero_speed{&zero_speed};
+
+    StoppingDistance(uint16_t speed) : max_speed(speed) {
+      // default always
+      seq.children.push(&save_sensor);
+
+      // localize if nothing is saved
+      seq.children.push(&localizer_tree);
+
+      // run the distance until we get to the end
+      loop.children.push(&create_loop_start_node);
+      loop.children.push(&add_loop);
+      loop.children.push(&max_speed);
+      loop.children.push(&path_localizer);
+      loop.children.push(&repeat_node);
+      loop.children.push(&zero_speed);
+      seq.children.push(&loop);
+
+      // now we back up until we get the opposite node
+      // get the opposite node of the await sensor
+      // wait, then reverse, then go to the opposite node
+
+      //
+      seq.children.push(&steady_state_speed);
+
+      // set to zero speed and print failure
+      tree.children.push(&seq);
+      tree.children.push(&invert_zero_speed);
+    }
+
+    NodeResult tick(Blackboard &bb) override { return tree.tick(bb); }
+  };
+
   struct SpeedTester : public TreeNode {
     FallBackNode tree{};
 
@@ -298,9 +387,9 @@ namespace {
     PathLookaheadNode path_lookahead{};
     StopAtDonePath stop_on_finish_path{};
     AwaitSensorNode await_sensor_node{sid('B', 6)};
-    RepeatNode repeat_node{&await_sensor_node, 4};
+    RepeatNode repeat_node{&await_sensor_node, 2};
     SaveSensorNode save_sensor_node{};
-    SteadyStateSpeed steady_state_speed{};
+    PrintSteadyStateSpeed steady_state_speed{};
 
     SetSpeedNode zero_speed{0};
     InvertNode invert_zero_speed{&zero_speed};
@@ -315,10 +404,9 @@ namespace {
       // try to run the stop distance thing
       seq.children.push(&create_loop_start_node);
       seq.children.push(&add_loop);
-      // seq.children.push(&debug_print_path);
       seq.children.push(&max_speed);
       seq.children.push(&path_localizer);
-      seq.children.push(&path_lookahead);
+      // seq.children.push(&path_lookahead);
       seq.children.push(&repeat_node);
       seq.children.push(&zero_speed);
       seq.children.push(&steady_state_speed);
@@ -364,43 +452,43 @@ static void run_tree(TreeNode &tree, Blackboard &bb) {
   }
 }
 
-void train_tree_task() {
-  auto tcs_tid     = WhoIs(TrainControlServer<>::NAME);
-  auto tx_tid      = WhoIs(UART_TX_Server::NAME);
-  auto cs_tid      = WhoIs(ClockServer<>::NAME);
-  uint32_t loco_id = 1;
-  State state{};
-
-  for (uint16_t i = 14; i > 0; --i) {
-    Debug_Puts(tx_tid, "Running tree with speed ", i, "\n\r");
-    SpeedTester tree{i};
-    Blackboard bb{
-        .tcs_tid = tcs_tid,
-        .txs_tid = tx_tid,
-        .cs_tid  = cs_tid,
-        .pathfinder{'a'},
-        .state   = state,
-        .loco_id = loco_id,
-    };
-    run_tree(tree, bb);
-    loco_id = bb.loco_id;
-    state   = bb.state;
-  }
-  std::ignore = send<TC::Ack>(tcs_tid, TC::TreeExit{});
-}
-
 // void train_tree_task() {
-//   auto tcs_tid = WhoIs(TrainControlServer<>::NAME);
-//   auto tx_tid  = WhoIs(UART_TX_Server::NAME);
-//   auto cs_tid  = WhoIs(ClockServer<>::NAME);
+//   auto tcs_tid     = WhoIs(TrainControlServer<>::NAME);
+//   auto tx_tid      = WhoIs(UART_TX_Server::NAME);
+//   auto cs_tid      = WhoIs(ClockServer<>::NAME);
+//   uint32_t loco_id = 1;
+//   State state{};
 
-//   SpeedTester tree{};
-//   Blackboard bb{
-//       .tcs_tid = tcs_tid,
-//       .txs_tid = tx_tid,
-//       .cs_tid  = cs_tid,
-//       .pathfinder{'a'},
-//   };
-//   run_tree(tree, bb);
+//   for (uint16_t i = 14; i > 0; --i) {
+//     Debug_Puts(tx_tid, "Running tree with speed ", i, "\n\r");
+//     SpeedTester tree{i};
+//     Blackboard bb{
+//         .tcs_tid = tcs_tid,
+//         .txs_tid = tx_tid,
+//         .cs_tid  = cs_tid,
+//         .pathfinder{'a'},
+//         .state   = state,
+//         .loco_id = loco_id,
+//     };
+//     run_tree(tree, bb);
+//     loco_id = bb.loco_id;
+//     state   = bb.state;
+//   }
 //   std::ignore = send<TC::Ack>(tcs_tid, TC::TreeExit{});
 // }
+
+void train_tree_task() {
+  auto tcs_tid = WhoIs(TrainControlServer<>::NAME);
+  auto tx_tid  = WhoIs(UART_TX_Server::NAME);
+  auto cs_tid  = WhoIs(ClockServer<>::NAME);
+
+  StoppingDistance tree{14};
+  Blackboard bb{
+      .tcs_tid = tcs_tid,
+      .txs_tid = tx_tid,
+      .cs_tid  = cs_tid,
+      .pathfinder{'a'},
+  };
+  run_tree(tree, bb);
+  std::ignore = send<TC::Ack>(tcs_tid, TC::TreeExit{});
+}

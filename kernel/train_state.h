@@ -14,6 +14,10 @@ struct TrainState {
 
   bool backward : 1;
   bool light_on : 1;
+
+  // uinits of 0.01 mm/tick (hundredths of a millimeter per tick)
+  std::array<uint16_t, 14> top_speed{0,  3,  4,  8,  10, 14, 20,
+                                     25, 31, 36, 44, 50, 57, 65};
 };
 
 struct State {
@@ -58,9 +62,17 @@ struct State {
   Buffer<uint16_t, MAX_SENSORS_RECENT> sensors{};
 
   // trains
-  TrainState trains[MAX_TRAINS]{{13, 0, false, true}, {14, 0, false, true},
-                                {15, 0, false, true}, {17, 0, false, true},
-                                {18, 0, false, true}, {55, 0, false, true}};
+  TrainState trains[MAX_TRAINS]{
+      {13, 0, false, true},
+      {14, 0, false, true},
+      {15, 0, false, true},
+      {17, 0, false, true},
+      {18,
+       0,
+       false,
+       true,
+       {0, 3, 4, 8, 10, 14, 20, 25, 31, 36, 44, 50, 57, 65}},
+      {55, 0, false, true}};
 
   // track go / stop
   bool stopped : 1        = true;
