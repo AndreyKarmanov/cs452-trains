@@ -22,8 +22,9 @@ Path &Path::operator+(const Path &other) {
     return *this;
   }
 
-  this->dist                      += other.dist;
-  last_opt->distance_to_next_node  = first_opt->distance_to_next_node;
+  int old_last_dist = last_opt->distance_to_next_node;
+  *(this->end() - 1) = first_opt.value();
+  this->dist += other.dist - old_last_dist;
   for (size_t i = 1; i < other.size(); ++i) {
     auto node = other[i];
     _assert(node.has_value(), "unexpected empty path node");
