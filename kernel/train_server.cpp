@@ -27,7 +27,7 @@ namespace {
     }
   };
 
-  struct PrintSteadyStateSpeed : public LeafNode {
+  struct CalculateSteadySpeed : public LeafNode {
     NodeResult tick(Blackboard &bb) override {
       auto measurements_to_use = size_t{12};
 
@@ -62,12 +62,14 @@ namespace {
         }
       }
 
-      auto total_ticks     = last_tick - first_tick;
-      auto estimated_speed = (total_dist * 1000) / total_ticks;
+      auto total_ticks                     = last_tick - first_tick;
+      auto estimated_speed                 = (total_dist * 1000) / total_ticks;
+      auto loco                            = bb.state.get_loco(bb.loco_id);
+      loco.top_speed[loco.requested_speed] = estimated_speed;
 
-      Debug_Puts(bb.txs_tid, "Speed",
+      Debug_Puts(bb.txs_tid, "Speed ",
                  bb.state.get_loco(bb.loco_id).requested_speed,
-                 "Total dist: ", total_dist, "mm, total ticks: ", total_ticks,
+                 " Total dist: ", total_dist, "mm, total ticks: ", total_ticks,
                  " speed: ", estimated_speed,
                  "tmm/tick Sensors used: ", measurements_used, "\n\r");
 
@@ -75,11 +77,63 @@ namespace {
     }
   };
 
+  struct CalculateAccel : public LeafNode {
+    NodeResult tick(Blackboard &bb) override {
+      auto measurements_to_use = size_t{12};
+
+      if (bb.dists.size() < measurements_to_use) {
+        bb.error_msg = "NOt enough measurments";
+        return NodeResult::Failure;
+      }
+
+      bool found_start      = false;
+      int loops_to_use      = 2;
+      int measurements_used = 0;
+
+      uint32_t last_tick  = 0;
+      uint32_t first_tick = 0;
+      uint32_t total_dist = 0;
+
+      for (auto it = bb.dists.end() - 1;
+           it != bb.dists.begin() && loops_to_use > 0; it--) {
+        if ((*it).sensor_data.sensor_id == LOOP_START_SID) {
+          if (found_start == false) {
+            last_tick   = (*it).tick;
+            found_start = true;
+          } else {
+            loops_to_use--;
+          }
+        }
+        if (loops_to_use == 0) {
+          first_tick = (*it).tick;
+        } else if (found_start) {
+          total_dist += (*it).distance;
+          measurements_used++;
+        }
+      }
+
+      auto T    = last_tick - first_tick;
+      auto loco = bb.state.get_loco(bb.loco_id);
+
+      auto vf    = loco.top_speed[loco.requested_speed];
+      loco.accel = (vf * vf * 1000) / (2 * (vf * T - total_dist * 1000));
+
+      Debug_Puts(bb.txs_tid, "Speed ",
+                 bb.state.get_loco(bb.loco_id).requested_speed,
+                 " Total dist: ", total_dist, "mm, total ticks: ", T,
+                 " acceleration: ", loco.accel,
+                 "um/ktick Sensors used: ", measurements_used, "\n\r");
+
+      return NodeResult::Success;
+    }
+  };
+
   struct PrintStoppingDistance : public LeafNode {
     NodeResult tick(Blackboard &bb) override {
-      auto loco               = bb.state.get_loco(bb.loco_id);
-      auto b                  = loco.top_speed[loco.requested_speed];
-      auto measured_dist_hmm  = (bb.event_tick - bb.last_checkpoint) * b;
+      auto loco = bb.state.get_loco(bb.loco_id);
+      auto b    = loco.top_speed[loco.requested_speed];
+      // auto time_to_accel = (b * 1000) / loco.accel; // in ticks
+      auto measured_dist_tmm  = (bb.event_tick - bb.last_checkpoint) * b;
       auto stopped_sensor_cmd = LOOP_START_SID;
 
       uint16_t total_dist = 0;
@@ -89,10 +143,10 @@ namespace {
         }
         total_dist += (*it).distance;
       }
-      auto stopping = (total_dist * 100 - measured_dist_hmm) / 100;
+      auto stopping = (total_dist * 1000 - measured_dist_tmm) / 1000;
 
-      Debug_Puts(bb.txs_tid, "Measured: ", measured_dist_hmm,
-                 "hmm, Stopping: ", stopping, "mm b", b, " last checkpoint ",
+      Debug_Puts(bb.txs_tid, "Measured: ", measured_dist_tmm,
+                 "um, Stopping: ", stopping, "mm b", b, " last checkpoint ",
                  bb.event_tick - bb.last_checkpoint, " ticks ago ",
                  "speed: ", loco.requested_speed, " b ", b, "\n\r");
 
@@ -157,6 +211,40 @@ namespace {
         return NodeResult::Failure;
       }
       set_speed = true;
+      return NodeResult::Success;
+    }
+  };
+
+  struct TrackStop : public LeafNode {
+    bool setStop;
+    NodeResult tick(Blackboard &bb) override {
+
+      if (setStop || setStop == bb.state.stopped) {
+        return NodeResult::Success;
+      }
+
+      auto resp = send<TC::Ack>(bb.tcs_tid, TC::Cmd::Stop{});
+      if (!resp.has_value()) {
+        return NodeResult::Failure;
+      }
+      setStop = true;
+      return NodeResult::Success;
+    }
+  };
+
+  struct TrackGo : public LeafNode {
+    bool setStop;
+    NodeResult tick(Blackboard &bb) override {
+
+      if (setStop || setStop == bb.state.stopped) {
+        return NodeResult::Success;
+      }
+
+      auto resp = send<TC::Ack>(bb.tcs_tid, TC::Cmd::Go{});
+      if (!resp.has_value()) {
+        return NodeResult::Failure;
+      }
+      setStop = true;
       return NodeResult::Success;
     }
   };
@@ -287,31 +375,31 @@ namespace {
       }
       return NodeResult::Success;
 
-      // lookahead to nodes within the next 500
-      // assumption that dist 500 is within 20 nodes.
-      int node_buffer[20];
-      int count = bb.path.lookahead(lookahead, node_buffer, 20);
+      // // lookahead to nodes within the next 500
+      // // assumption that dist 500 is within 20 nodes.
+      // int node_buffer[20];
+      // int count = bb.path.lookahead(lookahead, node_buffer, 20);
 
-      // index prev path node
-      int prev_lookahead_node = 0;
-      for (int i = 0; i < count; i++) {
-        if (node_buffer[i] == bb.prev_lookahead_node) {
-          prev_lookahead_node = i;
-          break;
-        }
-      }
+      // // index prev path node
+      // int prev_lookahead_node = 0;
+      // for (int i = 0; i < count; i++) {
+      //   if (node_buffer[i] == bb.prev_lookahead_node) {
+      //     prev_lookahead_node = i;
+      //     break;
+      //   }
+      // }
 
-      // process all subsequent lookahead nodes
-      for (int i = prev_lookahead_node + 1; i < count; i++) {
-        Debug_Puts(bb.txs_tid, "Lookahead process for node: ",
-                   bb.pathfinder.node_name(node_buffer[i]), "\n\r");
-        // process lookahead here
-        // TODO
+      // // process all subsequent lookahead nodes
+      // for (int i = prev_lookahead_node + 1; i < count; i++) {
+      //   Debug_Puts(bb.txs_tid, "Lookahead process for node: ",
+      //              bb.pathfinder.node_name(node_buffer[i]), "\n\r");
+      //   // process lookahead here
+      //   // TODO
 
-        // update prev path node
-        bb.prev_lookahead_node = node_buffer[i];
-      }
-      return NodeResult::Success;
+      //   // update prev path node
+      //   bb.prev_lookahead_node = node_buffer[i];
+      // }
+      // return NodeResult::Success;
     }
   };
 
@@ -376,6 +464,8 @@ namespace {
       auto path_opt = bb.pathfinder.shortest_path(start_idx, goal_idx.value());
 
       if (!path_opt.has_value()) {
+        Debug_Puts(bb.txs_tid, "Failed to find path from ", start_idx, " to ",
+                   goal_idx.value(), "\n\r");
         bb.error_msg = "Failed to find path";
         return NodeResult::Failure;
       }
@@ -408,11 +498,14 @@ namespace {
     }
   };
 
-  struct StoppingDistance : public LeafNode {
+  struct CalibrateTrain : public LeafNode {
     FallBackNode tree{};
 
     SequenceNode seq{};
-    SequenceNode run_loop{};
+    SequenceNode setup_loop{};
+    SequenceNode measure_top_speed{};
+    SequenceNode measure_acc_to_top{};
+    SequenceNode measure_stopping{};
 
     SaveSensorNode save_sensor{};
     InitalLocalizeTree localizer_tree{};
@@ -422,56 +515,83 @@ namespace {
     RepeatNode debug_print_path{&debug_print, 1};
 
     AddLoop loop_path{};
+    SetSpeedNode localize_speed{5};
+
     SetTargetSpeedNode max_speed{14};
+    SetTargetSpeedNode max_speed2{14};
 
     PathLocalizerNode path_localizer{};
     PathLookaheadNode path_lookahead{};
     AwaitSensorNode loop_start_sens{LOOP_START_SID};
     RepeatNode loop_start_wait{&loop_start_sens, 1};
-    AwaitSensorNode loop_end_sens{LOOP_END_SID};
-    RepeatNode do_loop{&loop_end_sens, 1};
-    RepeatNode repeat_loop{&loop_start_sens, 3};
+    RepeatNode repeat_loop{&loop_start_sens, 4};
+    RepeatNode repeat_loop2{&loop_start_sens, 2};
+    RepeatNode repeat_loop3{&loop_start_sens, 2};
 
     SaveSensorNode save_sensor_node{};
-    PrintSteadyStateSpeed steady_state_speed{};
-    RepeatNode print_steady_state{&steady_state_speed, 1};
+    CalculateSteadySpeed steady_state_speed{};
+    CalculateAccel calculate_accel{};
+    SetSpeedNode slow_speed{5};
+    RepeatNode print_top_speed{&steady_state_speed, 1};
+    RepeatNode print_accel{&calculate_accel, 1};
 
     SetSpeedNode low_speed{2};
     SaveCheckpointNode save_checkpoint{};
     AwaitSensorNode await_sensor{};
-    WaitNode wait_node{7000};
+    WaitNode wait_node{2000};
+    WaitNode wait_node1{7000};
     PrintStoppingDistance print_stop_dist{};
-    SetSpeedNode zero_speed1{0};
 
+    TrackStop track_stop{};
+    TrackGo track_go{};
     SetSpeedNode zero_speed{0};
-    InvertNode invert_zero_speed{&zero_speed};
+    SetSpeedNode zero_speed1{0};
+    SetSpeedNode zero_speed2{0};
 
-    StoppingDistance(uint16_t speed) : max_speed(speed) {
+    InvertNode invert_zero_speed{&zero_speed2};
+
+    CalibrateTrain(uint16_t speed) : max_speed(speed) {
       // default always
       seq.children.push(&save_sensor);
 
       // localize if nothing is saved
       seq.children.push(&localizer_tree);
 
-      // run the distance until we get to the end
-      run_loop.children.push(&create_loop_start_node);
-      run_loop.children.push(&loop_path);
-      run_loop.children.push(&max_speed);
-      run_loop.children.push(&path_localizer);
-      run_loop.children.push(&path_lookahead);
-      run_loop.children.push(&loop_start_wait);
-      run_loop.children.push(&do_loop);
-      run_loop.children.push(&repeat_loop);
-      run_loop.children.push(&zero_speed);
-      run_loop.children.push(&print_steady_state);
-      seq.children.push(&run_loop);
+      setup_loop.children.push(&create_loop_start_node);
+      setup_loop.children.push(&loop_path);
+      setup_loop.children.push(&localize_speed);
+      setup_loop.children.push(&path_localizer);
+      setup_loop.children.push(&path_lookahead);
+      setup_loop.children.push(&loop_start_wait);
+      seq.children.push(&setup_loop);
+
+      // we enter this at top speed, loop 3 times, and measure time at top speed
+      measure_top_speed.children.push(&max_speed);
+      measure_top_speed.children.push(&repeat_loop);
+      measure_top_speed.children.push(&print_top_speed);
+      seq.children.push(&measure_top_speed);
+
+      // insta-stop train at the start of loop (wait 2 s for stop)
+      // then do the loop twice, getting the time to loop
+      measure_acc_to_top.children.push(&slow_speed);
+      measure_acc_to_top.children.push(&repeat_loop2);
+      measure_acc_to_top.children.push(&track_stop);
+      measure_acc_to_top.children.push(&wait_node);
+      measure_acc_to_top.children.push(&track_go);
+      measure_acc_to_top.children.push(&max_speed2);
+      measure_acc_to_top.children.push(&repeat_loop3);
+      measure_acc_to_top.children.push(&print_accel);
+      seq.children.push(&measure_acc_to_top);
 
       // now we slowly go forward
-      seq.children.push(&wait_node);
-      seq.children.push(&save_checkpoint);
-      seq.children.push(&low_speed);
-      seq.children.push(&await_sensor);
-      seq.children.push(&print_stop_dist);
+      measure_stopping.children.push(&zero_speed);
+      measure_stopping.children.push(&wait_node1);
+      measure_stopping.children.push(&save_checkpoint);
+      measure_stopping.children.push(&low_speed);
+      measure_stopping.children.push(&await_sensor);
+      measure_stopping.children.push(&print_stop_dist);
+      seq.children.push(&measure_stopping);
+
       seq.children.push(&zero_speed1);
 
       // set to zero speed and print failure
@@ -503,7 +623,7 @@ namespace {
     AwaitSensorNode await_sensor_node{sid('E', 6)};
     RepeatNode repeat_node{&await_sensor_node, 2};
     SaveSensorNode save_sensor_node{};
-    PrintSteadyStateSpeed steady_state_speed{};
+    CalculateSteadySpeed steady_state_speed{};
 
     SetSpeedNode zero_speed{0};
     InvertNode invert_zero_speed{&zero_speed};
@@ -597,7 +717,7 @@ void train_tree_task() {
   auto tx_tid  = WhoIs(UART_TX_Server::NAME);
   auto cs_tid  = WhoIs(ClockServer<>::NAME);
 
-  StoppingDistance tree{10};
+  CalibrateTrain tree{10};
   Blackboard bb{
       .tcs_tid = tcs_tid,
       .txs_tid = tx_tid,
