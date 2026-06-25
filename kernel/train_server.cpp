@@ -346,7 +346,7 @@ namespace {
     NodeResult tick(Blackboard &bb) override {
 
       if (bb.path.empty()) {
-        bb.prev_lookahead_node = -1;
+        bb.prev_lookahead_node = {.node_idx = -1};
         return NodeResult::Success;
       }
 
