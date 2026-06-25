@@ -1,3 +1,4 @@
+
 #include "train_server.h"
 #include "behaviour_tree.h"
 #include "io_helpers.h"
@@ -10,6 +11,8 @@
 #include <numeric>
 
 namespace {
+  auto sid = [](char b, int n) -> uint16_t { return (b - 'A') * 16 + n; };
+
   struct DebugPrintPath : public LeafNode {
     NodeResult tick(Blackboard &bb) override {
       StaticString<128> path_str{};
@@ -47,6 +50,39 @@ namespace {
                  (estimated_speed % 100) / 10, estimated_speed % 10,
                  "mm/tick\n\r");
 
+      return NodeResult::Success;
+    }
+  };
+
+  struct PrintStoppingDistance : public LeafNode {
+    NodeResult tick(Blackboard &bb) override {
+      auto loco               = bb.state.get_loco(bb.loco_id);
+      auto b                  = loco.top_speed[loco.requested_speed];
+      auto measured_dist      = (bb.last_checkpoint - bb.event_tick) * b;
+      auto stopped_sensor_cmd = sid('B', 6);
+
+      auto total_dist = 0;
+      for (auto it = bb.dists.end() - 1; it != bb.dists.begin(); --it) {
+        if ((*it).sensor_data.sensor_id == stopped_sensor_cmd) {
+          break;
+        }
+        total_dist += (*it).distance;
+      }
+
+      Debug_Puts(bb.txs_tid, "Stopping distance: ", measured_dist,
+                 "mm, measured dist: ", total_dist, "mm\n\r");
+
+      return NodeResult::Success;
+    }
+  };
+
+  struct SaveCheckpointNode : public LeafNode {
+    bool saved = false;
+    NodeResult tick(Blackboard &bb) override {
+      if (!saved) {
+        bb.last_checkpoint = bb.event_tick;
+        saved              = true;
+      }
       return NodeResult::Success;
     }
   };
@@ -160,6 +196,7 @@ namespace {
                                                  node.distance_to_prev_node;
                                         }),
             .tick     = bb.event_tick,
+            .sensor_data = *data,
         });
         auto skipped_nodes = std::distance(bb.path.begin(), idx) + 1;
         bb.path.pop(skipped_nodes);
@@ -224,8 +261,6 @@ namespace {
     };
   };
 
-  auto sid = [](char b, int n) -> uint16_t { return (b - 'A') * 16 + n; };
-
   // sets the train to move slowly (speed 4)
   struct LocalizerTree : public LeafNode {
     SequenceNode tree{};
@@ -247,7 +282,7 @@ namespace {
     }
   };
 
-  struct GoToNode : public LeafNode {
+  struct PathToNode : public LeafNode {
     bool path_initalized = false;
 
     NodeResult tick(Blackboard &bb) override {
@@ -314,7 +349,7 @@ namespace {
     SaveSensorNode save_sensor{};
     LocalizerTree localizer_tree{};
 
-    GoToNode create_loop_start_node{};
+    PathToNode create_loop_start_node{};
     DebugPrintPath debug_print{};
     RepeatNode debug_print_path{&debug_print, 1};
 
@@ -328,11 +363,11 @@ namespace {
     SaveSensorNode save_sensor_node{};
     PrintSteadyStateSpeed steady_state_speed{};
 
-    SetDirectionNode set_forwards{false};
-    RepeatNode set_forwards1{&set_forwards, 1};
-
-    SetDirectionNode set_backwards{true};
-    RepeatNode set_backwards1{&set_backwards, 1};
+    SetSpeedNode low_speed{5};
+    SaveCheckpointNode save_checkpoint{};
+    AwaitSensorNode await_sensor{};
+    WaitNode wait_node{5000};
+    PrintStoppingDistance print_stop_dist{};
 
     SetSpeedNode zero_speed{0};
     InvertNode invert_zero_speed{&zero_speed};
@@ -351,14 +386,16 @@ namespace {
       loop.children.push(&path_localizer);
       loop.children.push(&repeat_node);
       loop.children.push(&zero_speed);
+      loop.children.push(&steady_state_speed);
       seq.children.push(&loop);
 
-      // now we back up until we get the opposite node
-      // get the opposite node of the await sensor
-      // wait, then reverse, then go to the opposite node
-
-      //
-      seq.children.push(&steady_state_speed);
+      // now we slowly go forward
+      seq.children.push(&wait_node);
+      seq.children.push(&save_checkpoint);
+      seq.children.push(&low_speed);
+      seq.children.push(&await_sensor);
+      seq.children.push(&print_stop_dist);
+      seq.children.push(&zero_speed);
 
       // set to zero speed and print failure
       tree.children.push(&seq);
@@ -376,7 +413,7 @@ namespace {
     SaveSensorNode save_sensor{};
     LocalizerTree localizer_tree{};
 
-    GoToNode create_loop_start_node{};
+    PathToNode create_loop_start_node{};
     DebugPrintPath debug_print{};
     RepeatNode debug_print_path{&debug_print, 1};
 

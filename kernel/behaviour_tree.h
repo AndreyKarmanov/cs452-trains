@@ -27,6 +27,7 @@ struct Blackboard {
   struct DistLog {
     uint16_t distance;
     uint32_t tick;
+    SensorData sensor_data;
   };
   Buffer<DistLog, TRACK_MAX> dists{};
 
@@ -34,6 +35,8 @@ struct Blackboard {
 
   MRKCmd new_event{};
   uint32_t event_tick{};
+
+  uint32_t last_checkpoint{0};
 
   StaticString<32> error_msg{};
 };
