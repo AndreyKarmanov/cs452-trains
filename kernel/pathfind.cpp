@@ -33,15 +33,21 @@ Path &Path::operator+(const Path &other) {
 }
 
 int Path::lookahead(int distance, PathNode *result, int length,
-                    node_type filter_node_type) {
+                    int start_offset, node_type filter_node_type) {
   int count     = 0;
   int travelled = 0;
   for (size_t i = 0; i < size() && count < length; ++i) {
     auto node_opt = (*this)[i];
     if (!node_opt.has_value())
       break;
-    if (travelled > distance)
+    if (travelled + start_offset > distance)
       break;
+
+    // skip nodes before start_offset
+    if (travelled < start_offset) {
+      travelled += node_opt->distance_to_next_node;
+      continue;
+    }
 
     travelled += node_opt->distance_to_next_node;
 

@@ -47,7 +47,7 @@ public:
   }
 
   int lookahead(int distance, PathNode *result, int length,
-                node_type node_type = NODE_NONE);
+                int start_offset = 0, node_type node_type = NODE_NONE);
 };
 
 class Pathfind {
