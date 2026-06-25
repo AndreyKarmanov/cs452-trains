@@ -32,6 +32,7 @@ struct Blackboard {
   Buffer<DistLog, TRACK_MAX> dists{};
 
   uint16_t est_speed{0};
+  uint16_t target_speed{0};
 
   MRKCmd new_event{};
   uint32_t event_tick{};

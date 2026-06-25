@@ -12,6 +12,8 @@
 
 namespace {
   auto sid = [](char b, int n) -> uint16_t { return (b - 'A') * 16 + n; };
+  constexpr int LOOP_START_SID = sid('E', 6);
+  constexpr int LOOP_END_SID   = sid('D', 5);
 
   struct DebugPrintPath : public LeafNode {
     NodeResult tick(Blackboard &bb) override {
@@ -30,25 +32,44 @@ namespace {
       auto measurements_to_use = size_t{12};
 
       if (bb.dists.size() < measurements_to_use) {
-        return NodeResult::Running;
+        bb.error_msg = "NOt enough measurments";
+        return NodeResult::Failure;
       }
 
-      auto total_dist =
-          std::accumulate(bb.dists.end() - measurements_to_use, bb.dists.end(),
-                          0, [](int acc, const Blackboard::DistLog &log) {
-                            return acc + log.distance;
-                          });
+      bool found_start      = false;
+      int loops_to_use      = 2;
+      int measurements_used = 0;
 
-      auto last_measurement  = bb.dists.end() - 1;
-      auto first_measurement = bb.dists.end() - measurements_to_use;
-      auto total_ticks = (*last_measurement).tick - (*first_measurement).tick;
-      auto estimated_speed = (total_dist * 100) / total_ticks;
+      uint32_t last_tick  = 0;
+      uint32_t first_tick = 0;
+      uint32_t total_dist = 0;
 
-      Debug_Puts(bb.txs_tid, "Total dist: ", total_dist,
-                 "mm, total ticks: ", total_ticks,
-                 " speed: ", estimated_speed / 100, ".",
-                 (estimated_speed % 100) / 10, estimated_speed % 10,
-                 "mm/tick\n\r");
+      for (auto it = bb.dists.end() - 1;
+           it != bb.dists.begin() && loops_to_use > 0; it--) {
+        if ((*it).sensor_data.sensor_id == LOOP_START_SID) {
+          if (found_start == false) {
+            last_tick   = (*it).tick;
+            found_start = true;
+          } else {
+            loops_to_use--;
+          }
+        }
+        if (loops_to_use == 0) {
+          first_tick = (*it).tick;
+        } else if (found_start) {
+          total_dist += (*it).distance;
+          measurements_used++;
+        }
+      }
+
+      auto total_ticks     = last_tick - first_tick;
+      auto estimated_speed = (total_dist * 1000) / total_ticks;
+
+      Debug_Puts(bb.txs_tid, "Speed",
+                 bb.state.get_loco(bb.loco_id).requested_speed,
+                 "Total dist: ", total_dist, "mm, total ticks: ", total_ticks,
+                 " speed: ", estimated_speed,
+                 "tmm/tick Sensors used: ", measurements_used, "\n\r");
 
       return NodeResult::Success;
     }
@@ -56,21 +77,24 @@ namespace {
 
   struct PrintStoppingDistance : public LeafNode {
     NodeResult tick(Blackboard &bb) override {
-      auto loco = bb.state.get_loco(bb.loco_id);
-      auto b    = loco.top_speed[mrk_level_to_user_speed(loco.requested_speed)];
-      auto measured_dist      = (bb.last_checkpoint - bb.event_tick) * b;
-      auto stopped_sensor_cmd = sid('B', 6);
+      auto loco               = bb.state.get_loco(bb.loco_id);
+      auto b                  = loco.top_speed[loco.requested_speed];
+      auto measured_dist_hmm  = (bb.event_tick - bb.last_checkpoint) * b;
+      auto stopped_sensor_cmd = LOOP_START_SID;
 
-      auto total_dist = 0;
+      uint16_t total_dist = 0;
       for (auto it = bb.dists.end() - 1; it != bb.dists.begin(); --it) {
         if ((*it).sensor_data.sensor_id == stopped_sensor_cmd) {
           break;
         }
         total_dist += (*it).distance;
       }
+      auto stopping = (total_dist * 100 - measured_dist_hmm) / 100;
 
-      Debug_Puts(bb.txs_tid, "Stopping distance: ", measured_dist,
-                 "mm, measured dist: ", total_dist, "mm\n\r");
+      Debug_Puts(bb.txs_tid, "Measured: ", measured_dist_hmm,
+                 "hmm, Stopping: ", stopping, "mm b", b, " last checkpoint ",
+                 bb.event_tick - bb.last_checkpoint, " ticks ago ",
+                 "speed: ", loco.requested_speed, " b ", b, "\n\r");
 
       return NodeResult::Success;
     }
@@ -96,6 +120,31 @@ namespace {
       if (bb.txs_tid < 0) {
         return NodeResult::Failure;
       }
+
+      if (set_speed ||
+          req_speed == bb.state.get_loco(bb.loco_id).requested_speed) {
+        return NodeResult::Success;
+      }
+
+      auto resp = send<TC::Ack>(
+          bb.tcs_tid, TC::Cmd::Speed{.id = bb.loco_id, .value = req_speed});
+      if (!resp.has_value()) {
+        return NodeResult::Failure;
+      }
+      set_speed = true;
+      return NodeResult::Success;
+    }
+  };
+
+  struct SetTargetSpeedNode : public LeafNode {
+    uint16_t req_speed;
+    bool set_speed;
+    SetTargetSpeedNode(uint16_t speed) : req_speed(speed) {}
+    NodeResult tick(Blackboard &bb) override {
+      if (bb.txs_tid < 0) {
+        return NodeResult::Failure;
+      }
+      req_speed = bb.target_speed;
 
       if (set_speed ||
           req_speed == bb.state.get_loco(bb.loco_id).requested_speed) {
@@ -375,21 +424,26 @@ namespace {
     RepeatNode debug_print_path{&debug_print, 1};
 
     AddLoop loop_path{};
-    SetSpeedNode max_speed{14};
+    SetTargetSpeedNode max_speed{14};
 
     PathLocalizerNode path_localizer{};
     PathLookaheadNode path_lookahead{};
-    StopAtDonePath stop_on_finish_path{};
-    AwaitSensorNode await_sensor_node{sid('B', 6)};
-    RepeatNode repeat_node{&await_sensor_node, 3};
+    AwaitSensorNode loop_start_sens{LOOP_START_SID};
+    RepeatNode loop_start_wait{&loop_start_sens, 1};
+    AwaitSensorNode loop_end_sens{LOOP_END_SID};
+    RepeatNode do_loop{&loop_end_sens, 1};
+    RepeatNode repeat_loop{&loop_start_sens, 3};
+
     SaveSensorNode save_sensor_node{};
     PrintSteadyStateSpeed steady_state_speed{};
+    RepeatNode print_steady_state{&steady_state_speed, 1};
 
-    SetSpeedNode low_speed{5};
+    SetSpeedNode low_speed{2};
     SaveCheckpointNode save_checkpoint{};
     AwaitSensorNode await_sensor{};
-    WaitNode wait_node{5000};
+    WaitNode wait_node{7000};
     PrintStoppingDistance print_stop_dist{};
+    SetSpeedNode zero_speed1{0};
 
     SetSpeedNode zero_speed{0};
     InvertNode invert_zero_speed{&zero_speed};
@@ -407,9 +461,11 @@ namespace {
       run_loop.children.push(&max_speed);
       run_loop.children.push(&path_localizer);
       run_loop.children.push(&path_lookahead);
-      run_loop.children.push(&repeat_node);
+      run_loop.children.push(&loop_start_wait);
+      run_loop.children.push(&do_loop);
+      run_loop.children.push(&repeat_loop);
       run_loop.children.push(&zero_speed);
-      run_loop.children.push(&steady_state_speed);
+      run_loop.children.push(&print_steady_state);
       seq.children.push(&run_loop);
 
       // now we slowly go forward
@@ -418,7 +474,7 @@ namespace {
       seq.children.push(&low_speed);
       seq.children.push(&await_sensor);
       seq.children.push(&print_stop_dist);
-      seq.children.push(&zero_speed);
+      seq.children.push(&zero_speed1);
 
       // set to zero speed and print failure
       tree.children.push(&seq);
@@ -446,7 +502,7 @@ namespace {
     PathLocalizerNode path_localizer{};
     PathLookaheadNode path_lookahead{};
     StopAtDonePath stop_on_finish_path{};
-    AwaitSensorNode await_sensor_node{sid('B', 6)};
+    AwaitSensorNode await_sensor_node{sid('E', 6)};
     RepeatNode repeat_node{&await_sensor_node, 2};
     SaveSensorNode save_sensor_node{};
     PrintSteadyStateSpeed steady_state_speed{};
@@ -493,8 +549,9 @@ static void run_tree(TreeNode &tree, Blackboard &bb) {
           using Event = std::decay_t<decltype(event)>;
 
           if constexpr (std::is_same_v<Event, TC::InitTree>) {
-            bb.state   = event.state;
-            bb.loco_id = event.loco_id;
+            bb.state        = event.state;
+            bb.loco_id      = event.loco_id;
+            bb.target_speed = event.value;
           } else if constexpr (std::is_same_v<Event, TC::TreeUpdate>) {
             bb.state.update_from_mrk(event.mrk);
             bb.new_event  = event.mrk;
@@ -542,7 +599,7 @@ void train_tree_task() {
   auto tx_tid  = WhoIs(UART_TX_Server::NAME);
   auto cs_tid  = WhoIs(ClockServer<>::NAME);
 
-  StoppingDistance tree{14};
+  StoppingDistance tree{10};
   Blackboard bb{
       .tcs_tid = tcs_tid,
       .txs_tid = tx_tid,

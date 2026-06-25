@@ -16,7 +16,7 @@ struct TrainState {
   bool light_on : 1;
 
   // uinits of 0.01 mm/tick (hundredths of a millimeter per tick)
-  std::array<uint16_t, 14> top_speed{0,  3,  4,  8,  10, 14, 20,
+  std::array<uint16_t, 15> top_speed{0,  0,  3,  4,  8,  10, 14, 20,
                                      25, 31, 36, 44, 50, 57, 65};
 };
 
@@ -71,7 +71,7 @@ struct State {
        0,
        false,
        true,
-       {0, 3, 4, 8, 10, 14, 20, 25, 31, 36, 44, 50, 57, 65}},
+       {0, 0, 3, 4, 8, 10, 14, 20, 25, 31, 36, 44, 50, 57, 65}},
       {55, 0, false, true}};
 
   // track go / stop
