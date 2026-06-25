@@ -175,7 +175,7 @@ namespace {
 
         auto sensor_id_cmp = [&](PathNode &node) {
           if (node.type == NODE_SENSOR) {
-            return node.node_idx + 1;
+            return node.num;
           }
           return -1;
         };
@@ -315,9 +315,10 @@ namespace {
         return NodeResult::Failure;
       }
 
-      auto start_idx = bb.seen_sensors.peek_last().has_value()
-                           ? bb.seen_sensors.peek_last()->sid - 1
-                           : bb.path.peek_last().value().node_idx;
+      auto start_idx =
+          bb.seen_sensors.peek_last().has_value()
+              ? bb.seen_sensors.peek_last()->sid - 1 // sid -1 is it's node_idx
+              : bb.path.peek_last().value().node_idx;
 
       auto goal_idx = bb.pathfinder.get_idx("B6");
       if (!goal_idx.has_value()) {
