@@ -9,7 +9,7 @@
 #define SENSOR_ROW (TRAIN_ROW + MAX_TRAINS + 2)
 #define SWITCH_ROW (SENSOR_ROW + 3)
 
-void State::update_from_mrk(const MRKCmd &cmd) {
+void State::update_from_mrk(const MRKCmd &cmd, uint32_t tick) {
   std::visit(
       [&](const auto &command) {
         using Command = std::decay_t<decltype(command)>;
@@ -27,6 +27,7 @@ void State::update_from_mrk(const MRKCmd &cmd) {
           for (TrainState &train : trains) {
             if (train.loco_id == command.loco_id) {
               train.requested_speed = mrk_level_to_user_speed(command.speed);
+              train.req_spd_tick    = tick;
               return;
             }
           }

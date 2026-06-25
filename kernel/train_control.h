@@ -173,7 +173,7 @@ template <size_t TX_BUFFER_SIZE = 64> class TrainControlServer {
       }
     }
 
-    state.update_from_mrk(mrk);
+    state.update_from_mrk(mrk, msg.time);
     simple_pacing_can_send = simple_pacing_can_send || (msg.frame.resp == 1);
     maybe_tx();
     publish_tree_update(TC::TreeUpdate{.mrk = mrk, .time = msg.time});

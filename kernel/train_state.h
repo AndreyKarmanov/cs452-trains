@@ -10,10 +10,11 @@
 struct TrainState {
   uint32_t loco_id;
 
-  uint16_t requested_speed;
+  uint16_t requested_speed{0};
+  uint32_t req_spd_tick{0};
 
-  bool backward : 1;
-  bool light_on : 1;
+  bool backward : 1 = false;
+  bool light_on : 1 = true;
 
   // uinits of 0.001 mm/tick (micrometer per tick)
   std::array<uint16_t, 15> top_speed{0,   0,   32,  40,  80,  100, 140, 200,
@@ -66,9 +67,10 @@ struct State {
   Buffer<uint16_t, MAX_SENSORS_RECENT> sensors{};
 
   // trains
-  TrainState trains[MAX_TRAINS]{{13, 0, false, true}, {14, 0, false, true},
-                                {15, 0, false, true}, {17, 0, false, true},
-                                {18, 0, false, true}, {55, 0, false, true}};
+  TrainState trains[MAX_TRAINS]{
+      {13, 0, 0, false, true}, {14, 0, 0, false, true},
+      {15, 0, 0, false, true}, {17, 0, 0, false, true},
+      {18, 0, 0, false, true}, {55, 0, 0, false, true}};
 
   // track go / stop
   bool stopped : 1        = true;
@@ -88,7 +90,7 @@ struct State {
     status_dirty   = false;
   }
 
-  void update_from_mrk(const MRKCmd &cmd);
+  void update_from_mrk(const MRKCmd &cmd, uint32_t tick);
   TrainState get_loco(uint32_t loco_id) const {
     for (const TrainState &train : trains) {
       if (train.loco_id == loco_id) {

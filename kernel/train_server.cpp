@@ -5,6 +5,7 @@
 #include "message.h"
 #include "mrk.h"
 #include "pathfind.h"
+#include "time.h"
 #include "train_control.h"
 #include <algorithm>
 #include <cstdint>
@@ -342,6 +343,40 @@ namespace {
     }
   };
 
+  struct SensorPredict : public LeafNode {
+    NodeResult tick(Blackboard &bb) override {
+      auto loco = bb.state.get_loco(bb.loco_id);
+
+      uint16_t accel_spd =
+          ((bb.event_tick - loco.req_spd_tick) * loco.accel) / 1000;
+      bb.est_speed = std::min(loco.top_speed[loco.requested_speed], accel_spd);
+      bb.dist_to_next_sensor -=
+          bb.est_speed * (bb.event_tick - bb.last_tick) / 1000;
+      bb.last_tick = bb.event_tick;
+      bb.lookahead = (bb.est_speed * TICKS_PER_S * 2) / 1000;
+
+      if (auto data = std::get_if<SensorData>(&bb.new_event);
+          data && data->new_state == 1) {
+        Debug_Puts(bb.txs_tid, "Sensor Delta ", bb.dist_to_next_sensor,
+                   " Est Speed ", bb.est_speed, " Lookahead ", bb.lookahead,
+                   "\n\r");
+
+        auto next_sensor_idx = std::ranges::find_if(
+            bb.path, [](PathNode &node) { return node.type == NODE_SENSOR; });
+        if (next_sensor_idx == bb.path.end()) {
+          return NodeResult::Success;
+        }
+
+        bb.dist_to_next_sensor =
+            std::accumulate(bb.path.begin(), next_sensor_idx + 1, uint16_t(0),
+                            [](uint16_t acc, const PathNode &node) {
+                              return acc + node.distance_to_prev_node;
+                            });
+      }
+      return NodeResult::Success;
+    }
+  };
+
   struct PathLookaheadNode : public LeafNode {
     NodeResult tick(Blackboard &bb) override {
 
@@ -353,12 +388,10 @@ namespace {
       // calculate distance travelled given current velocity
       // safe estimate is max velocity for speed
       // then, calculate distance based on velocity. suppose distance is 500
-      int lookahead = 500;
-
-      auto total_dist = 0;
+      uint32_t total_dist = 0;
       for (auto &node : bb.path) {
         total_dist += node.distance_to_prev_node;
-        if (total_dist > lookahead) {
+        if (total_dist > bb.lookahead) {
           break;
         }
 
@@ -376,32 +409,6 @@ namespace {
         }
       }
       return NodeResult::Success;
-
-      // // lookahead to nodes within the next 500
-      // // assumption that dist 500 is within 20 nodes.
-      // int node_buffer[20];
-      // int count = bb.path.lookahead(lookahead, node_buffer, 20);
-
-      // // index prev path node
-      // int prev_lookahead_node = 0;
-      // for (int i = 0; i < count; i++) {
-      //   if (node_buffer[i] == bb.prev_lookahead_node) {
-      //     prev_lookahead_node = i;
-      //     break;
-      //   }
-      // }
-
-      // // process all subsequent lookahead nodes
-      // for (int i = prev_lookahead_node + 1; i < count; i++) {
-      //   Debug_Puts(bb.txs_tid, "Lookahead process for node: ",
-      //              bb.pathfinder.node_name(node_buffer[i]), "\n\r");
-      //   // process lookahead here
-      //   // TODO
-
-      //   // update prev path node
-      //   bb.prev_lookahead_node = node_buffer[i];
-      // }
-      // return NodeResult::Success;
     }
   };
 
@@ -522,6 +529,7 @@ namespace {
     SetTargetSpeedNode max_speed2{14};
 
     PathLocalizerNode path_localizer{};
+    SensorPredict sensor_predict{};
     PathLookaheadNode path_lookahead{};
     AwaitSensorNode loop_start_sens{LOOP_START_SID};
     RepeatNode loop_start_wait{&loop_start_sens, 1};
@@ -561,12 +569,14 @@ namespace {
       setup_loop.children.push(&create_loop_start_node);
       setup_loop.children.push(&localize_speed);
       setup_loop.children.push(&path_localizer);
+      setup_loop.children.push(&sensor_predict);
       setup_loop.children.push(&path_lookahead);
       setup_loop.children.push(&loop_start_wait);
       setup_loop.children.push(&loop_path);
       seq.children.push(&setup_loop);
 
-      // we enter this at top speed, loop 3 times, and measure time at top speed
+      // we enter this at top speed, loop 3 times, and measure time at top
+      // speed
       measure_top_speed.children.push(&max_speed);
       measure_top_speed.children.push(&repeat_loop);
       measure_top_speed.children.push(&print_top_speed);
@@ -672,7 +682,7 @@ static void run_tree(TreeNode &tree, Blackboard &bb) {
             bb.loco_id      = event.loco_id;
             bb.target_speed = event.value;
           } else if constexpr (std::is_same_v<Event, TC::TreeUpdate>) {
-            bb.state.update_from_mrk(event.mrk);
+            bb.state.update_from_mrk(event.mrk, event.time);
             bb.new_event  = event.mrk;
             bb.event_tick = event.time;
           }

@@ -34,8 +34,12 @@ struct Blackboard {
   uint16_t est_speed{0};
   uint16_t target_speed{0};
 
+  int dist_to_next_sensor{0};
+
   MRKCmd new_event{};
   uint32_t event_tick{};
+  uint32_t last_tick{0};
+  uint32_t lookahead{1500};
 
   uint32_t last_checkpoint{0};
 
