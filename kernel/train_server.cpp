@@ -365,6 +365,8 @@ namespace {
         if (node.type == NODE_BRANCH) {
           if (node.should_br_be_curved &&
               bb.state.is_switch_straight(node.num)) {
+            Debug_Puts(bb.txs_tid, "Setting switch ", node.num,
+                       " to curved\n\r");
             auto res =
                 send<TC::Ack>(bb.tcs_tid, TC::Cmd::Switch(node.num, false));
             if (!res.has_value()) {
@@ -466,7 +468,6 @@ namespace {
       if (!path_opt.has_value()) {
         Debug_Puts(bb.txs_tid, "Failed to find path from ", start_idx, " to ",
                    goal_idx.value(), "\n\r");
-        bb.error_msg = "Failed to find path";
         return NodeResult::Failure;
       }
       bb.path         = path_opt.value();
@@ -490,7 +491,7 @@ namespace {
                                                   bb.path.peek()->node_idx);
 
       if (!path_opt.has_value()) {
-        bb.error_msg = "Failed to find path";
+        bb.error_msg = "Failed to find loop";
         return NodeResult::Failure;
       }
       bb.path = bb.path + path_opt.value();
@@ -531,7 +532,7 @@ namespace {
     SaveSensorNode save_sensor_node{};
     CalculateSteadySpeed steady_state_speed{};
     CalculateAccel calculate_accel{};
-    SetSpeedNode slow_speed{5};
+    SetSpeedNode slow_speed{7};
     RepeatNode print_top_speed{&steady_state_speed, 1};
     RepeatNode print_accel{&calculate_accel, 1};
 
@@ -558,11 +559,11 @@ namespace {
       seq.children.push(&localizer_tree);
 
       setup_loop.children.push(&create_loop_start_node);
-      setup_loop.children.push(&loop_path);
       setup_loop.children.push(&localize_speed);
       setup_loop.children.push(&path_localizer);
       setup_loop.children.push(&path_lookahead);
       setup_loop.children.push(&loop_start_wait);
+      setup_loop.children.push(&loop_path);
       seq.children.push(&setup_loop);
 
       // we enter this at top speed, loop 3 times, and measure time at top speed

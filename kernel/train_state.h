@@ -20,7 +20,7 @@ struct TrainState {
                                      250, 310, 360, 440, 500, 532, 605};
   std::array<uint16_t, 15> loop_time{0,   0,   32,  40,  80,  100, 140,  200,
                                      250, 310, 360, 440, 500, 532, 15401};
-  // uinits of 0.001 mm/(1k ticks) (micrometer per thousand ticks)
+  // uinits of um per 1kticks^2)
   uint16_t accel = 47;
 };
 
