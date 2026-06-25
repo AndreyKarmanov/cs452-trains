@@ -282,13 +282,13 @@ namespace {
   };
 
   // sets the train to move slowly (speed 4)
-  struct LocalizerTree : public LeafNode {
+  struct InitalLocalizeTree : public LeafNode {
     SequenceNode tree{};
     SetSpeedNode set_speed{4};
     AwaitSensorNode await_sensor{};
     SetSpeedNode zero_speed{0};
 
-    LocalizerTree() {
+    InitalLocalizeTree() {
       tree.children.push(&set_speed);
       tree.children.push(&await_sensor);
       tree.children.push(&zero_speed);
@@ -368,7 +368,7 @@ namespace {
     SequenceNode loop{};
 
     SaveSensorNode save_sensor{};
-    LocalizerTree localizer_tree{};
+    InitalLocalizeTree localizer_tree{};
 
     PathToNode create_loop_start_node{};
     DebugPrintPath debug_print{};
@@ -432,7 +432,7 @@ namespace {
     SequenceNode seq{};
 
     SaveSensorNode save_sensor{};
-    LocalizerTree localizer_tree{};
+    InitalLocalizeTree localizer_tree{};
 
     PathToNode create_loop_start_node{};
     DebugPrintPath debug_print{};
