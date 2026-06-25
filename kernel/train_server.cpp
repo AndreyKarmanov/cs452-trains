@@ -175,7 +175,7 @@ namespace {
 
         auto sensor_id_cmp = [&](PathNode &node) {
           if (node.type == NODE_SENSOR) {
-            return node.num;
+            return node.node_idx + 1;
           }
           return -1;
         };
@@ -365,7 +365,7 @@ namespace {
     FallBackNode tree{};
 
     SequenceNode seq{};
-    SequenceNode loop{};
+    SequenceNode run_loop{};
 
     SaveSensorNode save_sensor{};
     InitalLocalizeTree localizer_tree{};
@@ -374,7 +374,7 @@ namespace {
     DebugPrintPath debug_print{};
     RepeatNode debug_print_path{&debug_print, 1};
 
-    AddLoop add_loop{};
+    AddLoop loop_path{};
     SetSpeedNode max_speed{14};
 
     PathLocalizerNode path_localizer{};
@@ -402,15 +402,15 @@ namespace {
       seq.children.push(&localizer_tree);
 
       // run the distance until we get to the end
-      loop.children.push(&create_loop_start_node);
-      loop.children.push(&add_loop);
-      loop.children.push(&max_speed);
-      loop.children.push(&path_localizer);
-      loop.children.push(&path_lookahead);
-      loop.children.push(&repeat_node);
-      loop.children.push(&zero_speed);
-      loop.children.push(&steady_state_speed);
-      seq.children.push(&loop);
+      run_loop.children.push(&create_loop_start_node);
+      run_loop.children.push(&loop_path);
+      run_loop.children.push(&max_speed);
+      run_loop.children.push(&path_localizer);
+      run_loop.children.push(&path_lookahead);
+      run_loop.children.push(&repeat_node);
+      run_loop.children.push(&zero_speed);
+      run_loop.children.push(&steady_state_speed);
+      seq.children.push(&run_loop);
 
       // now we slowly go forward
       seq.children.push(&wait_node);
