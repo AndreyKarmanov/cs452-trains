@@ -82,7 +82,9 @@ void ui_update_worker() {
     if (!cans_reply.has_value()) {
       break;
     }
+#if !defined(DATA_COLLECTION) || !DATA_COLLECTION
     print_state(tx_tid, cans_reply->state);
+#endif
   }
 
   Offset_Puts(tx_tid, 1, "UI EXITING\n\r");

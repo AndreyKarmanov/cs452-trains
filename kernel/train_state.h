@@ -19,8 +19,7 @@ struct TrainState {
   // uinits of 0.001 mm/tick (micrometer per tick)
   std::array<uint16_t, 15> top_speed{0,   0,   32,  40,  80,  100, 140, 200,
                                      250, 310, 360, 440, 500, 532, 605};
-  std::array<uint16_t, 15> loop_time{0,   0,   32,  40,  80,  100, 140,  200,
-                                     250, 310, 360, 440, 500, 532, 15401};
+
   // uinits of um per 1kticks^2)
   uint16_t accel = 47;
 };
