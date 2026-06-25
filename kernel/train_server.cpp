@@ -145,6 +145,49 @@ namespace {
     }
   };
 
+  struct PathLookaheadNode : public LeafNode {
+    NodeResult tick(Blackboard &bb) override {
+
+      if (bb.path.empty()) {
+        bb.prev_path_node_idx = -1;
+        return NodeResult::Success;
+      }
+
+      // calculate distance travelled given current velocity
+      // safe estimate is max velocity for speed
+      // then, calculate distance based on velocity. suppose distance is 500
+      int lookahead = 500;
+
+      // lookahead to nodes within the next 500
+      // assumption that dist 500 is within 20 nodes.
+      int node_buffer[20];
+      int count = bb.path.lookahead(lookahead, node_buffer, 20);
+
+      // index prev path node
+      int prev_path_node_index = 0;
+      for (int i = 0; i < count; i++) {
+        if (node_buffer[i] == bb.prev_path_node_idx) {
+          prev_path_node_index = i;
+          break;
+        }
+      }
+
+      // process all subsequent lookahead nodes
+      for (int i = prev_path_node_index + 1; i < count; i++) {
+        if (Pathfind::track[node_buffer[i]].type == NODE_SENSOR) {
+          Debug_Puts(bb.txs_tid, "Lookahead process for node: ",
+                     bb.pathfinder.node_name(node_buffer[i]), "\n\r");
+          // process lookahead here
+          // TODO
+
+          // update prev path node
+          bb.prev_path_node_idx = node_buffer[i];
+        }
+      }
+      return NodeResult::Success;
+    }
+  };
+
   struct StopAtDonePath : public LeafNode {
     NodeResult tick(Blackboard &bb) override {
       if (bb.path.empty()) {
@@ -252,6 +295,7 @@ namespace {
     SetSpeedNode max_speed{14};
 
     PathLocalizerNode path_localizer{};
+    PathLookaheadNode path_lookahead{};
     StopAtDonePath stop_on_finish_path{};
     AwaitSensorNode await_sensor_node{sid('B', 6)};
     RepeatNode repeat_node{&await_sensor_node, 4};
@@ -274,6 +318,7 @@ namespace {
       // seq.children.push(&debug_print_path);
       seq.children.push(&max_speed);
       seq.children.push(&path_localizer);
+      seq.children.push(&path_lookahead);
       seq.children.push(&repeat_node);
       seq.children.push(&zero_speed);
       seq.children.push(&steady_state_speed);

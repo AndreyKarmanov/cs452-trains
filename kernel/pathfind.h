@@ -44,6 +44,8 @@ public:
       dist -= elem->distance_to_next_node;
     return elem;
   }
+
+  int lookahead(int distance, int *result, int length);
 };
 
 class Pathfind {

@@ -32,6 +32,21 @@ Path &Path::operator+(const Path &other) {
   return *this;
 }
 
+int Path::lookahead(int distance, int *result, int length) {
+  int count     = 0;
+  int travelled = 0;
+  for (size_t i = 0; i < size() && count < length; ++i) {
+    auto node_opt = (*this)[i];
+    if (!node_opt.has_value())
+      break;
+    if (travelled > distance)
+      break;
+    result[count++] = node_opt->node_idx;
+    travelled      += node_opt->distance_to_next_node;
+  }
+  return count;
+}
+
 track_node Pathfind::track[TRACK_MAX];
 
 Pathfind::Pathfind(char track_layout) {
