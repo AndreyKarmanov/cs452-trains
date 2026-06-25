@@ -303,15 +303,13 @@ namespace {
 
       // process all subsequent lookahead nodes
       for (int i = prev_lookahead_node + 1; i < count; i++) {
-        if (Pathfind::track[node_buffer[i]].type == NODE_SENSOR) {
-          Debug_Puts(bb.txs_tid, "Lookahead process for node: ",
-                     bb.pathfinder.node_name(node_buffer[i]), "\n\r");
-          // process lookahead here
-          // TODO
+        Debug_Puts(bb.txs_tid, "Lookahead process for node: ",
+                   bb.pathfinder.node_name(node_buffer[i]), "\n\r");
+        // process lookahead here
+        // TODO
 
-          // update prev path node
-          bb.prev_lookahead_node = node_buffer[i];
-        }
+        // update prev path node
+        bb.prev_lookahead_node = node_buffer[i];
       }
       return NodeResult::Success;
     }
