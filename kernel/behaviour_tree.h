@@ -43,6 +43,7 @@ struct Blackboard {
 
   uint32_t last_checkpoint{0};
 
+  StaticString<8> nav_goal{};
   StaticString<32> error_msg{};
 };
 

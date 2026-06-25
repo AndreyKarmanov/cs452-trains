@@ -185,9 +185,15 @@ namespace TC {
       bool enabled;
     };
 
+    struct Nav {
+      uint32_t id;
+      StaticString<8> to;
+      uint32_t speed;
+    };
+
     using Any = std::variant<Invalid, Quit, Light, Speed, Switch, Reverse, Stop,
                              Go, Reset, RemoveTrains, RunTree, CalSpeed,
-                             DebugSensor, Direction>;
+                             DebugSensor, Direction, Nav>;
 
   } // namespace Cmd
 
@@ -200,12 +206,19 @@ namespace TC {
     State state;
   };
 
+  struct InitNav {
+    uint32_t loco_id;
+    StaticString<8> to;
+    uint32_t speed;
+    State state;
+  };
+
   struct TreeUpdate {
     MRKCmd mrk;
     uint32_t time;
   };
 
-  using TreeMsg = std::variant<InitTree, TreeUpdate>;
+  using TreeMsg = std::variant<InitTree, InitNav, TreeUpdate>;
 
   struct CalSpeedReady {};
 

@@ -457,7 +457,10 @@ namespace {
   };
 
   struct PathToNode : public LeafNode {
+    const char *goal;
     bool path_initalized = false;
+
+    PathToNode(const char *goal = nullptr) : goal(goal) {}
 
     NodeResult tick(Blackboard &bb) override {
       if (path_initalized) {
@@ -474,7 +477,8 @@ namespace {
               ? bb.seen_sensors.peek_last()->sid - 1 // sid -1 is it's node_idx
               : bb.path.peek_last().value().node_idx;
 
-      auto goal_idx = bb.pathfinder.get_idx("B6");
+      const char *goal_name = goal != nullptr ? goal : bb.nav_goal.c_str();
+      auto goal_idx         = bb.pathfinder.get_idx(goal_name);
       if (!goal_idx.has_value()) {
         bb.error_msg = "Failed to find goal";
         return NodeResult::Failure;
@@ -528,7 +532,7 @@ namespace {
     SaveSensorNode save_sensor{};
     InitalLocalizeTree localizer_tree{};
 
-    PathToNode create_loop_start_node{};
+    PathToNode create_loop_start_node{"B6"};
     DebugPrintPath debug_print{};
     RepeatNode debug_print_path{&debug_print, 1};
 
@@ -631,7 +635,7 @@ namespace {
     SaveSensorNode save_sensor{};
     InitalLocalizeTree localizer_tree{};
 
-    PathToNode create_loop_start_node{};
+    PathToNode create_loop_start_node{"B6"};
     DebugPrintPath debug_print{};
     RepeatNode debug_print_path{&debug_print, 1};
 
@@ -674,6 +678,35 @@ namespace {
     NodeResult tick(Blackboard &bb) override { return tree.tick(bb); }
   };
 
+  struct NavigateTree : public TreeNode {
+    SequenceNode seq{};
+
+    InitalLocalizeTree localizer_tree{};
+    SaveSensorNode save_sensor{};
+    PathToNode path_to_goal{};
+    PathLocalizerNode path_localizer{};
+    PathLookaheadNode path_lookahead{};
+    SetTargetSpeedNode max_speed{7};
+    StopAtDonePath stop_at_done{};
+
+    NavigateTree() {
+      seq.children.push(&save_sensor);
+      seq.children.push(&localizer_tree);
+      seq.children.push(&path_to_goal);
+      seq.children.push(&max_speed);
+      seq.children.push(&path_localizer);
+      seq.children.push(&path_lookahead);
+      seq.children.push(&stop_at_done);
+    }
+
+    NodeResult tick(Blackboard &bb) override {
+      if (!bb.error_msg.empty()) {
+        return NodeResult::Failure;
+      }
+      return seq.tick(bb);
+    }
+  };
+
 } // namespace
 
 static void run_tree(TreeNode &tree, Blackboard &bb) {
@@ -691,6 +724,15 @@ static void run_tree(TreeNode &tree, Blackboard &bb) {
             bb.state        = event.state;
             bb.loco_id      = event.loco_id;
             bb.target_speed = event.value;
+          } else if constexpr (std::is_same_v<Event, TC::InitNav>) {
+            bb.state        = event.state;
+            bb.loco_id      = event.loco_id;
+            bb.target_speed = event.speed;
+            bb.nav_goal     = event.to;
+
+            if (!bb.pathfinder.get_idx(event.to.c_str()).has_value()) {
+              bb.error_msg = "Unknown to node";
+            }
           } else if constexpr (std::is_same_v<Event, TC::TreeUpdate>) {
             bb.state.update_from_mrk(event.mrk, event.time);
             bb.new_event  = event.mrk;
@@ -739,6 +781,22 @@ void train_tree_task() {
   auto cs_tid  = WhoIs(ClockServer<>::NAME);
 
   CalibrateTrain tree{10};
+  Blackboard bb{
+      .tcs_tid = tcs_tid,
+      .txs_tid = tx_tid,
+      .cs_tid  = cs_tid,
+      .pathfinder{'b'},
+  };
+  run_tree(tree, bb);
+  std::ignore = send<TC::Ack>(tcs_tid, TC::TreeExit{});
+}
+
+void nav_tree_task() {
+  auto tcs_tid = WhoIs(TrainControlServer<>::NAME);
+  auto tx_tid  = WhoIs(UART_TX_Server::NAME);
+  auto cs_tid  = WhoIs(ClockServer<>::NAME);
+
+  NavigateTree tree{};
   Blackboard bb{
       .tcs_tid = tcs_tid,
       .txs_tid = tx_tid,

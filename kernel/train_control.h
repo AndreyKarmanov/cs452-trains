@@ -57,6 +57,14 @@ template <size_t TX_BUFFER_SIZE = 64> class TrainControlServer {
     }
   }
 
+  void spawn_tree_task(void (*entry)(), const TC::TreeMsg &init) {
+    int tree_tid = create(4, entry);
+    _assert(tree_tid >= 0, "TREE TASK CREATE FAILED");
+    TreeMailbox mailbox{};
+    mailbox.msgs.push(init);
+    trees.set(tree_tid, mailbox);
+  }
+
   void publish_tree_update(const TC::TreeUpdate &update) {
     for (auto [tid, mailbox] : trees) {
       _assert(mailbox.msgs.push(update), "TREE MAILBOX FULL");
@@ -125,11 +133,8 @@ template <size_t TX_BUFFER_SIZE = 64> class TrainControlServer {
             tx_buf.push(
                 TC::TX{.mrk = ControlCmd(ControlCmd::CMD_REMOVE_TRAINS)});
           } else if constexpr (std::is_same_v<Command, RunTree>) {
-            int tree_tid = create(4, train_tree_task);
-            TreeMailbox mailbox{};
-            mailbox.msgs.push(TC::InitTree{cmd.id, cmd.value, state});
-            trees.set(tree_tid, mailbox);
-            _assert(tree_tid >= 0, "TREE TASK CREATE FAILED");
+            spawn_tree_task(train_tree_task,
+                            TC::InitTree{cmd.id, cmd.value, state});
           } else if constexpr (std::is_same_v<Command, CalSpeed>) {
             calibrating_train.num   = cmd.id;
             calibrating_train.speed = cmd.value;
@@ -146,6 +151,10 @@ template <size_t TX_BUFFER_SIZE = 64> class TrainControlServer {
             }
           } else if constexpr (std::is_same_v<Command, DebugSensor>) {
             debug_sensor = cmd.enabled;
+          } else if constexpr (std::is_same_v<Command, Nav>) {
+            spawn_tree_task(
+                nav_tree_task,
+                TC::InitNav{cmd.id, cmd.to, cmd.speed, state});
           } else {
             _assert(false, "UNHANDLED USER COMMAND");
           }

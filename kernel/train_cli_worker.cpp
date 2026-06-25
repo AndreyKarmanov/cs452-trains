@@ -37,6 +37,21 @@ namespace {
     return skip_ws(cursor, end) == end;
   }
 
+  bool parse_token(const char *&cursor, const char *end,
+                   StaticString<8> &token) {
+    cursor = skip_ws(cursor, end);
+    if (cursor >= end)
+      return false;
+
+    token.clear();
+    while (cursor < end && !isspace(static_cast<unsigned char>(*cursor))) {
+      if (!token.append(*cursor))
+        return false;
+      ++cursor;
+    }
+    return !token.empty();
+  }
+
 } // namespace
 
 TC::Cmd::Any parse_command(StaticString<CLI_BUFFER_SIZE> &buf) {
@@ -200,9 +215,35 @@ TC::Cmd::Any parse_command(StaticString<CLI_BUFFER_SIZE> &buf) {
     return out;
   }
 
+  if (cmd_len == 3 && strncmp(cmd, "nav", 3) == 0) {
+    uint32_t loco_id = 0;
+    StaticString<8> to{};
+    const char *parse_cur = cur;
+    if (parse_uint(parse_cur, end, loco_id) &&
+        parse_token(parse_cur, end, to)) {
+      uint32_t speed = 7;
+      parse_cur      = skip_ws(parse_cur, end);
+      if (parse_cur < end &&
+          (!parse_uint(parse_cur, end, speed) || speed > MAX_USER_SPEED ||
+           !done_parse(parse_cur, end))) {
+        out = TC::Cmd::Invalid{};
+        buf.set("Error: Format is nav <train number> <to node> [<speed 0-",
+                MAX_USER_SPEED, ">]");
+        return out;
+      }
+      out = TC::Cmd::Nav{loco_id, to, speed};
+      buf.set("Success: nav ", loco_id, ' ', to, ' ', speed);
+    } else {
+      out = TC::Cmd::Invalid{};
+      buf.set("Error: Format is nav <train number> <to node> [<speed 0-",
+              MAX_USER_SPEED, ">]");
+    }
+    return out;
+  }
+
   out = TC::Cmd::Invalid{};
   buf.set("Error: cmds: q, tr, sw, rv, lr, stop, go, reset, quirk, rt, "
-          "calspeed, debugsensor");
+          "calspeed, debugsensor, nav");
   return out;
 }
 
