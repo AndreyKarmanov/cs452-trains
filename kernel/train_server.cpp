@@ -500,15 +500,9 @@ namespace {
 
   struct PathToNode : public LeafNode {
     const char *goal;
-    bool path_initalized = false;
-
     PathToNode(const char *goal = nullptr) : goal(goal) {}
 
     NodeResult tick(Blackboard &bb) override {
-      if (path_initalized) {
-        return NodeResult::Success;
-      }
-
       if (bb.seen_sensors.empty() && bb.path.empty()) {
         bb.error_msg = "Failed to find start";
         return NodeResult::Failure;
@@ -525,6 +519,11 @@ namespace {
         bb.error_msg = "Failed to find goal";
         return NodeResult::Failure;
       }
+      auto last_node = bb.path.peek_last();
+      if (last_node.has_value() && last_node->node_idx == goal_idx.value()) {
+        // already on a path to the goal.
+        return NodeResult::Success;
+      }
 
       auto path_opt = bb.pathfinder.shortest_path(start_idx, goal_idx.value());
 
@@ -533,50 +532,7 @@ namespace {
                    goal_idx.value());
         return NodeResult::Failure;
       }
-      bb.path         = path_opt.value();
-      path_initalized = true;
-      return NodeResult::Success;
-    }
-  };
-
-  struct AddLoop : public LeafNode {
-    NodeResult tick(Blackboard &bb) override {
-      if (bb.path.empty() && bb.seen_sensors.empty()) {
-        bb.error_msg = "No path to loop";
-        return NodeResult::Failure;
-      }
-
-      if (bb.path.empty()) {
-        auto sens = bb.seen_sensors.peek_last();
-        bb.path.push({
-            .node_idx            = sens->sid - 1,
-            .type                = NODE_SENSOR,
-            .num                 = sens->sid,
-            .dx_prev             = 0,
-            .dx_next             = 0,
-            .should_br_be_curved = false,
-        });
-      }
-
-      if (bb.path.size() > 1 &&
-          bb.path.peek()->node_idx == bb.path.peek_last()->node_idx) {
-        return NodeResult::Success;
-      }
-
-      auto path_opt = bb.pathfinder.shortest_path(bb.path.peek_last()->node_idx,
-                                                  bb.path.peek()->node_idx);
-
-      if (!path_opt.has_value()) {
-        bb.error_msg = "Failed to find loop";
-        return NodeResult::Failure;
-      }
-      auto new_path = path_opt.value();
-      if (bb.path.peek()->type == NODE_BRANCH) {
-        auto &last_node               = *(new_path.end() - 1);
-        auto &first_node              = *(bb.path.begin());
-        last_node.should_br_be_curved = first_node.should_br_be_curved;
-      }
-      bb.path = bb.path + new_path;
+      bb.path = path_opt.value();
       return NodeResult::Success;
     }
   };
@@ -593,11 +549,9 @@ namespace {
     SaveSensorNode save_sensor{};
     InitalLocalizeTree localizer_tree{};
 
-    PathToNode create_loop_start_node{LOOP_START_NODE};
+    PathToNode path_to_loop{LOOP_START_NODE};
     DebugPrintPath debug_print{};
     RepeatNode debug_print_path{&debug_print, 1};
-
-    AddLoop loop_path{};
 
     SetSpeedNode localize_speed{7};
     SetSpeedNode max_speed{14};
@@ -648,13 +602,12 @@ namespace {
       // localize if nothing is saved
       seq.children.push(&localizer_tree);
 
-      setup_loop.children.push(&create_loop_start_node);
+      setup_loop.children.push(&path_to_loop);
       setup_loop.children.push(&localize_speed);
       setup_loop.children.push(&path_localizer);
       setup_loop.children.push(&sensor_predict);
       setup_loop.children.push(&path_lookahead);
       setup_loop.children.push(&loop_start_wait);
-      setup_loop.children.push(&loop_path);
       seq.children.push(&setup_loop);
 
       // we enter this at top speed, loop 3 times, and measure time at top
@@ -754,6 +707,7 @@ namespace {
     InitalLocalizeTree localizer_tree{};
     SaveSensorNode save_sensor{};
     PathToNode path_to_goal{};
+    RepeatNode path_to_goal_once{&path_to_goal, 1};
     UpdateModel update_model{};
     PathLocalizerNode path_localizer{};
     PathLookaheadNode path_lookahead{};
@@ -763,7 +717,7 @@ namespace {
     NavigateTree() {
       seq.children.push(&save_sensor);
       seq.children.push(&localizer_tree);
-      seq.children.push(&path_to_goal);
+      seq.children.push(&path_to_goal_once);
       seq.children.push(&max_speed);
       seq.children.push(&path_localizer);
       seq.children.push(&update_model);
