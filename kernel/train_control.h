@@ -112,6 +112,7 @@ template <size_t TX_BUFFER_SIZE = 64> class TrainControlServer {
 
             tx_buf.push(
                 TC::TX{.mrk = ControlCmd(ControlCmd::CMD_REMOVE_TRAINS)});
+            tx_buf.push(TC::TX{.mrk = ControlCmd(ControlCmd::CMD_GO)});
 
             for (const TrainState &train : default_state.trains) {
               tx_buf.push(

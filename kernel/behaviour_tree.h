@@ -25,7 +25,7 @@ struct Blackboard {
   Buffer<SensorSighting, TRACK_MAX> seen_sensors{};
 
   struct DistLog {
-    uint16_t distance;
+    uint16_t dx_prev;
     uint32_t tick;
     SensorData sensor_data;
   };
@@ -69,7 +69,7 @@ struct DecoratorNode : public TreeNode {
 };
 
 struct ControlNode : public TreeNode {
-  Buffer<TreeNode *, 12> children;
+  Buffer<TreeNode *, 16> children;
 };
 
 struct FallBackNode : public ControlNode {
@@ -167,14 +167,15 @@ struct TimeoutNode : public DecoratorNode {
 };
 
 struct WaitNode : public LeafNode {
-  uint32_t wait_ticks;
-  uint32_t start_tick;
+  uint32_t wait_ticks{0};
+  uint32_t start_tick{0};
 
   WaitNode(uint32_t wait_ticks) : wait_ticks(wait_ticks), start_tick(0) {}
 
   NodeResult tick(Blackboard &bb) override {
     if (start_tick == 0) {
       start_tick = bb.curr_tick;
+      return NodeResult::Running;
     }
     if (bb.curr_tick - start_tick >= wait_ticks) {
       return NodeResult::Success;
