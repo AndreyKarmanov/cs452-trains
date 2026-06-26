@@ -8,6 +8,12 @@
 #define MAX_TRAINS 6
 #define MAX_SENSORS_RECENT 10
 
+// std::array<uint32_t, 15> v_max_18{0,   0,   32,  40,  78,  93,  131, 178,
+//                                   230, 294, 341, 402, 468, 530, 603};
+// std::array<int, 15> accel_18{
+//     -47, 47, 47, 47, 47, 47, 47, 47, 47, 192, 50, 110, 38, 44, 47,
+// };
+
 struct TrainState {
   uint32_t loco_id;
 

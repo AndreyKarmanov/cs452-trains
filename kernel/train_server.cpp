@@ -13,8 +13,8 @@
 
 namespace {
   auto sid = [](char b, int n) -> uint16_t { return (b - 'A') * 16 + n; };
-  constexpr auto LOOP_START_NODE = "B6";
-  constexpr int LOOP_START_SID   = sid('B', 6);
+  constexpr auto LOOP_START_NODE = "E7";
+  constexpr int LOOP_START_SID   = sid('E', 7);
 
   struct DebugPrintPath : public LeafNode {
     NodeResult tick(Blackboard &bb) override {
@@ -40,8 +40,7 @@ namespace {
         AppendPadded(stats_str, bb.loco->v_max[i], 3);
         stats_str.append(" | ");
         AppendPadded(stats_str, bb.loco->accel[i], 5);
-        stats_str.append(" | ");
-        AppendPadded(stats_str, bb.loco->stop_dist[i] / 1000, 5);
+        stats_str.append(" | ", bb.loco->stop_dist[i] / 1000);
         Debug_Puts(bb.txs_tid, stats_str, "\n\r");
       }
 
@@ -195,6 +194,7 @@ namespace {
       auto resp = send<TC::Ack>(
           bb.tcs_tid, TC::Cmd::Speed{.id = bb.loco_id, .value = req_speed});
       if (!resp.has_value()) {
+        bb.error_msg = "Failed to set speed";
         return NodeResult::Failure;
       }
       set_speed = true;
@@ -204,7 +204,7 @@ namespace {
 
   struct SetTargetSpeedNode : public LeafNode {
     uint16_t req_speed;
-    bool set_speed;
+    bool set_speed{false};
     SetTargetSpeedNode(uint16_t speed) : req_speed(speed) {}
     NodeResult tick(Blackboard &bb) override {
       if (bb.txs_tid < 0) {
@@ -219,6 +219,7 @@ namespace {
       auto resp = send<TC::Ack>(
           bb.tcs_tid, TC::Cmd::Speed{.id = bb.loco_id, .value = req_speed});
       if (!resp.has_value()) {
+        bb.error_msg = "Failed to set target speed";
         return NodeResult::Failure;
       }
       set_speed = true;
@@ -230,16 +231,16 @@ namespace {
     bool setStop = false;
     NodeResult tick(Blackboard &bb) override {
 
-      if (setStop || bb.state.stopped) {
-        setStop = true;
+      if (setStop) {
         return NodeResult::Success;
       }
 
       auto resp = send<TC::Ack>(bb.tcs_tid, TC::Cmd::Stop{});
+      setStop   = true;
       if (!resp.has_value()) {
+        bb.error_msg = "Failed to stop track";
         return NodeResult::Failure;
       }
-      setStop = true;
       return NodeResult::Success;
     }
   };
@@ -248,13 +249,14 @@ namespace {
     bool setStop = false;
     NodeResult tick(Blackboard &bb) override {
 
-      if (setStop || false == bb.state.stopped) {
-        setStop = true;
+      if (setStop) {
         return NodeResult::Success;
       }
 
       auto resp = send<TC::Ack>(bb.tcs_tid, TC::Cmd::Go{});
+      setStop   = true;
       if (!resp.has_value()) {
+        bb.error_msg = "Failed to go track";
         return NodeResult::Failure;
       }
       return NodeResult::Success;
@@ -277,6 +279,7 @@ namespace {
           send<TC::Ack>(bb.tcs_tid, TC::Cmd::Direction{.id       = bb.loco_id,
                                                        .backward = backward});
       if (!resp.has_value()) {
+        bb.error_msg = "Failed to set direction";
         return NodeResult::Failure;
       }
       return NodeResult::Success;
@@ -331,7 +334,8 @@ namespace {
 
         auto idx = std::ranges::find(bb.path, data->sensor_id, sensor_id_cmp);
         if (idx == bb.path.end()) {
-          Debug_Puts(bb.txs_tid, "Couldn't find self in path");
+          Debug_Puts(bb.txs_tid, "Couldn't find ", data->sensor_id,
+                     (char)('A' + data->bank), data->number, " in path");
           StaticString<128> path_str{};
           path_str.append("Path: ", bb.path.size(), " ");
           for (auto node : bb.path) {
@@ -400,7 +404,7 @@ namespace {
         //            "mm Est Speed ", bb.loco->ve, "um/ms t_a: ", t_a);
 
         bb.lookahead_um =
-            std::max(bb.loco->ve * TICKS_PER_S * 2, 1500u * 1000u);
+            std::max(bb.loco->ve * TICKS_PER_S * 3, 1500u * 1000u);
 
         auto next_sensor_idx = std::ranges::find_if(
             bb.path, [](PathNode &node) { return node.type == NODE_SENSOR; });
@@ -432,7 +436,7 @@ namespace {
       uint32_t total_dist = 0;
       for (auto &node : bb.path) {
         total_dist += node.dx_prev;
-        if (total_dist > (bb.lookahead_um / 1000)) {
+        if (total_dist * 1000 > (bb.lookahead_um)) {
           break;
         }
 
@@ -622,7 +626,10 @@ namespace {
     AwaitSensorNode await_sensor{};
     WaitNode wait_node{2000};
     WaitNode wait_node1{7000};
+    WaitNode wait_node2{7000};
+
     PrintStoppingDistance print_stopping{};
+    RepeatNode print_stopping_node{&print_stopping, 1};
 
     TrackStop track_stop{};
     TrackGo track_go{};
@@ -675,10 +682,11 @@ namespace {
       measure_stopping.children.push(&save_checkpoint);
       measure_stopping.children.push(&max_speed3);
       measure_stopping.children.push(&repeat_loop4);
-      measure_stopping.children.push(&print_stopping);
+      measure_stopping.children.push(&print_stopping_node);
       seq.children.push(&measure_stopping);
 
       seq.children.push(&zero_speed1);
+      seq.children.push(&wait_node2);
       seq.children.push(&print_train_stats);
 
       // set to zero speed and print failure
@@ -746,6 +754,7 @@ namespace {
     InitalLocalizeTree localizer_tree{};
     SaveSensorNode save_sensor{};
     PathToNode path_to_goal{};
+    UpdateModel update_model{};
     PathLocalizerNode path_localizer{};
     PathLookaheadNode path_lookahead{};
     SetTargetSpeedNode max_speed{7};
@@ -757,6 +766,7 @@ namespace {
       seq.children.push(&path_to_goal);
       seq.children.push(&max_speed);
       seq.children.push(&path_localizer);
+      seq.children.push(&update_model);
       seq.children.push(&path_lookahead);
       seq.children.push(&stop_at_done);
     }
