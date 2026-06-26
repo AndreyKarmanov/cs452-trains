@@ -197,7 +197,9 @@ namespace TC {
 
   } // namespace Cmd
 
-  struct TreeReady {};
+  struct TreeReady {
+    TrainState train;
+  };
   struct TreeExit {};
 
   struct InitTree {

@@ -63,17 +63,15 @@ namespace {
         }
       }
 
-      auto total_ticks                     = last_tick - first_tick;
-      auto estimated_speed                 = (total_dist * 1000) / total_ticks;
-      auto loco                            = bb.state.get_loco(bb.loco_id);
-      loco.top_speed[loco.requested_speed] = estimated_speed;
-      bb.top_loop_time                     = total_ticks;
+      auto total_ticks     = last_tick - first_tick;
+      auto estimated_speed = (total_dist * 1000) / total_ticks;
+      bb.loco->top_speed[bb.loco->requested_speed] = estimated_speed;
+      bb.top_loop_time                             = total_ticks;
 
-      Debug_Puts(bb.txs_tid, "Speed ",
-                 bb.state.get_loco(bb.loco_id).requested_speed,
+      Debug_Puts(bb.txs_tid, "Speed ", bb.loco->requested_speed,
                  " Total dist: ", total_dist, "mm, total ticks: ", total_ticks,
                  " speed: ", estimated_speed,
-                 "tmm/tick Sensors used: ", measurements_used, "\n\r");
+                 "tmm/tick Sensors used: ", measurements_used, "");
 
       return NodeResult::Success;
     }
@@ -114,19 +112,17 @@ namespace {
         }
       }
 
-      auto T    = last_tick - first_tick;
-      auto loco = bb.state.get_loco(bb.loco_id);
-
-      auto vf = loco.top_speed[loco.requested_speed];
-      loco.accel[loco.requested_speed] =
+      auto T  = last_tick - first_tick;
+      auto vf = bb.loco->top_speed[bb.loco->requested_speed];
+      bb.loco->accel[bb.loco->requested_speed] =
           (vf * vf * 1000) / (2 * (vf * T - total_dist * 1000));
       bb.accel_loop_time = T;
 
       Debug_Puts(bb.txs_tid, "Speed ",
-                 bb.state.get_loco(bb.loco_id).requested_speed,
+                 bb.state.get_loco(bb.loco_id)->requested_speed,
                  " Total dist: ", total_dist, "mm, total ticks: ", T,
-                 " acceleration: ", loco.accel[loco.requested_speed],
-                 "um/ktick Sensors used: ", measurements_used, "\n\r");
+                 " acceleration: ", bb.loco->accel[bb.loco->requested_speed],
+                 "um/ktick Sensors used: ", measurements_used, "");
 
       return NodeResult::Success;
     }
@@ -134,15 +130,14 @@ namespace {
 
   struct PrintStoppingDistance : public LeafNode {
     NodeResult tick(Blackboard &bb) override {
-      uint32_t last_tick  = 0;
+      uint32_t last_tick  = bb.event_tick;
       uint32_t first_tick = bb.last_checkpoint;
 
       auto total_ticks  = last_tick - first_tick;
-      auto loco         = bb.state.get_loco(bb.loco_id);
-      auto top_speed    = loco.top_speed[loco.requested_speed];
+      auto top_speed    = bb.loco->top_speed[bb.loco->requested_speed];
       auto dist_to_stop = (bb.accel_loop_time - total_ticks) / top_speed;
 
-      Debug_Puts(bb.txs_tid, "Speed ", loco.requested_speed,
+      Debug_Puts(bb.txs_tid, "Speed ", bb.loco->requested_speed,
                  " total ticks: ", total_ticks, " stop dist: ", dist_to_stop);
 
       return NodeResult::Success;
@@ -171,7 +166,7 @@ namespace {
       }
 
       if (set_speed ||
-          req_speed == bb.state.get_loco(bb.loco_id).requested_speed) {
+          req_speed == bb.state.get_loco(bb.loco_id)->requested_speed) {
         return NodeResult::Success;
       }
 
@@ -196,7 +191,7 @@ namespace {
       req_speed = bb.target_speed;
 
       if (set_speed ||
-          req_speed == bb.state.get_loco(bb.loco_id).requested_speed) {
+          req_speed == bb.state.get_loco(bb.loco_id)->requested_speed) {
         return NodeResult::Success;
       }
 
@@ -252,7 +247,7 @@ namespace {
         return NodeResult::Failure;
       }
 
-      if (backward == bb.state.get_loco(bb.loco_id).backward) {
+      if (backward == bb.state.get_loco(bb.loco_id)->backward) {
         return NodeResult::Success;
       }
 
@@ -314,7 +309,7 @@ namespace {
 
         auto idx = std::ranges::find(bb.path, data->sensor_id, sensor_id_cmp);
         if (idx == bb.path.end()) {
-          Debug_Puts(bb.txs_tid, "Couldn't find self in path\n\r");
+          Debug_Puts(bb.txs_tid, "Couldn't find self in path");
           return NodeResult::Failure;
         }
 
@@ -332,6 +327,15 @@ namespace {
         });
         auto skipped_nodes = std::distance(bb.path.begin(), idx) + 1;
         bb.path.pop(skipped_nodes);
+
+        // StaticString<128> path_str{};
+        // path_str.append("Path: ", bb.path.size(), " ");
+        // for (auto node : bb.path) {
+        //   path_str.append(bb.pathfinder.track[node.node_idx].name, " ",
+        //                   node.distance_to_next_node, " >");
+        // }
+        // Debug_Puts(bb.txs_tid, path_str);
+        // return NodeResult::Success;
       }
       return NodeResult::Success;
     }
@@ -339,30 +343,26 @@ namespace {
 
   struct SensorPredict : public LeafNode {
     NodeResult tick(Blackboard &bb) override {
-      auto loco = bb.state.get_loco(bb.loco_id);
-
-      uint16_t accel   = loco.accel[loco.requested_speed];
-      uint16_t top_spd = loco.top_speed[loco.requested_speed];
+      uint16_t accel   = bb.loco->accel[bb.loco->requested_speed];
+      uint16_t top_spd = bb.loco->top_speed[bb.loco->requested_speed];
 
       uint16_t d_t = bb.event_tick - bb.last_tick;
       uint16_t t_a = std::min(
-          static_cast<uint16_t>((top_spd - bb.est_speed) / accel), d_t);
+          static_cast<uint16_t>((top_spd - bb.loco->est_speed) / accel), d_t);
       uint16_t t_c = d_t - t_a;
 
       uint16_t d_x =
-          ((accel * t_a * t_a) / 2 + top_spd * t_c + bb.est_speed * d_t) / 1000;
+          ((accel * t_a * t_a) / 2 + top_spd * t_c + bb.loco->est_speed * d_t) /
+          1000;
 
       bb.dist_to_next_sensor -= d_x;
       bb.lookahead           += d_x;
       bb.last_tick            = bb.event_tick;
-      bb.est_speed =
-          std::min(top_spd, static_cast<uint16_t>(bb.est_speed + accel * d_t));
+      bb.loco->est_speed      = std::min(
+          top_spd, static_cast<uint16_t>(bb.loco->est_speed + accel * d_t));
 
       if (auto data = std::get_if<SensorData>(&bb.new_event);
           data && data->new_state == 1) {
-        // Debug_Puts(bb.txs_tid, "Sensor Delta ", bb.dist_to_next_sensor,
-        //            " Est Speed ", bb.est_speed, "um/ms Lookahead ",
-        //            bb.lookahead, "mm\n\r");
 
         // update lookahead based on speed.
         // if we have more than two dists
@@ -371,11 +371,15 @@ namespace {
           auto prev_dist = *(bb.dists.end() - 2);
 
           auto measured_speed =
-              (last_dist.tick - prev_dist.tick) * 1000 / (last_dist.distance);
-          bb.est_speed = (bb.est_speed * 9 + measured_speed) / 10;
+              (last_dist.distance * 1000) / (last_dist.tick - prev_dist.tick);
+          bb.loco->est_speed = (bb.loco->est_speed * 9 + measured_speed) / 10;
         }
+        Debug_Puts(bb.txs_tid, "Sensor Delta ", bb.dist_to_next_sensor,
+                   " Est Speed ", bb.loco->est_speed, "um/ms Lookahead ",
+                   bb.lookahead, "mm");
 
-        bb.lookahead = std::max((bb.est_speed * TICKS_PER_S * 3) / 1000, 1000);
+        bb.lookahead =
+            std::max((bb.loco->est_speed * TICKS_PER_S * 3) / 1000, 1000);
 
         auto next_sensor_idx = std::ranges::find_if(
             bb.path, [](PathNode &node) { return node.type == NODE_SENSOR; });
@@ -413,8 +417,6 @@ namespace {
         if (node.type == NODE_BRANCH) {
           if (node.should_br_be_curved &&
               bb.state.is_switch_straight(node.num)) {
-            Debug_Puts(bb.txs_tid, "Setting switch ", node.num,
-                       " to curved\n\r");
             auto res =
                 send<TC::Ack>(bb.tcs_tid, TC::Cmd::Switch(node.num, false));
             if (!res.has_value()) {
@@ -422,8 +424,8 @@ namespace {
             }
           } else if (!node.should_br_be_curved &&
                      !bb.state.is_switch_straight(node.num)) {
-            Debug_Puts(bb.txs_tid, "Setting switch ", node.num,
-                       " to straight\n\r");
+            // Debug_Puts(bb.txs_tid, "Setting switch ", node.num, " to
+            // straight");
             auto res =
                 send<TC::Ack>(bb.tcs_tid, TC::Cmd::Switch(node.num, true));
             if (!res.has_value()) {
@@ -502,7 +504,7 @@ namespace {
 
       if (!path_opt.has_value()) {
         Debug_Puts(bb.txs_tid, "Failed to find path from ", start_idx, " to ",
-                   goal_idx.value(), "\n\r");
+                   goal_idx.value());
         return NodeResult::Failure;
       }
       bb.path         = path_opt.value();
@@ -557,11 +559,11 @@ namespace {
     RepeatNode debug_print_path{&debug_print, 1};
 
     AddLoop loop_path{};
-    SetSpeedNode localize_speed{5};
 
-    SetSpeedNode max_speed{14};
-    SetSpeedNode max_speed2{14};
-    SetSpeedNode max_speed3{14};
+    SetSpeedNode localize_speed{7};
+    SetTargetSpeedNode max_speed{14};
+    SetTargetSpeedNode max_speed2{14};
+    SetTargetSpeedNode max_speed3{14};
 
     PathLocalizerNode path_localizer{};
     SensorPredict sensor_predict{};
@@ -681,8 +683,11 @@ namespace {
 } // namespace
 
 static void run_tree(TreeNode &tree, Blackboard &bb) {
+  TrainState tmp{};
+  bb.loco = &tmp;
   while (true) {
-    auto next_msg = send<TC::TreeMsg>(bb.tcs_tid, TC::TreeReady{});
+    auto next_msg =
+        send<TC::TreeMsg>(bb.tcs_tid, TC::TreeReady{.train = *bb.loco});
     if (!next_msg.has_value()) {
       break;
     }
@@ -695,6 +700,7 @@ static void run_tree(TreeNode &tree, Blackboard &bb) {
             bb.state        = event.state;
             bb.loco_id      = event.loco_id;
             bb.target_speed = event.value;
+            bb.loco         = bb.state.get_loco(bb.loco_id);
           } else if constexpr (std::is_same_v<Event, TC::InitNav>) {
             bb.state        = event.state;
             bb.loco_id      = event.loco_id;
@@ -729,7 +735,7 @@ static void run_tree(TreeNode &tree, Blackboard &bb) {
 //   State state{};
 
 //   for (uint16_t i = 14; i > 0; --i) {
-//     Debug_Puts(tx_tid, "Running tree with speed ", i, "\n\r");
+//     Debug_Puts(tx_tid, "Running tree with speed ", i, "");
 //     SpeedTester tree{i};
 //     Blackboard bb{
 //         .tcs_tid = tcs_tid,

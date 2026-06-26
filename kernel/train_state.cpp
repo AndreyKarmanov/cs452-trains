@@ -27,7 +27,6 @@ void State::update_from_mrk(const MRKCmd &cmd, uint32_t tick) {
           for (TrainState &train : trains) {
             if (train.loco_id == command.loco_id) {
               train.requested_speed = mrk_level_to_user_speed(command.speed);
-              train.req_spd_tick    = tick;
               return;
             }
           }

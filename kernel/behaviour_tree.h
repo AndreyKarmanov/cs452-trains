@@ -14,6 +14,7 @@ struct Blackboard {
   Pathfind pathfinder;
   State state{};
   uint32_t loco_id{};
+  TrainState *loco{nullptr};
 
   Path path{};
 
@@ -30,7 +31,6 @@ struct Blackboard {
   };
   Buffer<DistLog, TRACK_MAX> dists{};
 
-  uint16_t est_speed{0};
   uint16_t target_speed{0};
 
   int dist_to_next_sensor{0};

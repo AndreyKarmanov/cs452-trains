@@ -22,12 +22,17 @@ uint32_t print_state(int tx_tid, const State &state) {
   }
 
   if (state.trains_dirty) {
-    line.set("\033[", TRAIN_ROW, ";2HTrain | Dir | Lamp | Speed \n\r");
+    line.set("\033[", TRAIN_ROW, ";2HTrain | Dir | Lamp | spd | Est | Top\n\r");
     for (const TrainState &train : state.trains) {
       line.append("\033[K   ", train.loco_id, "  | ",
                   train.backward ? "Rev" : "Fwd", " | ",
-                  train.light_on ? " On " : " Off", " | ",
-                  train.requested_speed, "\n\r");
+                  train.light_on ? " On " : " Off", " | ");
+      AppendPadded(line, train.requested_speed, 3);
+      line.append(" | ");
+      AppendPadded(line, train.est_speed, 3);
+      line.append(" | ");
+      AppendPadded(line, train.top_speed[train.requested_speed], 3);
+      line.append("\n\r");
     }
     Puts(tx_tid, line);
     ++draws;
