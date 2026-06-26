@@ -25,15 +25,18 @@ struct Blackboard {
   Buffer<SensorSighting, TRACK_MAX> seen_sensors{};
 
   struct DistLog {
-    uint16_t dx_prev;
+    uint16_t from_sid;
+    uint16_t to_sid;
+    uint32_t dx_um;
     uint32_t tick;
     SensorData sensor_data;
   };
   Buffer<DistLog, TRACK_MAX> dists{};
 
-  uint16_t target_speed{0};
+  uint16_t last_dist_sensor_sid{0};
+  uint32_t dx_um{0};
 
-  int dx_next_sens_um{0};
+  uint16_t target_speed{0};
 
   MRKCmd new_event{};
   uint32_t curr_tick{0};
