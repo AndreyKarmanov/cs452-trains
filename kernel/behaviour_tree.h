@@ -33,14 +33,14 @@ struct Blackboard {
 
   uint16_t target_speed{0};
 
-  int dist_to_next_sensor{0};
+  int dx_next_sens_um{0};
 
   MRKCmd new_event{};
-  uint32_t event_tick{};
+  uint32_t curr_tick{0};
   uint32_t last_tick{0};
-  uint32_t lookahead{1500};
+  uint32_t lookahead_um{0};
 
-  uint32_t last_checkpoint{0};
+  uint32_t saved_tick{0};
   uint32_t top_loop_time{0};
   uint32_t accel_loop_time{0};
 
@@ -158,8 +158,8 @@ struct TimeoutNode : public DecoratorNode {
     }
 
     if (start_tick == 0) {
-      start_tick = bb.event_tick;
-    } else if (bb.event_tick - start_tick > timeout) {
+      start_tick = bb.curr_tick;
+    } else if (bb.curr_tick - start_tick > timeout) {
       return NodeResult::Failure;
     }
     return NodeResult::Running;
@@ -174,9 +174,9 @@ struct WaitNode : public LeafNode {
 
   NodeResult tick(Blackboard &bb) override {
     if (start_tick == 0) {
-      start_tick = bb.event_tick;
+      start_tick = bb.curr_tick;
     }
-    if (bb.event_tick - start_tick >= wait_ticks) {
+    if (bb.curr_tick - start_tick >= wait_ticks) {
       return NodeResult::Success;
     }
     return NodeResult::Running;

@@ -22,8 +22,8 @@ Path &Path::operator+(const Path &other) {
     return *this;
   }
 
-  this->dist += other.dist;
-  (*(this->end() - 1)).distance_to_next_node = first_opt->distance_to_next_node;
+  this->dist                   += other.dist;
+  (*(this->end() - 1)).dx_next  = first_opt->dx_next;
   for (size_t i = 1; i < other.size(); ++i) {
     auto node = other[i];
     _assert(node.has_value(), "unexpected empty path node");
@@ -45,11 +45,11 @@ int Path::lookahead(int distance, PathNode *result, int length,
 
     // skip nodes before start_offset
     if (travelled < start_offset) {
-      travelled += node_opt->distance_to_next_node;
+      travelled += node_opt->dx_next;
       continue;
     }
 
-    travelled += node_opt->distance_to_next_node;
+    travelled += node_opt->dx_next;
 
     // filter by node type if provided
     if (filter_node_type != NODE_NONE && node_opt->type != filter_node_type)
@@ -395,7 +395,7 @@ static void print_path(const Pathfind &pathfind, const char *label,
                  "curved=%d\n\r",
                  static_cast<int>(step), node->node_idx,
                  pathfind.node_name(node->node_idx), node_type_name(node->type),
-                 node->distance_to_prev_node, node->distance_to_next_node,
+                 node->dx_prev, node->dx_next,
                  node->should_br_be_curved ? 1 : 0);
   }
 }

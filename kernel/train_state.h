@@ -11,19 +11,20 @@
 struct TrainState {
   uint32_t loco_id;
 
-  uint16_t requested_speed{0};
+  uint16_t req_speed{0};
 
   bool backward : 1 = false;
   bool light_on : 1 = true;
 
-  // uinits of 0.001 mm/tick (micrometer per tick)
-  std::array<uint16_t, 15> top_speed{0,   0,   32,  40,  80,  100, 140, 200,
-                                     250, 310, 360, 440, 500, 532, 579};
-  // uinits of um per 1kticks^2)
+  // units of um/tick (micrometer per tick)
+  std::array<uint16_t, 15> v_max{0,   0,   32,  40,  80,  100, 140, 200,
+                                 250, 310, 360, 440, 500, 532, 579};
+  // units of nm/ticks^2 (nanometer per tick^2) aka 1000*um / ticks^2
   std::array<int, 15> accel{
       -47, 47, 47, 47, 47, 47, 47, 47, 47, 47, 47, 47, 47, 47, 47,
   };
-  uint16_t est_speed{0};
+  // units of um / tick
+  uint16_t ve{0};
 };
 
 struct State {

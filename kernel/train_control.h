@@ -93,15 +93,15 @@ template <size_t TX_BUFFER_SIZE = 64> class TrainControlServer {
                 .mrk = SwitchCmd(static_cast<uint16_t>(cmd.id), cmd.straight)});
           } else if constexpr (std::is_same_v<Command, Reverse>) {
             auto loco = state.get_loco(cmd.id);
-            if (loco->requested_speed == 0) {
+            if (loco->req_speed == 0) {
               tx_buf.push(TC::TX{.mrk = DirectionCmd(cmd.id, !cmd.flag)});
               return;
             }
             tx_buf.push(TC::TX{.mrk = SpeedCmd(cmd.id, 0)});
             tx_buf.push(TC::TX{.mrk = DirectionCmd(cmd.id, !cmd.flag)});
             tx_buf.push(TC::TX{
-                .mrk = SpeedCmd(cmd.id,
-                                user_speed_to_mrk_level(loco->requested_speed)),
+                .mrk =
+                    SpeedCmd(cmd.id, user_speed_to_mrk_level(loco->req_speed)),
             });
           } else if constexpr (std::is_same_v<Command, Stop>) {
             tx_buf.push(TC::TX{.mrk = ControlCmd(ControlCmd::CMD_STOP)});
@@ -117,8 +117,8 @@ template <size_t TX_BUFFER_SIZE = 64> class TrainControlServer {
               tx_buf.push(
                   TC::TX{.mrk = LightCmd(train.loco_id, train.light_on)});
               tx_buf.push(TC::TX{
-                  .mrk = SpeedCmd(train.loco_id, user_speed_to_mrk_level(
-                                                     train.requested_speed))});
+                  .mrk = SpeedCmd(train.loco_id,
+                                  user_speed_to_mrk_level(train.req_speed))});
               tx_buf.push(
                   TC::TX{.mrk = DirectionCmd(train.loco_id, train.backward)});
             }
@@ -224,12 +224,10 @@ template <size_t TX_BUFFER_SIZE = 64> class TrainControlServer {
     }
     auto loco = state.get_loco(msg.train.loco_id);
     if (loco) {
-      loco->est_speed = msg.train.est_speed;
-      loco->top_speed[msg.train.requested_speed] =
-          msg.train.top_speed[msg.train.requested_speed];
-      loco->accel[msg.train.requested_speed] =
-          msg.train.accel[msg.train.requested_speed];
-      state.trains_dirty = true;
+      loco->ve                         = msg.train.ve;
+      loco->v_max[msg.train.req_speed] = msg.train.v_max[msg.train.req_speed];
+      loco->accel[msg.train.req_speed] = msg.train.accel[msg.train.req_speed];
+      state.trains_dirty               = true;
     }
 
     auto next_msg = mailbox->msgs.pop();

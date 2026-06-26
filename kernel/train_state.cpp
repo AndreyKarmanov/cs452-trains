@@ -26,7 +26,7 @@ void State::update_from_mrk(const MRKCmd &cmd, uint32_t tick) {
           trains_dirty = true;
           for (TrainState &train : trains) {
             if (train.loco_id == command.loco_id) {
-              train.requested_speed = mrk_level_to_user_speed(command.speed);
+              train.req_speed = mrk_level_to_user_speed(command.speed);
               return;
             }
           }
@@ -82,7 +82,7 @@ void State::update_from_mrk(const MRKCmd &cmd, uint32_t tick) {
             break;
           case ControlCmd::CMD_HALT:
             for (TrainState &train : trains) {
-              train.requested_speed = 0;
+              train.req_speed = 0;
             }
             break;
           default:

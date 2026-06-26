@@ -27,11 +27,11 @@ uint32_t print_state(int tx_tid, const State &state) {
       line.append("\033[K   ", train.loco_id, "  | ",
                   train.backward ? "Rev" : "Fwd", " | ",
                   train.light_on ? " On " : " Off", " | ");
-      AppendPadded(line, train.requested_speed, 3);
+      AppendPadded(line, train.req_speed, 3);
       line.append(" | ");
-      AppendPadded(line, train.est_speed, 3);
+      AppendPadded(line, train.ve / 1000, 3);
       line.append(" | ");
-      AppendPadded(line, train.top_speed[train.requested_speed], 3);
+      AppendPadded(line, train.v_max[train.req_speed], 3);
       line.append("\n\r");
     }
     Puts(tx_tid, line);

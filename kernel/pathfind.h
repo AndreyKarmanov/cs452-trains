@@ -11,14 +11,13 @@ struct PathNode {
   int node_idx;
   node_type type;
   int num;
-  int distance_to_prev_node = 0;
-  int distance_to_next_node;
+  int dx_prev = 0;
+  int dx_next;
   bool should_br_be_curved;
 
   bool operator==(const PathNode &other) const {
     return node_idx == other.node_idx && type == other.type &&
-           distance_to_prev_node == other.distance_to_prev_node &&
-           distance_to_next_node == other.distance_to_next_node &&
+           dx_prev == other.dx_prev && dx_next == other.dx_next &&
            should_br_be_curved == other.should_br_be_curved;
   }
 };
@@ -35,14 +34,14 @@ public:
       auto elem = Buffer<PathNode, TRACK_MAX>::pop();
       if (!elem.has_value())
         break;
-      dist -= elem->distance_to_next_node;
+      dist -= elem->dx_next;
     }
   }
 
   constexpr std::optional<PathNode> pop() {
     auto elem = Buffer<PathNode, TRACK_MAX>::pop();
     if (elem.has_value())
-      dist -= elem->distance_to_next_node;
+      dist -= elem->dx_next;
     return elem;
   }
 
