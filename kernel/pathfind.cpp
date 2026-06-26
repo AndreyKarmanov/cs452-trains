@@ -29,6 +29,7 @@ Path &Path::operator+(const Path &other) {
     _assert(node.has_value(), "unexpected empty path node");
     this->push(node.value());
   }
+
   return *this;
 }
 
@@ -113,20 +114,6 @@ int Pathfind::edge_dist_between(int from_idx, int to_idx) const {
   return 0;
 }
 
-void Pathfind::relax(int from_idx, int from_dist, int to_idx, int edge_dist,
-                     int best_dist[TRACK_MAX], int predecessor[TRACK_MAX],
-                     Heap<std::pair<int, int>, TRACK_MAX> &frontier) const {
-  if (!can_visit(to_idx))
-    return;
-
-  int new_dist = from_dist + edge_dist;
-  if (new_dist < best_dist[to_idx]) {
-    best_dist[to_idx]   = new_dist;
-    predecessor[to_idx] = from_idx;
-    frontier.push({new_dist, to_idx});
-  }
-}
-
 std::optional<Path>
 Pathfind::build_path(int start_idx, int goal_idx,
                      const int best_dist[TRACK_MAX],
@@ -164,8 +151,9 @@ Pathfind::build_path(int start_idx, int goal_idx,
     if (step + 1 < path_len) {
       int next_idx = node_indices[step + 1];
       dist_to_next = edge_dist_between(node_idx, next_idx);
-      if (node.type == NODE_BRANCH)
-        curved = is_curved(node_idx, next_idx);
+      if (node.type == NODE_BRANCH) {
+        curved = node_index(node.edge[DIR_CURVED].dest) == next_idx;
+      }
     }
 
     result.push(
@@ -175,6 +163,46 @@ Pathfind::build_path(int start_idx, int goal_idx,
   return result;
 }
 
+std::optional<Path> Pathfind::shortest_loop(int start_idx) const {
+  // if the start and goal is the same
+  // for each potential path from this node, find the shortest path that loops
+  // back to goal node, then append on
+  const auto &node = track[start_idx];
+  auto goal_idx    = start_idx;
+  if (node.type == NODE_BRANCH) {
+    auto forward_idx = node_index(node.edge[DIR_STRAIGHT].dest);
+    auto curved_idx  = node_index(node.edge[DIR_CURVED].dest);
+
+    auto straight_p_o1 = shortest_path(start_idx, forward_idx, false);
+    auto straight_p_o2 = shortest_path(forward_idx, goal_idx, false);
+
+    auto curved_p_o1 = shortest_path(start_idx, curved_idx, false);
+    auto curved_p_o2 = shortest_path(curved_idx, goal_idx, false);
+
+    if (straight_p_o1.has_value() && curved_p_o1.has_value()) {
+      if (straight_p_o1->dist < curved_p_o1->dist) {
+        return *straight_p_o1 + straight_p_o2.value();
+      } else {
+        return *curved_p_o1 + curved_p_o2.value();
+      }
+    } else if (straight_p_o1.has_value()) {
+      return *straight_p_o1 + straight_p_o2.value();
+    } else if (curved_p_o1.has_value()) {
+      return *curved_p_o1 + curved_p_o2.value();
+    } else {
+      return std::nullopt;
+    }
+  } else if (node.type == NODE_SENSOR || node.type == NODE_MERGE ||
+             node.type == NODE_ENTER) {
+    auto ahead_idx  = node_index(node.edge[DIR_AHEAD].dest);
+    auto ahead_p_o1 = shortest_path(start_idx, ahead_idx, false);
+    auto ahead_p_o2 = shortest_path(ahead_idx, goal_idx, false);
+    return *ahead_p_o1 + ahead_p_o2.value();
+  } else {
+    return std::nullopt;
+  }
+}
+
 std::optional<Path> Pathfind::shortest_path(int start_idx, int goal_idx,
                                             bool allow_reverse) const {
   if (start_idx < 0 || start_idx >= TRACK_MAX || goal_idx < 0 ||
@@ -182,11 +210,7 @@ std::optional<Path> Pathfind::shortest_path(int start_idx, int goal_idx,
     return std::nullopt;
 
   if (start_idx == goal_idx) {
-    const track_node &node = track[start_idx];
-    Path result{};
-    result.dist = 0;
-    result.push({start_idx, node.type, node.num, 0, 0, false});
-    return result;
+    return shortest_loop(start_idx);
   }
 
   int best_dist[TRACK_MAX];
@@ -200,6 +224,18 @@ std::optional<Path> Pathfind::shortest_path(int start_idx, int goal_idx,
   best_dist[start_idx] = 0;
   Heap<std::pair<int, int>, TRACK_MAX> frontier;
   frontier.push({0, start_idx});
+
+  auto relax = [&](int from_idx, int from_dist, int to_idx, int edge_dist) {
+    if (!can_visit(to_idx))
+      return;
+
+    int new_dist = from_dist + edge_dist;
+    if (new_dist < best_dist[to_idx]) {
+      best_dist[to_idx]   = new_dist;
+      predecessor[to_idx] = from_idx;
+      frontier.push({new_dist, to_idx});
+    }
+  };
 
   while (!frontier.empty()) {
     auto [pop_dist, curr_idx] = frontier.pop().value();
@@ -216,15 +252,14 @@ std::optional<Path> Pathfind::shortest_path(int start_idx, int goal_idx,
     case NODE_MERGE:
     case NODE_ENTER:
       relax(curr_idx, curr_dist, node_index(curr_node.edge[DIR_AHEAD].dest),
-            curr_node.edge[DIR_AHEAD].dist, best_dist, predecessor, frontier);
+            curr_node.edge[DIR_AHEAD].dist);
       break;
 
     case NODE_BRANCH:
       relax(curr_idx, curr_dist, node_index(curr_node.edge[DIR_STRAIGHT].dest),
-            curr_node.edge[DIR_STRAIGHT].dist, best_dist, predecessor,
-            frontier);
+            curr_node.edge[DIR_STRAIGHT].dist);
       relax(curr_idx, curr_dist, node_index(curr_node.edge[DIR_CURVED].dest),
-            curr_node.edge[DIR_CURVED].dist, best_dist, predecessor, frontier);
+            curr_node.edge[DIR_CURVED].dist);
       break;
 
     case NODE_EXIT:
@@ -235,8 +270,7 @@ std::optional<Path> Pathfind::shortest_path(int start_idx, int goal_idx,
     }
 
     if (allow_reverse) {
-      relax(curr_idx, curr_dist, node_index(curr_node.reverse), REVERSE_COST,
-            best_dist, predecessor, frontier);
+      relax(curr_idx, curr_dist, node_index(curr_node.reverse), REVERSE_COST);
     }
   }
 
@@ -253,33 +287,6 @@ std::optional<Path> Pathfind::shortest_path(const char *from, const char *to,
   return shortest_path(start_idx.value(), goal_idx.value(), allow_reverse);
 }
 
-bool Pathfind::is_curved(int from_idx, int to_idx) const {
-  if (from_idx < 0 || from_idx >= TRACK_MAX || to_idx < 0 ||
-      to_idx >= TRACK_MAX)
-    return false;
-
-  const track_node &from_node = track[from_idx];
-  switch (from_node.type) {
-  case NODE_BRANCH:
-    if (node_index(from_node.edge[DIR_STRAIGHT].dest) == to_idx)
-      return false;
-    if (node_index(from_node.edge[DIR_CURVED].dest) == to_idx)
-      return true;
-    break;
-
-  case NODE_SENSOR:
-  case NODE_MERGE:
-  case NODE_ENTER:
-    return false;
-    break;
-
-  default:
-    break;
-  }
-
-  return false;
-}
-
 // returns number of nodes found
 int Pathfind::search_within_distance(int node_idx, int distance, int *result,
                                      int length, bool allow_reverse) {
@@ -294,6 +301,18 @@ int Pathfind::search_within_distance(int node_idx, int distance, int *result,
   best_dist[node_idx] = 0;
   Heap<std::pair<int, int>, TRACK_MAX> frontier;
   frontier.push({0, node_idx});
+
+  auto relax = [&](int from_idx, int from_dist, int to_idx, int edge_dist) {
+    if (!can_visit(to_idx))
+      return;
+
+    int new_dist = from_dist + edge_dist;
+    if (new_dist < best_dist[to_idx]) {
+      best_dist[to_idx]   = new_dist;
+      predecessor[to_idx] = from_idx;
+      frontier.push({new_dist, to_idx});
+    }
+  };
 
   int result_count = 0;
   while (!frontier.empty() && result_count < length) {
@@ -313,15 +332,14 @@ int Pathfind::search_within_distance(int node_idx, int distance, int *result,
     case NODE_MERGE:
     case NODE_ENTER:
       relax(curr_idx, curr_dist, node_index(curr_node.edge[DIR_AHEAD].dest),
-            curr_node.edge[DIR_AHEAD].dist, best_dist, predecessor, frontier);
+            curr_node.edge[DIR_AHEAD].dist);
       break;
 
     case NODE_BRANCH:
       relax(curr_idx, curr_dist, node_index(curr_node.edge[DIR_STRAIGHT].dest),
-            curr_node.edge[DIR_STRAIGHT].dist, best_dist, predecessor,
-            frontier);
+            curr_node.edge[DIR_STRAIGHT].dist);
       relax(curr_idx, curr_dist, node_index(curr_node.edge[DIR_CURVED].dest),
-            curr_node.edge[DIR_CURVED].dist, best_dist, predecessor, frontier);
+            curr_node.edge[DIR_CURVED].dist);
       break;
 
     case NODE_EXIT:
@@ -332,8 +350,7 @@ int Pathfind::search_within_distance(int node_idx, int distance, int *result,
     }
 
     if (allow_reverse) {
-      relax(curr_idx, curr_dist, node_index(curr_node.reverse), REVERSE_COST,
-            best_dist, predecessor, frontier);
+      relax(curr_idx, curr_dist, node_index(curr_node.reverse), REVERSE_COST);
     }
   }
 

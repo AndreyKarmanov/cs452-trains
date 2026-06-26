@@ -60,10 +60,6 @@ class Pathfind {
 
   int edge_dist_between(int from_idx, int to_idx) const;
 
-  void relax(int from_idx, int from_dist, int to_idx, int edge_dist,
-             int best_dist[TRACK_MAX], int predecessor[TRACK_MAX],
-             Heap<std::pair<int, int>, TRACK_MAX> &frontier) const;
-
   std::optional<Path> build_path(int start_idx, int goal_idx,
                                  const int best_dist[TRACK_MAX],
                                  const int predecessor[TRACK_MAX]) const;
@@ -76,13 +72,12 @@ public:
 
   std::optional<int> get_idx(const char *name) const;
 
+  std::optional<Path> shortest_loop(int start_idx) const;
   std::optional<Path> shortest_path(int start_idx, int goal_idx,
                                     bool allow_reverse = false) const;
 
   std::optional<Path> shortest_path(const char *from, const char *to,
                                     bool allow_reverse = false) const;
-
-  bool is_curved(int from_idx, int to_idx) const;
 
   // search all nodes within distance.
   int search_within_distance(int node_idx, int distance, int *result,

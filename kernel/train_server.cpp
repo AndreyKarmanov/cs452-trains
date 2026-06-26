@@ -13,7 +13,7 @@
 
 namespace {
   auto sid = [](char b, int n) -> uint16_t { return (b - 'A') * 16 + n; };
-  constexpr int LOOP_START_SID = sid('E', 6);
+  constexpr int LOOP_START_SID = sid('D', 4);
   constexpr int LOOP_END_SID   = sid('D', 5);
 
   struct DebugPrintPath : public LeafNode {
@@ -328,42 +328,41 @@ namespace {
         // path_str.append("Path: ", bb.path.size(), " ");
         // for (auto node : bb.path) {
         //   path_str.append(bb.pathfinder.track[node.node_idx].name, " ",
-        //                   node.distance_to_next_node, " >");
+        //                   node.dx_next, " >");
         // }
         // Debug_Puts(bb.txs_tid, path_str);
-        // return NodeResult::Success;
       }
       return NodeResult::Success;
     }
   };
 
-  struct SensorPredict : public LeafNode {
+  struct UpdateModel : public LeafNode {
     NodeResult tick(Blackboard &bb) override {
-      uint16_t a     = bb.loco->accel[bb.loco->req_speed];
-      uint16_t v_max = bb.loco->v_max[bb.loco->req_speed];
-      uint16_t v_i   = bb.loco->ve;
-      uint16_t d_t   = bb.curr_tick - bb.last_tick;
+      uint32_t a     = bb.loco->accel[bb.loco->req_speed];
+      uint32_t v_max = bb.loco->v_max[bb.loco->req_speed];
+      uint32_t v_i   = bb.loco->ve;
+      uint32_t d_t   = bb.curr_tick - bb.last_tick;
 
-      uint16_t t_a =
-          std::min(static_cast<uint16_t>(((v_max - v_i) * 1000 / a)), d_t);
-      uint16_t t_c = d_t - t_a;
+      uint32_t t_a = std::min(((v_max - v_i) * 1000 / a), d_t);
+      uint32_t t_c = d_t - t_a;
 
       uint32_t dx_um = ((a * t_a * t_a) / 2000 + v_max * t_c + v_i * d_t);
 
       bb.dx_next_sens_um -= dx_um;
       bb.lookahead_um    += dx_um;
       bb.last_tick        = bb.curr_tick;
-      uint16_t v_f        = (v_i * 1000 + a * t_a) / 1000;
+      uint32_t v_f        = (v_i * 1000 + a * t_a) / 1000;
       bb.loco->ve         = std::min(v_max, v_f);
 
       if (auto data = std::get_if<SensorData>(&bb.new_event);
           data && data->new_state == 1) {
 
-        Debug_Puts(bb.txs_tid, "Sensor Delta ", bb.dx_next_sens_um,
-                   " Est Speed ", bb.loco->ve, "um/ms Lookahead ",
-                   bb.lookahead_um / 1000, "mm", t_a, " ta");
+        Debug_Puts(bb.txs_tid, "Sensor Delta ", bb.dx_next_sens_um / 1000,
+                   "mm Est Speed ", bb.loco->ve, "um/ms Lookahead ",
+                   bb.lookahead_um / 1000, "mm ", t_a, " ta");
 
-        bb.lookahead_um = std::max(bb.loco->ve * TICKS_PER_S * 2, 1500 * 1000);
+        bb.lookahead_um =
+            std::max(bb.loco->ve * TICKS_PER_S * 2, 1500u * 1000u);
 
         auto next_sensor_idx = std::ranges::find_if(
             bb.path, [](PathNode &node) { return node.type == NODE_SENSOR; });
@@ -500,12 +499,25 @@ namespace {
 
   struct AddLoop : public LeafNode {
     NodeResult tick(Blackboard &bb) override {
-      if (bb.path.empty()) {
+      if (bb.path.empty() && bb.seen_sensors.empty()) {
         bb.error_msg = "No path to loop";
         return NodeResult::Failure;
       }
 
-      if (bb.path.peek()->node_idx == bb.path.peek_last()->node_idx) {
+      if (bb.path.empty()) {
+        auto sens = bb.seen_sensors.peek_last();
+        bb.path.push({
+            .node_idx            = sens->sid - 1,
+            .type                = NODE_SENSOR,
+            .num                 = sens->sid,
+            .dx_prev             = 0,
+            .dx_next             = 0,
+            .should_br_be_curved = false,
+        });
+      }
+
+      if (bb.path.size() > 1 &&
+          bb.path.peek()->node_idx == bb.path.peek_last()->node_idx) {
         return NodeResult::Success;
       }
 
@@ -551,7 +563,7 @@ namespace {
     SetTargetSpeedNode max_speed3{14};
 
     PathLocalizerNode path_localizer{};
-    SensorPredict sensor_predict{};
+    UpdateModel sensor_predict{};
     PathLookaheadNode path_lookahead{};
     AwaitSensorNode loop_start_sens{LOOP_START_SID};
     RepeatNode loop_start_wait{&loop_start_sens, 1};
@@ -747,7 +759,7 @@ void train_tree_task() {
       .tcs_tid = tcs_tid,
       .txs_tid = tx_tid,
       .cs_tid  = cs_tid,
-      .pathfinder{'b'},
+      .pathfinder{'a'},
   };
   run_tree(tree, bb);
   std::ignore = send<TC::Ack>(tcs_tid, TC::TreeExit{});
