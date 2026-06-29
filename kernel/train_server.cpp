@@ -13,9 +13,9 @@
 
 namespace {
   auto sid = [](char b, int n) -> uint16_t { return (b - 'A') * 16 + n; };
-  constexpr auto TRACK           = 'a';
-  constexpr auto LOOP_START_NODE = "E8";
-  constexpr int LOOP_START_SID   = sid('E', 8);
+  constexpr auto TRACK           = 'b';
+  constexpr auto LOOP_START_NODE = "D4";
+  constexpr int LOOP_START_SID   = sid('D', 4);
   constexpr size_t CRAWL_SPEED   = 4;
 
   struct DebugPrintPath : public LeafNode {
@@ -76,7 +76,7 @@ namespace {
           ttl_dist_um += (*it).dx_um;
           ttl_ticks   += (*it).d_ticks;
           measurements_used++;
-          Debug_Puts(bb.txs_tid, "f: ", (*it).from_sid, "to: ", (*it).to_sid,
+          Debug_Puts(bb.txs_tid, "f: ", (*it).from_sid, " to: ", (*it).to_sid,
                      " d: ", (*it).dx_um / 1000, "mm in: ", (*it).d_ticks);
         }
       }
@@ -118,7 +118,7 @@ namespace {
           ttl_ticks   += (*it).d_ticks;
           measurements_used++;
 
-          Debug_Puts(bb.txs_tid, "f: ", (*it).from_sid, "to: ", (*it).to_sid,
+          Debug_Puts(bb.txs_tid, "f: ", (*it).from_sid, " to: ", (*it).to_sid,
                      " d: ", (*it).dx_um / 1000, "mm in: ", (*it).d_ticks);
         }
       }
@@ -606,26 +606,22 @@ namespace {
     PathToNode path_to_loop_start{LOOP_START_NODE};
 
     Sequence spd_seq{};
-    SetTargetSpeed max_speed1{14};
+    SetSpeed max_speed1{14};
     Repeat loop_1{&loop_start_sens, 3};
     CalculateSteadySpeed steady_state_speed{};
     Repeat measure_speed{&spd_seq, 1};
 
-    Sequence acc_seq{};
-    SetSpeed crawl_speed{CRAWL_SPEED};
-    Repeat loop_2{&loop_start_sens, 1};
-    SetTargetSpeed max_speed2{14};
-    Repeat loop_3{&loop_start_sens, 1};
-    CalculateAccel calculate_accel{};
-    Repeat measure_acc{&acc_seq, 1};
-
     Sequence stop_seq{};
-    SetTargetSpeed max_speed3{14};
-    Repeat loop_4{&loop_start_sens, 1};
     SetSpeed crawl_speed2{CRAWL_SPEED};
     Repeat loop_5{&loop_start_sens, 1};
     CalculateStop calculate_stop{};
     Repeat measure_stop{&stop_seq, 1};
+
+    Sequence acc_seq{};
+    SetSpeed max_speed2{14};
+    Repeat loop_3{&loop_start_sens, 1};
+    CalculateAccel calculate_accel{};
+    Repeat measure_acc{&acc_seq, 1};
 
     PrintTrainStats print_train_stats{};
 
@@ -633,8 +629,7 @@ namespace {
     SetSpeed done_speed{0};
     Invert invert_done_speed{&done_speed};
 
-    CalibrateTrain(uint16_t speed)
-        : max_speed1(speed), max_speed2(speed), max_speed3(speed) {
+    CalibrateTrain(uint16_t speed) : max_speed1(speed), max_speed2(speed) {
 
       // after this we know where we are, and have a
       test_seq.children.push(&localize_tree);
@@ -642,26 +637,23 @@ namespace {
       // ensure we're always pathing in a loop
       test_seq.children.push(&path_to_loop_start);
 
-      // set max speed, loop 3 times, use last two for speed
+      // set max speed, loop 2 times, use second for speed
       spd_seq.children.push(&max_speed1);
       spd_seq.children.push(&loop_1);
       spd_seq.children.push(&steady_state_speed);
       test_seq.children.push(&measure_speed);
 
-      // start slow, accelerate to max
-      acc_seq.children.push(&crawl_speed);
-      acc_seq.children.push(&loop_2);
-      acc_seq.children.push(&max_speed2);
-      acc_seq.children.push(&loop_3);
-      acc_seq.children.push(&calculate_accel);
-      test_seq.children.push(&measure_acc);
-
-      stop_seq.children.push(&max_speed3);
-      stop_seq.children.push(&loop_4);
+      // going at max speed
       stop_seq.children.push(&crawl_speed2);
       stop_seq.children.push(&loop_5);
       stop_seq.children.push(&calculate_stop);
       test_seq.children.push(&measure_stop);
+
+      // going at crawl speed
+      acc_seq.children.push(&max_speed2);
+      acc_seq.children.push(&loop_3);
+      acc_seq.children.push(&calculate_accel);
+      test_seq.children.push(&measure_acc);
 
       // done, zero speed & print stats
       test_seq.children.push(&done_speed);
@@ -718,10 +710,10 @@ namespace {
       tree.children.push(&do_speed_7);
       tree.children.push(&do_speed_6);
       tree.children.push(&do_speed_5);
-      tree.children.push(&do_speed_4);
-      tree.children.push(&do_speed_3);
-      tree.children.push(&do_speed_2);
-      tree.children.push(&do_speed_1);
+      // tree.children.push(&do_speed_4);
+      // tree.children.push(&do_speed_3);
+      // tree.children.push(&do_speed_2);
+      // tree.children.push(&do_speed_1);
     }
 
     NodeResult tick(Blackboard &bb) override { return tree.tick(bb); }
@@ -806,7 +798,7 @@ void train_tree_task() {
   auto tcs_tid = WhoIs(TrainControlServer<>::NAME);
   auto tx_tid  = WhoIs(UART_TX_Server::NAME);
 
-  CalibrateTrain tree{14};
+  CalibrateTrainAllSpeeds tree{};
   Blackboard bb{
       .tcs_tid = tcs_tid,
       .txs_tid = tx_tid,

@@ -22,14 +22,14 @@ struct TrainState {
   bool light_on : 1 = true;
 
   // units of um/tick (micrometer per tick)
-  std::array<int, 15> v_max{0,   0,   32,  40,  79,  111, 131, 178,
+  std::array<int, 15> v_max{0,   0,   32,  40,  66,  111, 131, 178,
                             250, 274, 332, 393, 456, 515, 588};
   // units of nm/ticks^2 (nanometer per tick^2) aka 1000*um / ticks^2
   std::array<int, 15> accel{
       0, 47, 47, 47, 47, 47, 47, 47, 47, 192, 50, 110, 103, 99, 92,
   };
 
-  // units of nm/ticks^2 (nanometer per tick^2) aka 1000*um / ticks^2
+  // units of -nm/ticks^2 (nanometer per tick^2) aka 1000*um / ticks^2
   std::array<int, 15> decel{
       0, 47, 47, 47, 47, 47, 47, 47, 47, 192, 50, 110, 103, 99, 92,
   };
