@@ -62,36 +62,39 @@ namespace {
       int loops_to_use      = 2;
       int measurements_used = 0;
 
-      uint32_t last_tick   = 0;
-      uint32_t first_tick  = 0;
       uint32_t ttl_dist_um = 0;
+      uint32_t ttl_ticks   = 0;
+
+      // print the dists
+      for (auto it = bb.dists.end() - 1; it != bb.dists.begin(); it--) {
+        Debug_Puts(bb.txs_tid, "Dist: ", (*it).dx_um / 1000,
+                   "mm, ticks: ", (*it).d_ticks, " from: ", (*it).from_sid,
+                   " to: ", (*it).to_sid);
+      }
 
       for (auto it = bb.dists.end() - 1;
            it != bb.dists.begin() && loops_to_use > 0; it--) {
         if ((*it).sensor_data.sensor_id == LOOP_START_SID) {
           if (found_start == false) {
-            last_tick   = (*it).ticks;
             found_start = true;
           } else {
             loops_to_use--;
           }
         }
-        if (loops_to_use == 0) {
-          first_tick = (*it).ticks;
-        } else if (found_start) {
+        if (found_start && loops_to_use > 0) {
           ttl_dist_um += (*it).dx_um;
+          ttl_ticks   += (*it).d_ticks;
           measurements_used++;
         }
       }
 
-      auto total_ticks                   = last_tick - first_tick;
-      auto estimated_speed               = ttl_dist_um / total_ticks;
+      auto estimated_speed               = ttl_dist_um / ttl_ticks;
       bb.loco->v_max[bb.loco->req_speed] = estimated_speed;
-      bb.top_loop_time                   = total_ticks;
+      bb.top_loop_time                   = ttl_ticks;
 
       Debug_Puts(bb.txs_tid, "Speed ", bb.loco->req_speed,
                  " Total dist: ", ttl_dist_um / 1000,
-                 "mm, total ticks: ", total_ticks, " speed: ", estimated_speed,
+                 "mm, total ticks: ", ttl_ticks, " speed: ", estimated_speed,
                  "um/tick Sensors used: ", measurements_used, "");
 
       return NodeResult::Success;
@@ -111,29 +114,25 @@ namespace {
       int loops_to_use      = 2;
       int measurements_used = 0;
 
-      uint32_t last_tick   = 0;
-      uint32_t first_tick  = 0;
       uint32_t ttl_dist_um = 0;
+      uint32_t ttl_ticks   = 0;
 
       for (auto it = bb.dists.end() - 1;
            it != bb.dists.begin() && loops_to_use > 0; it--) {
         if ((*it).sensor_data.sensor_id == LOOP_START_SID) {
           if (found_start == false) {
-            last_tick   = (*it).ticks;
             found_start = true;
           } else {
             loops_to_use--;
           }
         }
-        if (loops_to_use == 0) {
-          first_tick = (*it).ticks;
-        } else if (found_start) {
+        if (found_start && loops_to_use > 0) {
           ttl_dist_um += (*it).dx_um;
+          ttl_ticks   += (*it).d_ticks;
           measurements_used++;
         }
       }
-
-      auto T  = last_tick - first_tick;
+      auto T  = ttl_ticks;
       auto vf = bb.loco->v_max[bb.loco->req_speed];
       bb.loco->accel[bb.loco->req_speed] =
           (vf * vf * 1000) / (2 * (vf * T - ttl_dist_um));
@@ -361,7 +360,7 @@ namespace {
               .from_sid    = bb.last_sensor_sid,
               .to_sid      = data->sensor_id,
               .dx_um       = dx_mm * 1000,
-              .ticks       = bb.curr_tick - bb.last_sensor_ticks,
+              .d_ticks     = bb.curr_tick - bb.last_sensor_ticks,
               .sensor_data = *data,
           });
         }
@@ -397,20 +396,13 @@ namespace {
 
       bb.dx_um     += static_cast<uint32_t>(dx_um);
       bb.last_tick  = bb.curr_tick;
-      if (bb.dists.empty()) {
-        bb.loco->ve = (v_i * 1000 + a * t_a) / 1000;
-      } else {
-        auto log    = bb.dists.peek_last();
-        auto d      = log->dx_um;
-        auto t      = log->ticks;
-        bb.loco->ve = (v_i * 1000 + (a * t * d) / t) / 1000;
-      }
+      bb.loco->ve   = (v_i * 1000 + a * t_a) / 1000;
 
       if (auto data = std::get_if<SensorData>(&bb.new_event);
           data && data->new_state == 1) {
 
         auto one_ago = *(bb.dists.end() - 1);
-        bb.loco->ve  = (3 * bb.loco->ve + one_ago.dx_um / one_ago.ticks) / 4;
+        bb.loco->ve  = (3 * bb.loco->ve + one_ago.dx_um / one_ago.d_ticks) / 4;
 
         int dist_prev = bb.dists.empty() ? 0 : bb.dists.peek_last()->dx_um;
         Offset_Puts(bb.txs_tid, -1, "Spd: ", bb.loco->ve, "um/ms ",
