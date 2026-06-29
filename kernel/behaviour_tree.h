@@ -28,12 +28,13 @@ struct Blackboard {
     uint16_t from_sid;
     uint16_t to_sid;
     uint32_t dx_um;
-    uint32_t tick;
+    uint32_t ticks;
     SensorData sensor_data;
   };
   Buffer<DistLog, TRACK_MAX> dists{};
 
-  uint16_t last_dist_sensor_sid{0};
+  uint16_t last_sensor_ticks{0};
+  uint16_t last_sensor_sid{0};
   uint32_t dx_um{0};
 
   uint16_t target_speed{0};

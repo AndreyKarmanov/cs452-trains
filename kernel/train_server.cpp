@@ -70,14 +70,14 @@ namespace {
            it != bb.dists.begin() && loops_to_use > 0; it--) {
         if ((*it).sensor_data.sensor_id == LOOP_START_SID) {
           if (found_start == false) {
-            last_tick   = (*it).tick;
+            last_tick   = (*it).ticks;
             found_start = true;
           } else {
             loops_to_use--;
           }
         }
         if (loops_to_use == 0) {
-          first_tick = (*it).tick;
+          first_tick = (*it).ticks;
         } else if (found_start) {
           ttl_dist_um += (*it).dx_um;
           measurements_used++;
@@ -119,14 +119,14 @@ namespace {
            it != bb.dists.begin() && loops_to_use > 0; it--) {
         if ((*it).sensor_data.sensor_id == LOOP_START_SID) {
           if (found_start == false) {
-            last_tick   = (*it).tick;
+            last_tick   = (*it).ticks;
             found_start = true;
           } else {
             loops_to_use--;
           }
         }
         if (loops_to_use == 0) {
-          first_tick = (*it).tick;
+          first_tick = (*it).ticks;
         } else if (found_start) {
           ttl_dist_um += (*it).dx_um;
           measurements_used++;
@@ -353,19 +353,20 @@ namespace {
                               return acc + static_cast<uint32_t>(node.dx_prev);
                             });
 
-        if (bb.last_dist_sensor_sid != 0 && dx_mm > 0) {
+        if (bb.last_sensor_sid != 0 && dx_mm > 0) {
           if (bb.dists.size() == bb.dists.capacity()) {
             bb.dists.pop();
           }
           bb.dists.push({
-              .from_sid    = bb.last_dist_sensor_sid,
+              .from_sid    = bb.last_sensor_sid,
               .to_sid      = data->sensor_id,
               .dx_um       = dx_mm * 1000,
-              .tick        = bb.curr_tick,
+              .ticks       = bb.curr_tick - bb.last_sensor_ticks,
               .sensor_data = *data,
           });
         }
-        bb.last_dist_sensor_sid = data->sensor_id;
+        bb.last_sensor_sid   = data->sensor_id;
+        bb.last_sensor_ticks = bb.curr_tick;
 
         auto skipped_nodes = std::distance(bb.path.begin(), idx) + 1;
         bb.path.pop(skipped_nodes);
@@ -396,17 +397,20 @@ namespace {
 
       bb.dx_um     += static_cast<uint32_t>(dx_um);
       bb.last_tick  = bb.curr_tick;
-      bb.loco->ve   = (v_i * 1000 + a * t_a) / 1000;
+      if (bb.dists.empty()) {
+        bb.loco->ve = (v_i * 1000 + a * t_a) / 1000;
+      } else {
+        auto log    = bb.dists.peek_last();
+        auto d      = log->dx_um;
+        auto t      = log->ticks;
+        bb.loco->ve = (v_i * 1000 + (a * t * d) / t) / 1000;
+      }
 
       if (auto data = std::get_if<SensorData>(&bb.new_event);
           data && data->new_state == 1) {
-        if (bb.dists.size() > 2) {
-          auto one_ago  = *(bb.dists.end() - 1);
-          auto two_ago  = *(bb.dists.end() - 2);
-          auto dt_ticks = std::max<uint32_t>(1, one_ago.tick - two_ago.tick);
-          auto measured_speed = one_ago.dx_um / dt_ticks;
-          bb.loco->ve         = (3 * bb.loco->ve + measured_speed) / 4;
-        }
+
+        auto one_ago = *(bb.dists.end() - 1);
+        bb.loco->ve  = (3 * bb.loco->ve + one_ago.dx_um / one_ago.ticks) / 4;
 
         int dist_prev = bb.dists.empty() ? 0 : bb.dists.peek_last()->dx_um;
         Offset_Puts(bb.txs_tid, -1, "Spd: ", bb.loco->ve, "um/ms ",
@@ -494,8 +498,9 @@ namespace {
       }
       auto stop_dist_um = bb.loco->stop_dist_um[bb.loco->req_speed];
 
-      Offset_Puts(bb.txs_tid, 1, "Spd: ", bb.loco->ve, "um/ms ", stop_dist_um / 1000,
-                  "mm stop dist ", remaining_um / 1000, "mm left");
+      Offset_Puts(bb.txs_tid, 1, "Spd: ", bb.loco->ve, "um/ms ",
+                  stop_dist_um / 1000, "mm stop dist ", remaining_um / 1000,
+                  "mm left");
 
       if (!stop_sent && remaining_um <= stop_dist_um) {
         auto res = send<TC::Ack>(bb.tcs_tid, TC::Cmd::Speed(bb.loco_id, 0));
@@ -582,11 +587,11 @@ namespace {
       bool reset = false;
       NodeResult tick(Blackboard &bb) override {
         if (!reset) {
-          bb.dists                = {};
-          bb.last_dist_sensor_sid = 0;
-          bb.dx_um                = 0;
-          bb.lookahead_um         = 0;
-          reset                   = true;
+          bb.dists           = {};
+          bb.last_sensor_sid = 0;
+          bb.dx_um           = 0;
+          bb.lookahead_um    = 0;
+          reset              = true;
         }
         return NodeResult::Success;
       }
