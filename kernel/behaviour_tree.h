@@ -9,7 +9,6 @@
 struct Blackboard {
   int tcs_tid{0};
   int txs_tid{0};
-  int cs_tid{0};
 
   Pathfind pathfinder;
   State state{};
@@ -76,7 +75,7 @@ struct ControlNode : public TreeNode {
   Buffer<TreeNode *, 16> children;
 };
 
-struct FallBackNode : public ControlNode {
+struct Fallback : public ControlNode {
   NodeResult tick(Blackboard &bb) override {
     for (TreeNode *child : children) {
       NodeResult result = child->tick(bb);
@@ -88,7 +87,7 @@ struct FallBackNode : public ControlNode {
   }
 };
 
-struct SequenceNode : public ControlNode {
+struct Sequence : public ControlNode {
   NodeResult tick(Blackboard &bb) override {
     for (TreeNode *child : children) {
       NodeResult result = child->tick(bb);
@@ -100,8 +99,8 @@ struct SequenceNode : public ControlNode {
   }
 };
 
-struct InvertNode : public DecoratorNode {
-  InvertNode(TreeNode *child) : DecoratorNode(child) {}
+struct Invert : public DecoratorNode {
+  Invert(TreeNode *child) : DecoratorNode(child) {}
   NodeResult tick(Blackboard &bb) override {
     NodeResult result = child->tick(bb);
     if (result == NodeResult::Success) {
@@ -127,10 +126,10 @@ struct RepeatForeverNode : public DecoratorNode {
   }
 };
 
-struct RepeatNode : public DecoratorNode {
+struct Repeat : public DecoratorNode {
   int times              = 0;
   NodeResult last_result = NodeResult::Success;
-  RepeatNode(TreeNode *child, int times) : DecoratorNode(child), times(times) {}
+  Repeat(TreeNode *child, int times) : DecoratorNode(child), times(times) {}
   NodeResult tick(Blackboard &bb) override {
     if (times == 0) {
       return last_result;
