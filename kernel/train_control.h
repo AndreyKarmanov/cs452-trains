@@ -18,7 +18,6 @@
 #include <type_traits>
 
 void train_tree_task();
-void cal_speed_task();
 
 template <size_t TX_BUFFER_SIZE = 64> class TrainControlServer {
   int waiting_ui_update_worker_tid = -1;
@@ -136,10 +135,6 @@ template <size_t TX_BUFFER_SIZE = 64> class TrainControlServer {
           } else if constexpr (std::is_same_v<Command, RunTree>) {
             spawn_tree_task(train_tree_task,
                             TC::InitTree{cmd.id, cmd.value, state});
-          } else if constexpr (std::is_same_v<Command, CalSpeed>) {
-            calibrating_train.num   = cmd.id;
-            calibrating_train.speed = cmd.value;
-            int cal_tid             = create(4, cal_speed_task);
             _assert(cal_tid >= 0, "CAL SPEED TASK CREATE FAILED");
           } else if constexpr (std::is_same_v<Command, Quit>) {
             if (waiting_ui_update_worker_tid >= 0) {
@@ -248,11 +243,6 @@ template <size_t TX_BUFFER_SIZE = 64> class TrainControlServer {
   void handle(const int tid, const TC::TreeExit &) {
     trees.remove(tid);
     reply(tid, TC::Ack{});
-  }
-
-  void handle(const int tid, const TC::CalSpeedReady &) {
-    reply(tid, TC::CalSpeedParams{.loco_id = calibrating_train.num,
-                                  .speed   = calibrating_train.speed});
   }
 
   template <class T> void handle(int sender_tid, const T &) {
