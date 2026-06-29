@@ -239,9 +239,9 @@ public:
     tx_tid = WhoIs(UART_TX_Server::NAME);
     _assert(tx_tid >= 0, "TX SERVER WHOIS FAILED");
 
-    create(2, rx_can_worker);
+    create(1, rx_can_worker);
     create(2, tx_can_worker);
-    create(3, train_tick_worker);
+    create(5, train_tick_worker);
 
     expand_user_command(TC::Cmd::RemoveTrains{});
     expand_user_command(TC::Cmd::Reset{});

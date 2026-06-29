@@ -33,7 +33,7 @@ struct Blackboard {
   };
   Buffer<DistLog, TRACK_MAX> dists{};
 
-  uint16_t last_sensor_ticks{0};
+  uint32_t last_sensor_ticks{0};
   uint16_t last_sensor_sid{0};
   uint32_t dx_um{0};
 

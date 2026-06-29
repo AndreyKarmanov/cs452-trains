@@ -65,13 +65,6 @@ namespace {
       uint32_t ttl_dist_um = 0;
       uint32_t ttl_ticks   = 0;
 
-      // print the dists
-      for (auto it = bb.dists.end() - 1; it != bb.dists.begin(); it--) {
-        Debug_Puts(bb.txs_tid, "Dist: ", (*it).dx_um / 1000,
-                   "mm, ticks: ", (*it).d_ticks, " from: ", (*it).from_sid,
-                   " to: ", (*it).to_sid);
-      }
-
       for (auto it = bb.dists.end() - 1;
            it != bb.dists.begin() && loops_to_use > 0; it--) {
         if ((*it).sensor_data.sensor_id == LOOP_START_SID) {
@@ -86,6 +79,13 @@ namespace {
           ttl_ticks   += (*it).d_ticks;
           measurements_used++;
         }
+      }
+
+      // print the dists
+      for (auto it = bb.dists.end() - 1; it != bb.dists.begin(); it--) {
+        Debug_Puts(bb.txs_tid, "Dist: ", (*it).dx_um / 1000,
+                   "mm, ticks: ", (*it).d_ticks, " from: ", (*it).from_sid,
+                   " to: ", (*it).to_sid);
       }
 
       auto estimated_speed               = ttl_dist_um / ttl_ticks;
@@ -179,87 +179,75 @@ namespace {
 
   struct SetSpeedNode : public LeafNode {
     uint16_t req_speed;
-    bool set_speed = false;
-
+    bool reached_speed = false;
     SetSpeedNode(uint16_t speed) : req_speed(speed) {}
     NodeResult tick(Blackboard &bb) override {
-      if (bb.txs_tid < 0) {
-        return NodeResult::Failure;
-      }
 
-      if (set_speed || req_speed == bb.loco->req_speed) {
+      if (reached_speed || req_speed == bb.loco->req_speed) {
+        reached_speed = true;
         return NodeResult::Success;
       }
-
       auto resp = send<TC::Ack>(
           bb.tcs_tid, TC::Cmd::Speed{.id = bb.loco_id, .value = req_speed});
       if (!resp.has_value()) {
         bb.error_msg = "Failed to set speed";
         return NodeResult::Failure;
       }
-      set_speed = true;
-      return NodeResult::Success;
+      return NodeResult::Running;
     }
   };
 
   struct SetTargetSpeedNode : public LeafNode {
     uint16_t req_speed;
-    bool set_speed{false};
+    bool reached_speed = false;
     SetTargetSpeedNode(uint16_t speed) : req_speed(speed) {}
     NodeResult tick(Blackboard &bb) override {
-      if (bb.txs_tid < 0) {
-        return NodeResult::Failure;
-      }
-      req_speed = bb.target_speed;
-
-      if (set_speed || req_speed == bb.loco->req_speed) {
+      if (reached_speed || req_speed == bb.loco->req_speed) {
+        reached_speed = true;
         return NodeResult::Success;
       }
-
-      auto resp = send<TC::Ack>(
-          bb.tcs_tid, TC::Cmd::Speed{.id = bb.loco_id, .value = req_speed});
+      auto resp =
+          send<TC::Ack>(bb.tcs_tid, TC::Cmd::Speed{.id    = bb.loco_id,
+                                                   .value = bb.target_speed});
       if (!resp.has_value()) {
-        bb.error_msg = "Failed to set target speed";
+        bb.error_msg = "Failed to set speed";
         return NodeResult::Failure;
       }
-      set_speed = true;
-      return NodeResult::Success;
+      return NodeResult::Running;
     }
   };
 
   struct TrackStop : public LeafNode {
-    bool setStop = false;
+    bool set = false;
     NodeResult tick(Blackboard &bb) override {
-
-      if (setStop) {
+      if (set || bb.state.stopped) {
+        set = true;
         return NodeResult::Success;
       }
 
       auto resp = send<TC::Ack>(bb.tcs_tid, TC::Cmd::Stop{});
-      setStop   = true;
       if (!resp.has_value()) {
         bb.error_msg = "Failed to stop track";
         return NodeResult::Failure;
       }
-      return NodeResult::Success;
+      return NodeResult::Running;
     }
   };
 
   struct TrackGo : public LeafNode {
-    bool setStop = false;
+    bool set = false;
     NodeResult tick(Blackboard &bb) override {
-
-      if (setStop) {
+      if (set || !bb.state.stopped) {
+        set = true;
         return NodeResult::Success;
       }
 
       auto resp = send<TC::Ack>(bb.tcs_tid, TC::Cmd::Go{});
-      setStop   = true;
       if (!resp.has_value()) {
         bb.error_msg = "Failed to go track";
         return NodeResult::Failure;
       }
-      return NodeResult::Success;
+      return NodeResult::Running;
     }
   };
 
@@ -267,10 +255,6 @@ namespace {
     bool backward;
     SetDirectionNode(bool backward) : backward(backward) {}
     NodeResult tick(Blackboard &bb) override {
-      if (bb.txs_tid < 0) {
-        return NodeResult::Failure;
-      }
-
       if (backward == bb.loco->backward) {
         return NodeResult::Success;
       }
@@ -282,7 +266,7 @@ namespace {
         bb.error_msg = "Failed to set direction";
         return NodeResult::Failure;
       }
-      return NodeResult::Success;
+      return NodeResult::Running;
     }
   };
 
