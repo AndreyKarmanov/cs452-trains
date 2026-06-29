@@ -18,7 +18,6 @@
 #include <type_traits>
 
 void train_tree_task();
-void cal_speed_task();
 
 template <size_t TX_BUFFER_SIZE = 64> class TrainControlServer {
   int waiting_ui_update_worker_tid = -1;
@@ -38,9 +37,8 @@ template <size_t TX_BUFFER_SIZE = 64> class TrainControlServer {
     uint32_t speed = 0;
   } calibrating_train{};
 
-  bool debug_sensor = false;
-  int cs_tid        = -1;
-  int tx_tid        = -1;
+  int cs_tid = -1;
+  int tx_tid = -1;
 
   State state{};
 
@@ -136,11 +134,6 @@ template <size_t TX_BUFFER_SIZE = 64> class TrainControlServer {
           } else if constexpr (std::is_same_v<Command, RunTree>) {
             spawn_tree_task(train_tree_task,
                             TC::InitTree{cmd.id, cmd.value, state});
-          } else if constexpr (std::is_same_v<Command, CalSpeed>) {
-            calibrating_train.num   = cmd.id;
-            calibrating_train.speed = cmd.value;
-            int cal_tid             = create(4, cal_speed_task);
-            _assert(cal_tid >= 0, "CAL SPEED TASK CREATE FAILED");
           } else if constexpr (std::is_same_v<Command, Quit>) {
             if (waiting_ui_update_worker_tid >= 0) {
               reply(waiting_ui_update_worker_tid, TC::Quit{});
@@ -150,8 +143,6 @@ template <size_t TX_BUFFER_SIZE = 64> class TrainControlServer {
               reply(waiting_can_tx_worker_tid, TC::Quit{});
               waiting_can_tx_worker_tid = -1;
             }
-          } else if constexpr (std::is_same_v<Command, DebugSensor>) {
-            debug_sensor = cmd.enabled;
           } else if constexpr (std::is_same_v<Command, Nav>) {
             spawn_tree_task(nav_tree_task,
                             TC::InitNav{cmd.id, cmd.to, cmd.speed, state});
@@ -164,24 +155,6 @@ template <size_t TX_BUFFER_SIZE = 64> class TrainControlServer {
 
   void handle(const int tid, const TC::RX &msg) {
     auto mrk = decode_frame(msg.frame);
-
-    // emit event for sensor B6 on trigger
-    if (auto *sensor = std::get_if<SensorData>(&mrk)) {
-
-      // if debug sensor, then debug puts the sensor
-      if (debug_sensor && sensor->new_state != 0) {
-        char bank        = 'A' + sensor->bank;
-        uint32_t time_us = static_cast<uint32_t>(Time(cs_tid)) * TICK_TIME_US;
-        Debug_Puts(tx_tid, "sensor trigger: ", bank, sensor->number, " at ",
-                   format_time(time_us));
-      }
-
-      constexpr uint16_t SENSOR_B6_ID = ('B' - 'A') * 16 + 6;
-      if (sensor->sensor_id == SENSOR_B6_ID && sensor->new_state != 0) {
-        emit_event(Event::SENSOR_B6);
-      }
-    }
-
     state.update_from_mrk(mrk, msg.time);
     simple_pacing_can_send = simple_pacing_can_send || (msg.frame.resp == 1);
     maybe_tx();
@@ -248,11 +221,6 @@ template <size_t TX_BUFFER_SIZE = 64> class TrainControlServer {
   void handle(const int tid, const TC::TreeExit &) {
     trees.remove(tid);
     reply(tid, TC::Ack{});
-  }
-
-  void handle(const int tid, const TC::CalSpeedReady &) {
-    reply(tid, TC::CalSpeedParams{.loco_id = calibrating_train.num,
-                                  .speed   = calibrating_train.speed});
   }
 
   template <class T> void handle(int sender_tid, const T &) {
