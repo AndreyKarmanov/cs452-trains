@@ -30,17 +30,16 @@ struct TrainState {
   bool light_on : 1 = true;
 
   // units of um/tick (micrometer per tick)
-  std::array<int, 15> v_max{0,   0,   32,  40,  79,  94,  133, 177,
-                            223, 276, 331, 393, 455, 516, 587};
+  std::array<int, 15> v_max_umpt{0,   0,   32,  40,  63,  94,  133, 177,
+                                 223, 276, 331, 393, 455, 516, 587};
   // units of nm/ticks^2 (nanometer per tick^2) aka 1000*um / ticks^2
-  std::array<int, 15> accel{0,  0,  0,  33, 33, 33, 33, 56,
-                            52, 57, 63, 64, 71, 75, 78};
+  std::array<int, 15> a_nmpt2{0,  0,  0,  33, 33, 33, 33, 56,
+                              52, 57, 63, 64, 71, 75, 78};
 
   // units of -nm/ticks^2 (nanometer per tick^2) aka 1000*um / ticks^2
   // these are wrong values right now, I forgot to ca
-  std::array<int, 15> decel{
-      0, 47, 47, 47, 47, 47, 47, 47, 47, 192, 50, 110, 103, 99, 92,
-  };
+  std::array<int, 15> d_nmpt2{0,  0,  0,  33, 33, 33, 33, 56,
+                              52, 57, 63, 64, 71, 75, 78};
 
   std::array<uint32_t, 15> stop_dist_um{
       1000,   40000,  55000,  80000,  90000,  100000,  154000,  249000,
@@ -52,8 +51,8 @@ struct TrainState {
   //     340000, 440000, 660000, 770000, 970000, 1140000, 1350000,
   // };
 
-  // units of um / tick
-  int ve{0};
+  // units of nm / tick
+  int ve_nm{0};
 };
 
 struct State {

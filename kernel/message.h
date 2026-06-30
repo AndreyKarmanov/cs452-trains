@@ -173,6 +173,7 @@ namespace TC {
     struct RunTree {
       uint32_t id;
       uint32_t value;
+      uint32_t value2;
     };
 
     struct Nav {
@@ -194,6 +195,7 @@ namespace TC {
   struct InitTree {
     uint32_t loco_id;
     uint32_t value;
+    uint32_t value2;
     State state;
   };
 

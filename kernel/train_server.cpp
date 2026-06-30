@@ -30,22 +30,34 @@ namespace {
     }
   };
 
+  struct DebugPrintDists : public LeafNode {
+    NodeResult tick(Blackboard &bb) override {
+      Debug_Puts(bb.txs_tid, "from, to, dist (mm), ticks");
+      for (auto &dist : bb.dists) {
+        Debug_Puts(bb.txs_tid, dist.from_sid, ", ",
+                   (char)('A' + dist.sensor_data.bank), dist.sensor_data.number,
+                   ", ", dist.dx_um / 1000, ", ", dist.d_ticks);
+      }
+      return NodeResult::Success;
+    }
+  };
+
   struct PrintTrainStats : public LeafNode {
     NodeResult tick(Blackboard &bb) override {
       // print all the acceleration values and top speed values for the train
       Debug_Puts(bb.txs_tid, "Train ", bb.loco_id, " Stats: ");
-      Debug_Puts(bb.txs_tid, "Speed | Top | Accel | Decel | Stop Dist");
+      Debug_Puts(bb.txs_tid, "Speed,Top,Accel,Decel,Stop Dist");
       for (int i = 0; i < 15; ++i) {
         StaticString<128> stats_str{};
         AppendPadded(stats_str, i, 3);
-        stats_str.append("   | ");
-        AppendPadded(stats_str, bb.loco->v_max[i], 3);
-        stats_str.append(" | ");
-        AppendPadded(stats_str, bb.loco->accel[i], 5);
-        stats_str.append(" | ");
-        AppendPadded(stats_str, bb.loco->decel[i], 5);
-        stats_str.append(" | ", bb.loco->stop_dist_um[i] / 1000);
-        Debug_Puts(bb.txs_tid, stats_str, "\n\r");
+        stats_str.append("   , ");
+        AppendPadded(stats_str, bb.loco->v_max_umpt[i], 3);
+        stats_str.append(" , ");
+        AppendPadded(stats_str, bb.loco->a_nmpt2[i], 5);
+        stats_str.append(" , ");
+        AppendPadded(stats_str, bb.loco->d_nmpt2[i], 5);
+        stats_str.append(" , ", bb.loco->stop_dist_um[i] / 1000);
+        Debug_Puts(bb.txs_tid, stats_str);
       }
 
       return NodeResult::Success;
@@ -65,6 +77,8 @@ namespace {
       uint32_t ttl_dist_um = 0;
       uint32_t ttl_ticks   = 0;
 
+      Debug_Puts(bb.txs_tid, "TOP SPEED: ", bb.target_speed);
+      Debug_Puts(bb.txs_tid, "from, to, dist (mm), ticks");
       for (auto it = bb.dists.end() - 1;
            it != bb.dists.begin() && loops_to_use > 0; it--) {
         if ((*it).sensor_data.sensor_id == LOOP_START_SID) {
@@ -78,14 +92,14 @@ namespace {
           ttl_dist_um += (*it).dx_um;
           ttl_ticks   += (*it).d_ticks;
           measurements_used++;
-          Debug_Puts(bb.txs_tid, "f: ", (*it).from_sid, " to: ", (*it).to_sid,
-                     " d: ", (*it).dx_um / 1000, "mm in: ", (*it).d_ticks);
+          Debug_Puts(bb.txs_tid, (*it).from_sid, ", ", (*it).to_sid, ", ",
+                     (*it).dx_um / 1000, ", ", (*it).d_ticks);
         }
       }
 
-      auto estimated_speed            = ttl_dist_um / ttl_ticks;
-      bb.loco->v_max[bb.target_speed] = estimated_speed;
-      bb.top_loop_time                = ttl_ticks;
+      auto estimated_speed                 = ttl_dist_um / ttl_ticks;
+      bb.loco->v_max_umpt[bb.target_speed] = estimated_speed;
+      bb.top_loop_time                     = ttl_ticks;
 
       Debug_Puts(bb.txs_tid, "Speed ", bb.target_speed,
                  " Total dist: ", ttl_dist_um / 1000,
@@ -106,6 +120,8 @@ namespace {
       uint32_t ttl_dist_um = 0;
       uint32_t ttl_ticks   = 0;
 
+      Debug_Puts(bb.txs_tid, "ACCEL: ", bb.target_speed);
+      Debug_Puts(bb.txs_tid, "from, to, dist (mm), ticks");
       for (auto it = bb.dists.end() - 1;
            it != bb.dists.begin() && loops_to_use > 0; it--) {
         if ((*it).sensor_data.sensor_id == LOOP_START_SID) {
@@ -120,23 +136,23 @@ namespace {
           ttl_ticks   += (*it).d_ticks;
           measurements_used++;
 
-          Debug_Puts(bb.txs_tid, "f: ", (*it).from_sid, " to: ", (*it).to_sid,
-                     " d: ", (*it).dx_um / 1000, "mm in: ", (*it).d_ticks);
+          Debug_Puts(bb.txs_tid, (*it).from_sid, ", ", (*it).to_sid, ", ",
+                     (*it).dx_um / 1000, ", ", (*it).d_ticks);
         }
       }
 
-      auto vc = bb.loco->v_max[CRAWL_SPEED];
-      auto vf = bb.loco->v_max[bb.target_speed];
+      auto vc = bb.loco->v_max_umpt[CRAWL_SPEED];
+      auto vf = bb.loco->v_max_umpt[bb.target_speed];
 
       auto accel = (((vf * vf + vc * vc) - 2 * vf * vc) * 1000) /
                    (2 * (vf * ttl_ticks - ttl_dist_um));
 
-      bb.loco->accel[bb.target_speed] = accel;
+      bb.loco->a_nmpt2[bb.target_speed] = accel;
 
       Debug_Puts(bb.txs_tid, "Speed ", bb.target_speed,
                  " Total dist: ", ttl_dist_um / 1000,
                  "mm, total ticks: ", ttl_ticks,
-                 " acceleration: ", bb.loco->accel[bb.target_speed],
+                 " acceleration: ", bb.loco->a_nmpt2[bb.target_speed],
                  "nm/tick^2 sensors: ", measurements_used);
 
       return NodeResult::Success;
@@ -152,6 +168,8 @@ namespace {
       uint32_t ttl_dist_um = 0;
       uint32_t ttl_ticks   = 0;
 
+      Debug_Puts(bb.txs_tid, "STOP: ", bb.target_speed);
+      Debug_Puts(bb.txs_tid, "from, to, dist (mm), ticks");
       for (auto it = bb.dists.end() - 1;
            it != bb.dists.begin() && loops_to_use > 0; it--) {
         if ((*it).sensor_data.sensor_id == LOOP_START_SID) {
@@ -166,19 +184,19 @@ namespace {
           ttl_ticks   += (*it).d_ticks;
           measurements_used++;
 
-          Debug_Puts(bb.txs_tid, "f: ", (*it).from_sid, "to: ", (*it).to_sid,
-                     " d: ", (*it).dx_um / 1000, "mm in: ", (*it).d_ticks);
+          Debug_Puts(bb.txs_tid, (*it).from_sid, ", ", (*it).to_sid, ", ",
+                     (*it).dx_um / 1000, ", ", (*it).d_ticks);
         }
       }
 
-      auto vc = bb.loco->v_max[CRAWL_SPEED];
-      auto vf = bb.loco->v_max[bb.target_speed];
+      auto vc = bb.loco->v_max_umpt[CRAWL_SPEED];
+      auto vf = bb.loco->v_max_umpt[bb.target_speed];
 
       auto decel = ((vf * vf - 2 * vf * vc + vc * vc) * 1000) /
                    (2 * (ttl_dist_um - vc * ttl_ticks));
 
       auto stop_dist                         = ttl_dist_um - vc * ttl_ticks;
-      bb.loco->decel[bb.target_speed]        = decel;
+      bb.loco->d_nmpt2[bb.target_speed]      = decel;
       bb.loco->stop_dist_um[bb.target_speed] = stop_dist;
 
       Debug_Puts(bb.txs_tid, "Speed ", bb.target_speed,
@@ -233,13 +251,11 @@ namespace {
   };
 
   struct SetTargetSpeed : public LeafNode {
-    uint16_t req_speed;
     bool reached_speed = false;
     bool sent_cmd      = false;
-    SetTargetSpeed(uint16_t speed) : req_speed(speed) {}
+    SetTargetSpeed() {}
     NodeResult tick(Blackboard &bb) override {
 
-      bb.target_speed = req_speed;
       // if sent + reached -> done
       if (reached_speed) {
         return NodeResult::Success;
@@ -408,11 +424,9 @@ namespace {
           return NodeResult::Failure;
         }
 
-        uint32_t dx_mm =
-            std::accumulate(bb.path.begin(), idx + 1, uint32_t(0),
-                            [](uint32_t acc, const PathNode &node) {
-                              return acc + static_cast<uint32_t>(node.dx_prev);
-                            });
+        auto dx_mm = std::accumulate(
+            bb.path.begin(), idx + 1, 0,
+            [](int acc, const PathNode &node) { return acc + node.dx_prev; });
 
         if (bb.last_sensor_sid != 0 && dx_mm > 0) {
           if (bb.dists.size() == bb.dists.capacity()) {
@@ -446,30 +460,26 @@ namespace {
 
   struct UpdateModel : public LeafNode {
     NodeResult tick(Blackboard &bb) override {
-      int a     = bb.loco->accel[bb.loco->req_speed];
-      int v_max = bb.loco->v_max[bb.loco->req_speed];
-      int v_i   = bb.loco->ve;
-      int d_t   = bb.curr_tick - bb.last_tick;
+      int a      = bb.loco->a_nmpt2[bb.loco->req_speed];
+      int v_m_um = bb.loco->v_max_umpt[bb.loco->req_speed];
+      int v_i_nm = bb.loco->ve_nm;
+      int d_t    = bb.curr_tick - bb.last_tick;
 
-      int t_a = std::min(((v_max - v_i) * 1000 / a), d_t);
+      int t_a = std::min(((v_m_um * 1000 - v_i_nm) / a), d_t);
       int t_c = d_t - t_a;
 
-      int dx_um = ((a * t_a * t_a) / 2000 + v_max * t_c + v_i * d_t);
+      bb.dx_um += ((a * t_a * t_a) / 2000 + v_m_um * t_c + v_i_nm * d_t / 1000);
+      bb.last_tick   = bb.curr_tick;
+      bb.loco->ve_nm = v_i_nm + a * t_a;
 
-      bb.dx_um     += static_cast<uint32_t>(dx_um);
-      bb.last_tick  = bb.curr_tick;
-      bb.loco->ve   = (v_i * 1000 + a * t_a) / 1000;
+      Offset_Puts(bb.txs_tid, -2, "Spd: ", bb.loco->ve_nm / 1000, "um/ms t_a ",
+                  t_a, " d_t ", d_t, " v_i ", v_i_nm / 1000, " v_max ", v_m_um,
+                  " a: ", a, "nm/t^2 dx_mm", bb.dx_um / 1000);
 
       if (auto data = std::get_if<SensorData>(&bb.new_event);
-          data && data->new_state == 1) {
-
-        auto one_ago = *(bb.dists.end() - 1);
-        bb.loco->ve  = (3 * bb.loco->ve + one_ago.dx_um / one_ago.d_ticks) / 4;
-
-        int dist_prev = bb.dists.empty() ? 0 : bb.dists.peek_last()->dx_um;
-        Offset_Puts(bb.txs_tid, -1, "Spd: ", bb.loco->ve, "um/ms Err: ",
-                    (static_cast<int>(bb.dx_um) - dist_prev) / 1000, "mm");
-
+          data && data->new_state == 1 && !bb.dists.empty()) {
+        auto error_um = bb.dx_um - bb.dists.peek_last()->dx_um;
+        Offset_Puts(bb.txs_tid, -1, "Err: ", error_um / 1000, "mm");
         bb.dx_um = 0;
 
         auto next_sensor_idx = std::ranges::find_if(
@@ -490,7 +500,8 @@ namespace {
       }
 
       auto lookahead_um =
-          bb.dx_um + static_cast<uint32_t>(bb.loco->ve) * TICKS_PER_S * 3;
+          bb.dx_um +
+          static_cast<uint32_t>(bb.loco->ve_nm / 1000) * TICKS_PER_S * 3;
       bb.lookahead_um =
           lookahead_um > 1500u * 1000u ? lookahead_um : 1500u * 1000u;
 
@@ -529,95 +540,62 @@ namespace {
   };
 
   struct StopAtDonePath : public LeafNode {
-    bool stop_sent{false};
     bool crawl_sent{false};
 
-    uint32_t STOP_DIST_AT_CRAWL_UM = 9'0000; // 10cm
+    uint32_t STOP_DIST_AT_CRAWL_UM = 9'0000;
+
+    SetSpeed stop{0};
 
     NodeResult tick(Blackboard &bb) override {
 
       if (bb.path.empty()) {
-        if (!stop_sent) {
-          auto res = send<TC::Ack>(bb.tcs_tid, TC::Cmd::Speed(bb.loco_id, 0));
-          if (!res.has_value()) {
-            return NodeResult::Failure;
-          }
-          stop_sent = true;
-        }
-        return NodeResult::Success;
+        return stop.tick(bb);
       }
 
       // do this in two phases
       // top speed until reaching stop distance, then crawl until reaching the
       // sensor
 
-      uint32_t remaining_um = 0;
-      if (bb.path.dist * 1000u > bb.dx_um) {
-        remaining_um = static_cast<uint32_t>(bb.path.dist) * 1000u - bb.dx_um -
-                       bb.loco->ve * TICKS_PER_MS * 10;
-      }
+      // uint32_t remaining_um = 0;
+      // if (bb.path.dist * 1000u > bb.dx_um) {
+      //   remaining_um = static_cast<uint32_t>(bb.path.dist) * 1000u - bb.dx_um
+      //   -
+      //                  bb.loco->ve * TICKS_PER_MS * 10;
+      // }
 
-      // if we should be crawling?
-      if (remaining_um <= STOP_DIST_AT_CRAWL_UM) {
-        if (!stop_sent) {
-          auto res = send<TC::Ack>(bb.tcs_tid, TC::Cmd::Speed(bb.loco_id, 0));
-          if (!res.has_value()) {
-            return NodeResult::Failure;
-          }
-          Debug_Puts(bb.txs_tid, "Stopping train ", bb.loco_id, " est dist ",
-                     remaining_um / 1000, "mm");
-          stop_sent = true;
-        }
-        return NodeResult::Running;
-      } else if (remaining_um <=
-                     bb.loco->stop_dist_um[bb.loco->req_speed] * 2 &&
-                 !crawl_sent) {
-        auto res =
-            send<TC::Ack>(bb.tcs_tid, TC::Cmd::Speed(bb.loco_id, CRAWL_SPEED));
-        if (!res.has_value()) {
-          return NodeResult::Failure;
-        }
-        crawl_sent = true;
-        Debug_Puts(bb.txs_tid, "Crawling train ", bb.loco_id, " est dist ",
-                   remaining_um / 1000, "mm");
-        return NodeResult::Running;
-      } else if (bb.loco->ve > 0) {
-        Offset_Puts(bb.txs_tid, -2, "Train ", bb.loco_id, " est dist ",
-                    remaining_um / 1000, "mm", " est speed ", bb.loco->ve,
-                    "um/ms");
-        return NodeResult::Running;
-      }
-      return NodeResult::Success;
+      // // if we should be crawling?
+      // if (remaining_um <= STOP_DIST_AT_CRAWL_UM) {
+      //   if (!stop_sent) {
+      //     auto res = send<TC::Ack>(bb.tcs_tid, TC::Cmd::Speed(bb.loco_id,
+      //     0)); if (!res.has_value()) {
+      //       return NodeResult::Failure;
+      //     }
+      //     Debug_Puts(bb.txs_tid, "Stopping train ", bb.loco_id, " est dist ",
+      //                remaining_um / 1000, "mm");
+      //     stop_sent = true;
+      //   }
+      //   return NodeResult::Running;
+      // } else if (remaining_um <=
+      //                bb.loco->stop_dist_um[bb.loco->req_speed] * 2 &&
+      //            !crawl_sent) {
+      //   auto res =
+      //       send<TC::Ack>(bb.tcs_tid, TC::Cmd::Speed(bb.loco_id,
+      //       CRAWL_SPEED));
+      //   if (!res.has_value()) {
+      //     return NodeResult::Failure;
+      //   }
+      //   crawl_sent = true;
+      //   Debug_Puts(bb.txs_tid, "Crawling train ", bb.loco_id, " est dist ",
+      //              remaining_um / 1000, "mm");
+      //   return NodeResult::Running;
+      // } else if (bb.loco->ve > 0) {
+      //   Offset_Puts(bb.txs_tid, -2, "Train ", bb.loco_id, " est dist ",
+      //               remaining_um / 1000, "mm", " est speed ", bb.loco->ve,
+      //               "um/ms");
+      //   return NodeResult::Running;
+      // }
+      return NodeResult::Running;
     };
-  };
-
-  // sets the train to move slowly (speed 4) and waits for the first sensor
-  // without stopping the train once localization has started.
-  struct LocalizerTree : public LeafNode {
-    Sequence tree{};
-
-    Sequence inital{};
-    SetSpeed set_speed{CRAWL_SPEED};
-    AwaitSensorNode await_sensor{};
-    Repeat localize_init{&inital, 1};
-
-    Sequence loop{};
-    LocalizerNode localize{};
-    UpdateModel model{};
-    PathLookaheadNode lookahead{};
-
-    LocalizerTree() {
-      inital.children.push(&set_speed);
-      inital.children.push(&await_sensor);
-      tree.children.push(&localize_init);
-
-      loop.children.push(&localize);
-      loop.children.push(&model);
-      loop.children.push(&lookahead);
-      tree.children.push(&loop);
-    }
-
-    NodeResult tick(Blackboard &bb) override { return tree.tick(bb); }
   };
 
   struct PathToNode : public LeafNode {
@@ -659,7 +637,59 @@ namespace {
     }
   };
 
+  struct LocalizerTree : public LeafNode {
+    Sequence tree{};
+
+    Sequence inital{};
+    SetSpeed set_speed{CRAWL_SPEED};
+    AwaitSensorNode await_sensor{};
+    Repeat localize_init{&inital, 1};
+
+    Sequence loop{};
+    LocalizerNode localize{};
+    UpdateModel model{};
+    PathLookaheadNode lookahead{};
+
+    LocalizerTree() {
+      inital.children.push(&set_speed);
+      inital.children.push(&await_sensor);
+      tree.children.push(&localize_init);
+
+      loop.children.push(&localize);
+      loop.children.push(&model);
+      loop.children.push(&lookahead);
+      tree.children.push(&loop);
+    }
+
+    NodeResult tick(Blackboard &bb) override { return tree.tick(bb); }
+  };
+
+  struct ManualCalibrate : public LeafNode {
+    Sequence test_seq{};
+    LocalizerTree localize_tree{};
+    PathToNode path_to_loop_start{LOOP_START_NODE};
+
+    Sequence on_loop{};
+    AwaitSensorNode loop_start_sens{LOOP_START_SID};
+    DebugPrintDists debug_print_dists{};
+
+    Repeat loop_1{&on_loop, 10};
+
+    ManualCalibrate() {
+      test_seq.children.push(&localize_tree);
+      test_seq.children.push(&path_to_loop_start);
+
+      on_loop.children.push(&loop_start_sens);
+      on_loop.children.push(&debug_print_dists);
+      test_seq.children.push(&loop_1);
+    }
+    NodeResult tick(Blackboard &bb) override { return test_seq.tick(bb); }
+  };
+
   struct CalibrateTrain : public LeafNode {
+
+    uint16_t target_speed{0};
+    bool done = false;
 
     Sequence test_seq{};
     LocalizerTree localize_tree{};
@@ -669,7 +699,7 @@ namespace {
     PathToNode path_to_loop_start{LOOP_START_NODE};
 
     Sequence spd_seq{};
-    SetTargetSpeed max_speed1{14};
+    SetTargetSpeed max_speed1{};
     Repeat loop_1{&loop_start_sens, 3};
     CalculateSteadySpeed steady_state_speed{};
     Repeat measure_speed{&spd_seq, 1};
@@ -681,7 +711,7 @@ namespace {
     Repeat measure_stop{&stop_seq, 1};
 
     Sequence acc_seq{};
-    SetTargetSpeed max_speed2{14};
+    SetTargetSpeed max_speed2{};
     Repeat loop_3{&loop_start_sens, 1};
     CalculateAccel calculate_accel{};
     Repeat measure_acc{&acc_seq, 1};
@@ -692,7 +722,7 @@ namespace {
     SetSpeed done_speed{0};
     Invert invert_done_speed{&done_speed};
 
-    CalibrateTrain(uint16_t speed) : max_speed1(speed), max_speed2(speed) {
+    CalibrateTrain(uint16_t speed) : target_speed(speed) {
 
       // after this we know where we are, and have a
       test_seq.children.push(&localize_tree);
@@ -728,7 +758,14 @@ namespace {
       tree.children.push(&invert_done_speed);
     }
 
-    NodeResult tick(Blackboard &bb) override { return tree.tick(bb); }
+    NodeResult tick(Blackboard &bb) override {
+      if (!done && target_speed != 0 && bb.target_speed != target_speed) {
+        bb.target_speed = target_speed;
+      }
+      auto res = tree.tick(bb);
+      done     = res == NodeResult::Success || res == NodeResult::Failure;
+      return res;
+    }
   };
 
   struct CalibrateTrainAllSpeeds : public LeafNode {
@@ -762,6 +799,11 @@ namespace {
     CalibrateTrain speed_14{14};
     Repeat do_speed_14{&speed_14, 1};
 
+    std::array<CalibrateTrain *, 14> speeds{
+        &speed_1,  &speed_2,  &speed_3,  &speed_4, &speed_5,
+        &speed_6,  &speed_7,  &speed_8,  &speed_9, &speed_10,
+        &speed_11, &speed_12, &speed_13, &speed_14};
+
     CalibrateTrainAllSpeeds() {
       tree.children.push(&do_speed_4);
       tree.children.push(&do_speed_5);
@@ -776,7 +818,31 @@ namespace {
       tree.children.push(&do_speed_14);
     }
 
-    NodeResult tick(Blackboard &bb) override { return tree.tick(bb); }
+    NodeResult tick(Blackboard &bb) override {
+      if (bb.init_v2 == 0) {
+        return tree.tick(bb);
+      } else if (bb.init_v2 > 0 && bb.init_v2 <= 14) {
+        return speeds[bb.init_v2 - 1]->tick(bb);
+      } else {
+        bb.error_msg = "Invalid init_v2 value";
+        return NodeResult::Failure;
+      }
+    }
+  };
+
+  struct ChooseTree : public LeafNode {
+    CalibrateTrainAllSpeeds calibrate_tree{};
+    ManualCalibrate manual_tree{};
+    NodeResult tick(Blackboard &bb) override {
+      if (bb.init_v1 == 0) {
+        return calibrate_tree.tick(bb);
+      } else if (bb.init_v1 == 1) {
+        return manual_tree.tick(bb);
+      } else {
+        bb.error_msg = "Invalid init_v1 value";
+        return NodeResult::Failure;
+      }
+    }
   };
 
   struct NavigateTree : public TreeNode {
@@ -790,12 +856,18 @@ namespace {
     PathLookaheadNode path_lookahead{};
     TargetSpeed2 max_speed{7};
     StopAtDonePath stop_at_done{};
+    WaitNode wait_to_stop{7 * TICKS_PER_S};
+    DebugPrintDists debug_print_dists{};
+    PrintTrainStats print_train_stats{};
 
     NavigateTree() {
       seq.children.push(&localizer_tree);
       seq.children.push(&path_to_goal_once);
       seq.children.push(&max_speed);
       seq.children.push(&stop_at_done);
+      seq.children.push(&wait_to_stop);
+      seq.children.push(&debug_print_dists);
+      seq.children.push(&print_train_stats);
     }
 
     NodeResult tick(Blackboard &bb) override {
@@ -856,10 +928,11 @@ static void run_tree(TreeNode &tree, Blackboard &bb) {
         [&](auto &&event) {
           using Event = std::decay_t<decltype(event)>;
           if constexpr (std::is_same_v<Event, TC::InitTree>) {
-            bb.state        = event.state;
-            bb.loco_id      = event.loco_id;
-            bb.target_speed = event.value;
-            bb.loco         = bb.state.get_loco(bb.loco_id);
+            bb.state   = event.state;
+            bb.loco_id = event.loco_id;
+            bb.loco    = bb.state.get_loco(bb.loco_id);
+            bb.init_v1 = event.value;
+            bb.init_v2 = event.value2;
           } else if constexpr (std::is_same_v<Event, TC::InitNav>) {
             bb.state        = event.state;
             bb.loco_id      = event.loco_id;
@@ -891,7 +964,7 @@ void train_tree_task() {
   auto tcs_tid = WhoIs(TrainControlServer<>::NAME);
   auto tx_tid  = WhoIs(UART_TX_Server::NAME);
 
-  CalibrateTrainAllSpeeds tree{};
+  ChooseTree tree{};
   Blackboard bb{
       .tcs_tid = tcs_tid,
       .txs_tid = tx_tid,

@@ -169,14 +169,16 @@ TC::Cmd::Any parse_command(StaticString<CLI_BUFFER_SIZE> &buf) {
   if (cmd_len == 2 && strncmp(cmd, "rt", 2) == 0) {
     uint32_t loco_id      = 0;
     uint32_t value        = 0;
+    uint32_t value2       = 0;
     const char *parse_cur = cur;
     if (parse_uint(parse_cur, end, loco_id) &&
-        parse_uint(parse_cur, end, value) && done_parse(parse_cur, end)) {
-      out = TC::Cmd::RunTree{loco_id, value};
-      buf.set("Success: rt ", loco_id, ' ', value);
+        parse_uint(parse_cur, end, value) &&
+        parse_uint(parse_cur, end, value2) && done_parse(parse_cur, end)) {
+      out = TC::Cmd::RunTree{loco_id, value, value2};
+      buf.set("Success: rt ", loco_id, ' ', value, ' ', value2);
     } else {
       out = TC::Cmd::Invalid{};
-      buf.set("Error: Format is rt <train number> <value>");
+      buf.set("Error: Format is rt <train number> <value> <value2>");
     }
     return out;
   }

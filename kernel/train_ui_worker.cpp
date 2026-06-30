@@ -29,9 +29,9 @@ uint32_t print_state(int tx_tid, const State &state) {
                   train.light_on ? " On " : " Off", " | ");
       AppendPadded(line, train.req_speed, 3);
       line.append(" | ");
-      AppendPadded(line, train.ve, 3);
+      AppendPadded(line, train.ve_nm / 1000, 3);
       line.append(" | ");
-      AppendPadded(line, train.v_max[train.req_speed], 3);
+      AppendPadded(line, train.v_max_umpt[train.req_speed], 3);
       line.append("\n\r");
     }
     Puts(tx_tid, line);

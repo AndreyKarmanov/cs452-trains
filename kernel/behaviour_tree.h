@@ -15,6 +15,9 @@ struct Blackboard {
   uint32_t loco_id{};
   TrainState *loco{nullptr};
 
+  uint32_t init_v1{0};
+  uint32_t init_v2{0};
+
   Path path{};
 
   struct SensorSighting {
@@ -26,7 +29,7 @@ struct Blackboard {
   struct DistLog {
     uint16_t from_sid;
     uint16_t to_sid;
-    uint32_t dx_um;
+    int dx_um;
     uint32_t d_ticks;
     SensorData sensor_data;
   };
@@ -34,7 +37,7 @@ struct Blackboard {
 
   uint32_t last_sensor_ticks{0};
   uint16_t last_sensor_sid{0};
-  uint32_t dx_um{0};
+  int dx_um{0};
 
   uint16_t target_speed{0};
 
