@@ -263,6 +263,38 @@ namespace {
     }
   };
 
+  struct TargetSpeed2 : public LeafNode {
+    uint16_t req_speed;
+    bool reached_speed = false;
+    bool sent_cmd      = false;
+    TargetSpeed2(uint16_t speed) : req_speed(speed) {}
+    NodeResult tick(Blackboard &bb) override {
+
+      // if sent + reached -> done
+      if (reached_speed) {
+        return NodeResult::Success;
+      }
+
+      // if sent + got response -> done
+      if (auto data = std::get_if<SpeedCmd>(&bb.new_event);
+          sent_cmd && data && data->loco_id == bb.loco_id &&
+          mrk_level_to_user_speed(data->speed) == bb.target_speed) {
+        reached_speed = true;
+        return NodeResult::Success;
+      }
+
+      auto resp =
+          send<TC::Ack>(bb.tcs_tid, TC::Cmd::Speed{.id    = bb.loco_id,
+                                                   .value = bb.target_speed});
+      if (!resp.has_value()) {
+        bb.error_msg = "Failed to set speed";
+        return NodeResult::Failure;
+      }
+      sent_cmd = true;
+      return NodeResult::Running;
+    }
+  };
+
   struct TrackStop : public LeafNode {
     bool set = false;
     NodeResult tick(Blackboard &bb) override {
@@ -511,26 +543,27 @@ namespace {
         return NodeResult::Success;
       }
 
-      uint32_t remaining_um = 0;
-      if (bb.path.dist * 1000u > bb.dx_um) {
-        remaining_um = static_cast<uint32_t>(bb.path.dist) * 1000u - bb.dx_um -
-                       bb.loco->ve * TICKS_PER_MS * 10;
-      }
+      // uint32_t remaining_um = 0;
+      // if (bb.path.dist * 1000u > bb.dx_um) {
+      //   remaining_um = static_cast<uint32_t>(bb.path.dist) * 1000u - bb.dx_um
+      //   -
+      //                  bb.loco->ve * TICKS_PER_MS * 10;
+      // }
 
-      auto stop_dist_um = bb.loco->stop_dist_um[bb.loco->req_speed];
-      // linearly interpolate between the stiances
+      // auto stop_dist_um = bb.loco->stop_dist_um[bb.loco->req_speed];
+      // // linearly interpolate between the stiances
 
-      Offset_Puts(bb.txs_tid, 1, "Spd: ", bb.loco->ve, "um/ms ",
-                  stop_dist_um / 1000, "mm stop dist ", remaining_um / 1000,
-                  "mm left");
+      // Offset_Puts(bb.txs_tid, 1, "Spd: ", bb.loco->ve, "um/ms ",
+      //             stop_dist_um / 1000, "mm stop dist ", remaining_um / 1000,
+      //             "mm left");
 
-      if (!stop_sent && remaining_um <= stop_dist_um) {
-        auto res = send<TC::Ack>(bb.tcs_tid, TC::Cmd::Speed(bb.loco_id, 0));
-        if (!res.has_value()) {
-          return NodeResult::Failure;
-        }
-        stop_sent = true;
-      }
+      // if (!stop_sent && remaining_um <= stop_dist_um) {
+      //   auto res = send<TC::Ack>(bb.tcs_tid, TC::Cmd::Speed(bb.loco_id, 0));
+      //   if (!res.has_value()) {
+      //     return NodeResult::Failure;
+      //   }
+      //   stop_sent = true;
+      // }
 
       return NodeResult::Running;
     };
@@ -733,7 +766,7 @@ namespace {
     Repeat path_to_goal_once{&path_to_goal, 1};
     LocalizerNode path_localizer{};
     PathLookaheadNode path_lookahead{};
-    SetTargetSpeed max_speed{7};
+    TargetSpeed2 max_speed{7};
     StopAtDonePath stop_at_done{};
 
     NavigateTree() {
