@@ -34,7 +34,7 @@ namespace {
     NodeResult tick(Blackboard &bb) override {
       // print all the acceleration values and top speed values for the train
       Debug_Puts(bb.txs_tid, "Train ", bb.loco_id, " Stats: ");
-      Debug_Puts(bb.txs_tid, "Speed | Top | Accel | Stop Dist");
+      Debug_Puts(bb.txs_tid, "Speed | Top | Accel | Decel | Stop Dist");
       for (int i = 0; i < 15; ++i) {
         StaticString<128> stats_str{};
         AppendPadded(stats_str, i, 3);
@@ -42,6 +42,8 @@ namespace {
         AppendPadded(stats_str, bb.loco->v_max[i], 3);
         stats_str.append(" | ");
         AppendPadded(stats_str, bb.loco->accel[i], 5);
+        stats_str.append(" | ");
+        AppendPadded(stats_str, bb.loco->decel[i], 5);
         stats_str.append(" | ", bb.loco->stop_dist_um[i] / 1000);
         Debug_Puts(bb.txs_tid, stats_str, "\n\r");
       }

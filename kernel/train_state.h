@@ -8,7 +8,7 @@
 #define MAX_SENSORS_RECENT 10
 
 // Train 15 Stats:
-// Speed | Top | Accel | Stop Dist
+// Speed | Top | Accel | Dist to get to speed 4
 //   4   |  79 |     0 | 0
 //   5   |  94 |     0 | 1
 //   6   | 133 |    33 | 64
@@ -37,13 +37,14 @@ struct TrainState {
                             52, 57, 63, 64, 71, 75, 78};
 
   // units of -nm/ticks^2 (nanometer per tick^2) aka 1000*um / ticks^2
+  // these are wrong values right now, I forgot to ca
   std::array<int, 15> decel{
       0, 47, 47, 47, 47, 47, 47, 47, 47, 192, 50, 110, 103, 99, 92,
   };
 
   std::array<uint32_t, 15> stop_dist_um{
-      1000,   40000,  55000,  80000,  0,      1000,   64000,   159000,
-      246000, 301000, 411000, 593000, 743000, 965000, 1217000,
+      1000,   40000,  55000,  80000,  90000,  100000,  154000,  249000,
+      336000, 391000, 501000, 683000, 833000, 1055000, 1307000,
   };
 
   // std::array<uint32_t, 15> stop_dist_um{
