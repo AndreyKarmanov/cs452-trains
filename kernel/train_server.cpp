@@ -465,9 +465,8 @@ namespace {
         bb.loco->ve  = (3 * bb.loco->ve + one_ago.dx_um / one_ago.d_ticks) / 4;
 
         int dist_prev = bb.dists.empty() ? 0 : bb.dists.peek_last()->dx_um;
-        Offset_Puts(bb.txs_tid, -1, "Spd: ", bb.loco->ve, "um/ms ",
-                    (static_cast<int>(bb.dx_um) - dist_prev) / 1000,
-                    "mm Error");
+        Offset_Puts(bb.txs_tid, -1, "Spd: ", bb.loco->ve, "um/ms Err: ",
+                    (static_cast<int>(bb.dx_um) - dist_prev) / 1000, "mm");
 
         bb.dx_um = 0;
 
@@ -529,6 +528,9 @@ namespace {
 
   struct StopAtDonePath : public LeafNode {
     bool stop_sent{false};
+    bool crawl_sent{false};
+
+    uint32_t STOP_DIST_AT_CRAWL_UM = 9'0000; // 10cm
 
     NodeResult tick(Blackboard &bb) override {
 
@@ -543,29 +545,47 @@ namespace {
         return NodeResult::Success;
       }
 
-      // uint32_t remaining_um = 0;
-      // if (bb.path.dist * 1000u > bb.dx_um) {
-      //   remaining_um = static_cast<uint32_t>(bb.path.dist) * 1000u - bb.dx_um
-      //   -
-      //                  bb.loco->ve * TICKS_PER_MS * 10;
-      // }
+      // do this in two phases
+      // top speed until reaching stop distance, then crawl until reaching the
+      // sensor
 
-      // auto stop_dist_um = bb.loco->stop_dist_um[bb.loco->req_speed];
-      // // linearly interpolate between the stiances
+      uint32_t remaining_um = 0;
+      if (bb.path.dist * 1000u > bb.dx_um) {
+        remaining_um = static_cast<uint32_t>(bb.path.dist) * 1000u - bb.dx_um -
+                       bb.loco->ve * TICKS_PER_MS * 10;
+      }
 
-      // Offset_Puts(bb.txs_tid, 1, "Spd: ", bb.loco->ve, "um/ms ",
-      //             stop_dist_um / 1000, "mm stop dist ", remaining_um / 1000,
-      //             "mm left");
-
-      // if (!stop_sent && remaining_um <= stop_dist_um) {
-      //   auto res = send<TC::Ack>(bb.tcs_tid, TC::Cmd::Speed(bb.loco_id, 0));
-      //   if (!res.has_value()) {
-      //     return NodeResult::Failure;
-      //   }
-      //   stop_sent = true;
-      // }
-
-      return NodeResult::Running;
+      // if we should be crawling?
+      if (remaining_um <= STOP_DIST_AT_CRAWL_UM) {
+        if (!stop_sent) {
+          auto res = send<TC::Ack>(bb.tcs_tid, TC::Cmd::Speed(bb.loco_id, 0));
+          if (!res.has_value()) {
+            return NodeResult::Failure;
+          }
+          Debug_Puts(bb.txs_tid, "Stopping train ", bb.loco_id, " est dist ",
+                     remaining_um / 1000, "mm");
+          stop_sent = true;
+        }
+        return NodeResult::Running;
+      } else if (remaining_um <=
+                     bb.loco->stop_dist_um[bb.loco->req_speed] * 2 &&
+                 !crawl_sent) {
+        auto res =
+            send<TC::Ack>(bb.tcs_tid, TC::Cmd::Speed(bb.loco_id, CRAWL_SPEED));
+        if (!res.has_value()) {
+          return NodeResult::Failure;
+        }
+        crawl_sent = true;
+        Debug_Puts(bb.txs_tid, "Crawling train ", bb.loco_id, " est dist ",
+                   remaining_um / 1000, "mm");
+        return NodeResult::Running;
+      } else if (bb.loco->ve > 0) {
+        Offset_Puts(bb.txs_tid, -2, "Train ", bb.loco_id, " est dist ",
+                    remaining_um / 1000, "mm", " est speed ", bb.loco->ve,
+                    "um/ms");
+        return NodeResult::Running;
+      }
+      return NodeResult::Success;
     };
   };
 
