@@ -126,7 +126,7 @@ namespace {
       auto vc = bb.loco->v_max[CRAWL_SPEED];
       auto vf = bb.loco->v_max[bb.target_speed];
 
-      auto accel = ((vf * vf - 2 * vf * vc + vc * vc) * 1000) /
+      auto accel = (((vf * vf + vc * vc) - 2 * vf * vc) * 1000) /
                    (2 * (vf * ttl_ticks - ttl_dist_um));
 
       bb.loco->accel[bb.target_speed] = accel;
@@ -200,7 +200,7 @@ namespace {
   };
 
   struct SetSpeed : public LeafNode {
-    uint16_t req_speed;
+    uint16_t req_speed{0};
     bool reached_speed = false;
     bool sent_cmd      = false;
     SetSpeed(uint16_t speed) : req_speed(speed) {}
@@ -237,6 +237,7 @@ namespace {
     SetTargetSpeed(uint16_t speed) : req_speed(speed) {}
     NodeResult tick(Blackboard &bb) override {
 
+      bb.target_speed = req_speed;
       // if sent + reached -> done
       if (reached_speed) {
         return NodeResult::Success;
@@ -297,16 +298,22 @@ namespace {
   };
 
   struct SetDirectionNode : public LeafNode {
-    bool backward;
+    bool backward{false};
+    bool sent_cmd{false};
     SetDirectionNode(bool backward) : backward(backward) {}
     NodeResult tick(Blackboard &bb) override {
-      if (backward == bb.loco->backward) {
+
+      if (auto data = std::get_if<DirectionCmd>(&bb.new_event);
+          sent_cmd && data && data->backward == backward) {
         return NodeResult::Success;
+      } else if (sent_cmd) {
+        return NodeResult::Running;
       }
 
       auto resp =
           send<TC::Ack>(bb.tcs_tid, TC::Cmd::Direction{.id       = bb.loco_id,
                                                        .backward = backward});
+      sent_cmd = true;
       if (!resp.has_value()) {
         bb.error_msg = "Failed to set direction";
         return NodeResult::Failure;
@@ -504,25 +511,26 @@ namespace {
         return NodeResult::Success;
       }
 
-      // uint32_t remaining_um = 0;
-      // if (bb.path.dist * 1000u > bb.dx_um) {
-      //   remaining_um = static_cast<uint32_t>(bb.path.dist) * 1000u - bb.dx_um
-      //   -
-      //                  bb.loco->ve * TICKS_PER_MS * 10;
-      // }
-      // auto stop_dist_um = bb.loco->stop_dist_um[bb.loco->req_speed];
+      uint32_t remaining_um = 0;
+      if (bb.path.dist * 1000u > bb.dx_um) {
+        remaining_um = static_cast<uint32_t>(bb.path.dist) * 1000u - bb.dx_um -
+                       bb.loco->ve * TICKS_PER_MS * 10;
+      }
 
-      // Offset_Puts(bb.txs_tid, 1, "Spd: ", bb.loco->ve, "um/ms ",
-      //             stop_dist_um / 1000, "mm stop dist ", remaining_um / 1000,
-      //             "mm left");
+      auto stop_dist_um = bb.loco->stop_dist_um[bb.loco->req_speed];
+      // linearly interpolate between the stiances
 
-      // if (!stop_sent && remaining_um <= stop_dist_um) {
-      //   auto res = send<TC::Ack>(bb.tcs_tid, TC::Cmd::Speed(bb.loco_id, 0));
-      //   if (!res.has_value()) {
-      //     return NodeResult::Failure;
-      //   }
-      //   stop_sent = true;
-      // }
+      Offset_Puts(bb.txs_tid, 1, "Spd: ", bb.loco->ve, "um/ms ",
+                  stop_dist_um / 1000, "mm stop dist ", remaining_um / 1000,
+                  "mm left");
+
+      if (!stop_sent && remaining_um <= stop_dist_um) {
+        auto res = send<TC::Ack>(bb.tcs_tid, TC::Cmd::Speed(bb.loco_id, 0));
+        if (!res.has_value()) {
+          return NodeResult::Failure;
+        }
+        stop_sent = true;
+      }
 
       return NodeResult::Running;
     };
@@ -606,7 +614,7 @@ namespace {
     PathToNode path_to_loop_start{LOOP_START_NODE};
 
     Sequence spd_seq{};
-    SetSpeed max_speed1{14};
+    SetTargetSpeed max_speed1{14};
     Repeat loop_1{&loop_start_sens, 3};
     CalculateSteadySpeed steady_state_speed{};
     Repeat measure_speed{&spd_seq, 1};
@@ -618,7 +626,7 @@ namespace {
     Repeat measure_stop{&stop_seq, 1};
 
     Sequence acc_seq{};
-    SetSpeed max_speed2{14};
+    SetTargetSpeed max_speed2{14};
     Repeat loop_3{&loop_start_sens, 1};
     CalculateAccel calculate_accel{};
     Repeat measure_acc{&acc_seq, 1};
@@ -700,20 +708,17 @@ namespace {
     Repeat do_speed_14{&speed_14, 1};
 
     CalibrateTrainAllSpeeds() {
-      tree.children.push(&do_speed_14);
-      tree.children.push(&do_speed_13);
-      tree.children.push(&do_speed_12);
-      tree.children.push(&do_speed_11);
-      tree.children.push(&do_speed_10);
-      tree.children.push(&do_speed_9);
-      tree.children.push(&do_speed_8);
-      tree.children.push(&do_speed_7);
-      tree.children.push(&do_speed_6);
+      tree.children.push(&do_speed_4);
       tree.children.push(&do_speed_5);
-      // tree.children.push(&do_speed_4);
-      // tree.children.push(&do_speed_3);
-      // tree.children.push(&do_speed_2);
-      // tree.children.push(&do_speed_1);
+      tree.children.push(&do_speed_6);
+      tree.children.push(&do_speed_7);
+      tree.children.push(&do_speed_8);
+      tree.children.push(&do_speed_9);
+      tree.children.push(&do_speed_10);
+      tree.children.push(&do_speed_11);
+      tree.children.push(&do_speed_12);
+      tree.children.push(&do_speed_13);
+      tree.children.push(&do_speed_14);
     }
 
     NodeResult tick(Blackboard &bb) override { return tree.tick(bb); }
@@ -746,6 +751,40 @@ namespace {
     }
   };
 
+  struct ReverseTree : public TreeNode {
+
+    bool initalized{false};
+    bool at_speed{false};
+    SetSpeed stop_speed{0};
+    WaitNode wait_to_stop{7 * TICKS_PER_S};
+    SetDirectionNode dir{false};
+    SetSpeed set_speed{0};
+    Sequence going_seq{};
+
+    ReverseTree() {
+      going_seq.children.push(&stop_speed);
+      going_seq.children.push(&wait_to_stop);
+      going_seq.children.push(&dir);
+      going_seq.children.push(&set_speed);
+    }
+
+    NodeResult tick(Blackboard &bb) override {
+      if (!initalized) {
+        dir        = SetDirectionNode{!bb.loco->backward};
+        at_speed   = bb.loco->req_speed > 0;
+        set_speed  = SetSpeed{bb.loco->req_speed};
+        initalized = true;
+      }
+      Debug_Puts(bb.txs_tid, "ReverseTree: at_speed: ", at_speed,
+                 " req_speed: ", bb.loco->req_speed,
+                 " backward: ", bb.loco->backward);
+      if (!at_speed) {
+        return dir.tick(bb);
+      }
+      return going_seq.tick(bb);
+    }
+  };
+
 } // namespace
 
 static void run_tree(TreeNode &tree, Blackboard &bb) {
@@ -761,7 +800,6 @@ static void run_tree(TreeNode &tree, Blackboard &bb) {
     std::visit(
         [&](auto &&event) {
           using Event = std::decay_t<decltype(event)>;
-
           if constexpr (std::is_same_v<Event, TC::InitTree>) {
             bb.state        = event.state;
             bb.loco_id      = event.loco_id;
@@ -799,6 +837,20 @@ void train_tree_task() {
   auto tx_tid  = WhoIs(UART_TX_Server::NAME);
 
   CalibrateTrainAllSpeeds tree{};
+  Blackboard bb{
+      .tcs_tid = tcs_tid,
+      .txs_tid = tx_tid,
+      .pathfinder{TRACK},
+  };
+  run_tree(tree, bb);
+  std::ignore = send<TC::Ack>(tcs_tid, TC::TreeExit{});
+}
+
+void reverse_tree_task() {
+  auto tcs_tid = WhoIs(TrainControlServer<>::NAME);
+  auto tx_tid  = WhoIs(UART_TX_Server::NAME);
+
+  ReverseTree tree{};
   Blackboard bb{
       .tcs_tid = tcs_tid,
       .txs_tid = tx_tid,

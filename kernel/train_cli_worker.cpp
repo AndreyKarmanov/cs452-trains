@@ -128,19 +128,19 @@ TC::Cmd::Any parse_command(StaticString<CLI_BUFFER_SIZE> &buf) {
     return out;
   }
 
-  // if (cmd_len == 2 && strncmp(cmd, "rv", 2) == 0) {
-  //   uint32_t loco_id         = 0;
-  //   const char *parse_cursor = cur;
-  //   if (parse_uint(parse_cursor, end, loco_id) &&
-  //       done_parse(parse_cursor, end)) {
-  //     out = TC::Cmd::Reverse{loco_id, state.get_loco(loco_id).backward};
-  //     buf.set("Success: rv ", loco_id, " (stopping)");
-  //   } else {
-  //     out = TC::Cmd::Invalid{};
-  //     buf.set("Error: Format is rv <train number>");
-  //   }
-  //   return out;
-  // }
+  if (cmd_len == 2 && strncmp(cmd, "rv", 2) == 0) {
+    uint32_t loco_id         = 0;
+    const char *parse_cursor = cur;
+    if (parse_uint(parse_cursor, end, loco_id) &&
+        done_parse(parse_cursor, end)) {
+      out = TC::Cmd::Reverse{loco_id};
+      buf.set("Success: rv ", loco_id, " (stopping)");
+    } else {
+      out = TC::Cmd::Invalid{};
+      buf.set("Error: Format is rv <train number>");
+    }
+    return out;
+  }
 
   if (cmd_len == 4 && strncmp(cmd, "stop", 4) == 0 && done_parse(cur, end)) {
     out = TC::Cmd::Stop{};

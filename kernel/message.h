@@ -161,7 +161,6 @@ namespace TC {
     };
     struct Reverse {
       uint32_t id;
-      bool flag;
     };
     struct Direction {
       uint32_t id;
