@@ -1,7 +1,6 @@
 #pragma once
 
 #include "buffer.h"
-#include "heap.h"
 #include "map.h"
 #include "static_string.h"
 #include "track_data.h"
@@ -13,6 +12,8 @@ struct PathNode {
   int num;
   int dx_prev = 0;
   int dx_next;
+  int edge_v_pct = 100; // how much higher / lower the velocity can get on this
+                        // edge relative to max
   bool should_br_be_curved;
 
   bool operator==(const PathNode &other) const {
@@ -59,6 +60,7 @@ class Pathfind {
   bool can_visit(int node_idx) const;
 
   int edge_dist_between(int from_idx, int to_idx) const;
+  std::optional<track_edge> get_edge(int from_idx, int to_idx) const;
 
   std::optional<Path> build_path(int start_idx, int goal_idx,
                                  const int best_dist[TRACK_MAX],

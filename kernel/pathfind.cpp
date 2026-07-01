@@ -1,5 +1,6 @@
 #include "pathfind.h"
 #include "debug.h"
+#include "heap.h"
 #include "uart.h"
 #include <climits>
 
@@ -114,6 +115,35 @@ int Pathfind::edge_dist_between(int from_idx, int to_idx) const {
   return 0;
 }
 
+std::optional<track_edge> Pathfind::get_edge(int from_idx, int to_idx) const {
+  const track_node &from    = track[from_idx];
+  const track_node &to_node = track[to_idx];
+
+  if (from.reverse == &to_node)
+    return std::nullopt;
+
+  switch (from.type) {
+  case NODE_SENSOR:
+  case NODE_MERGE:
+  case NODE_ENTER:
+    if (from.edge[DIR_AHEAD].dest == &to_node)
+      return from.edge[DIR_AHEAD];
+    break;
+
+  case NODE_BRANCH:
+    if (from.edge[DIR_STRAIGHT].dest == &to_node)
+      return from.edge[DIR_STRAIGHT];
+    if (from.edge[DIR_CURVED].dest == &to_node)
+      return from.edge[DIR_CURVED];
+    break;
+
+  default:
+    break;
+  }
+
+  return std::nullopt;
+}
+
 std::optional<Path>
 Pathfind::build_path(int start_idx, int goal_idx,
                      const int best_dist[TRACK_MAX],
@@ -143,21 +173,31 @@ Pathfind::build_path(int start_idx, int goal_idx,
 
     int dist_to_prev = 0;
     int dist_to_next = 0;
+    int edge_v_pct   = 100;
     bool curved      = false;
+
     if (step > 0) {
       int prev_idx = node_indices[step - 1];
-      dist_to_prev = edge_dist_between(prev_idx, node_idx);
+      auto edge    = get_edge(prev_idx, node_idx).value_or({});
+      dist_to_prev = edge.dist;
+      edge_v_pct   = edge.edge_v_pct;
     }
     if (step + 1 < path_len) {
       int next_idx = node_indices[step + 1];
-      dist_to_next = edge_dist_between(node_idx, next_idx);
+      auto edge    = get_edge(node_idx, next_idx).value_or({});
+      dist_to_next = edge.dist;
       if (node.type == NODE_BRANCH) {
         curved = node_index(node.edge[DIR_CURVED].dest) == next_idx;
       }
     }
 
-    result.push(
-        {node_idx, node.type, node.num, dist_to_prev, dist_to_next, curved});
+    result.push({.node_idx            = node_idx,
+                 .type                = node.type,
+                 .num                 = node.num,
+                 .dx_prev             = dist_to_prev,
+                 .dx_next             = dist_to_next,
+                 .edge_v_pct          = edge_v_pct,
+                 .should_br_be_curved = curved});
   }
 
   return result;

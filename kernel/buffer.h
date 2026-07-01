@@ -17,7 +17,7 @@ public:
   // e.g. we can do
   // `constexpr make_buffer() { for (...) buf.push(T{}); return buf; }`
   // and it will have no runtime cost
-  constexpr bool push(T elem) {
+  constexpr bool push(const T &elem) {
     if (_size == SIZE)
       return false;
 

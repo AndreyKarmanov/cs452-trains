@@ -20,7 +20,8 @@ typedef struct track_edge track_edge;
 struct track_edge {
   track_edge *reverse;
   track_node *src, *dest;
-  int dist; /* in millimetres */
+  int dist;       /* in millimetres */
+  int edge_v_pct; /* percentage of max speed for this edge */
 };
 
 struct track_node {

@@ -16,7 +16,7 @@ namespace {
   constexpr auto TRACK           = 'b';
   constexpr auto LOOP_START_NODE = "D4";
   constexpr int LOOP_START_SID   = sid('D', 4);
-  constexpr size_t CRAWL_SPEED   = 4;
+  constexpr size_t CRAWL_SPEED   = 2;
 
   struct DebugPrintPath : public LeafNode {
     NodeResult tick(Blackboard &bb) override {
@@ -472,14 +472,17 @@ namespace {
       bb.last_tick   = bb.curr_tick;
       bb.loco->ve_nm = v_i_nm + a * t_a;
 
-      Offset_Puts(bb.txs_tid, -2, "Spd: ", bb.loco->ve_nm / 1000, "um/ms t_a ",
-                  t_a, " d_t ", d_t, " v_i ", v_i_nm / 1000, " v_max ", v_m_um,
-                  " a: ", a, "nm/t^2 dx_mm", bb.dx_um / 1000);
-
       if (auto data = std::get_if<SensorData>(&bb.new_event);
           data && data->new_state == 1 && !bb.dists.empty()) {
-        auto error_um = bb.dx_um - bb.dists.peek_last()->dx_um;
-        Offset_Puts(bb.txs_tid, -1, "Err: ", error_um / 1000, "mm");
+        auto prev_dist = bb.dists.peek_last();
+        auto error_um  = bb.dx_um - prev_dist->dx_um;
+        Offset_Puts(bb.txs_tid, -2, "Spd: ", bb.loco->ve_nm / 1000,
+                    "um/ms t_a ", t_a, " d_t ", d_t, " v_i ", v_i_nm / 1000,
+                    " v_max ", v_m_um, " a: ", a, "nm/t^2 dx_mm",
+                    bb.dx_um / 1000);
+        Offset_Puts(bb.txs_tid, -1,
+                    "MSpd: ", prev_dist->dx_um / prev_dist->d_ticks,
+                    "Err: ", error_um / 1000, "mm");
         bb.dx_um = 0;
 
         auto next_sensor_idx = std::ranges::find_if(
@@ -805,6 +808,8 @@ namespace {
         &speed_11, &speed_12, &speed_13, &speed_14};
 
     CalibrateTrainAllSpeeds() {
+      tree.children.push(&do_speed_2);
+      tree.children.push(&do_speed_3);
       tree.children.push(&do_speed_4);
       tree.children.push(&do_speed_5);
       tree.children.push(&do_speed_6);
