@@ -8,18 +8,22 @@
 #define MAX_SENSORS_RECENT 10
 
 // Train 15 Stats:
-// Speed | Top | Accel | Dist to get to speed 4
-//   4   |  79 |     0 | 0
-//   5   |  94 |     0 | 1
-//   6   | 133 |    33 | 64
-//   7   | 177 |    56 | 159
-//   8   | 223 |    52 | 246
-//   9   | 276 |    57 | 301
-//  10   | 331 |    63 | 411
-//  11   | 393 |    64 | 593
-//  12   | 455 |    71 | 743
-//  13   | 516 |    75 | 965
-//  14   | 587 |    78 | 1217
+// Speed,Top,Accel,Decel,Stop Dist
+//   0   ,   0 ,     0 ,     0 , 1
+//   1   ,   8 ,     0 ,     0 , 40
+//   2   ,  32 ,     0 ,     0 , 55
+//   3   ,  50 ,    33 ,    33 , 80
+//   4   ,  78 ,    33 ,    33 , 90
+//   5   ,  94 ,    33 ,    33 , 100
+//   6   , 130 ,    33 ,    33 , 154
+//   7   , 176 ,    56 ,    56 , 249
+//   8   , 222 ,    52 ,    52 , 336
+//   9   , 273 ,    57 ,    57 , 391
+//  10   , 328 ,    63 ,    63 , 501
+//  11   , 389 ,    64 ,    64 , 683
+//  12   , 450 ,    71 ,    71 , 833
+//  13   , 512 ,    75 ,    75 , 1055
+//  14   , 584 ,    78 ,    78 , 1307
 
 struct TrainState {
   uint32_t loco_id;
@@ -30,15 +34,17 @@ struct TrainState {
   bool light_on : 1 = true;
 
   // units of um/tick (micrometer per tick)
-  std::array<int, 15> v_max_umpt{0,   0,   32,  40,  63,  94,  133, 177,
-                                 223, 276, 331, 393, 455, 516, 587};
+  std::array<int, 15> v_max_umpt{
+      0, 8, 32, 50, 78, 94, 130, 176, 222, 273, 328, 389, 450, 512, 584,
+  };
+
   // units of nm/ticks^2 (nanometer per tick^2) aka 1000*um / ticks^2
-  std::array<int, 15> a_nmpt2{0,  0,  0,  33, 33, 33, 33, 56,
+  std::array<int, 15> a_nmpt2{33, 33, 33, 33, 33, 33, 33, 56,
                               52, 57, 63, 64, 71, 75, 78};
 
   // units of -nm/ticks^2 (nanometer per tick^2) aka 1000*um / ticks^2
   // these are wrong values right now, I forgot to ca
-  std::array<int, 15> d_nmpt2{0,  0,  0,  33, 33, 33, 33, 56,
+  std::array<int, 15> d_nmpt2{33, 33, 33, 33, 33, 33, 33, 56,
                               52, 57, 63, 64, 71, 75, 78};
 
   std::array<uint32_t, 15> stop_dist_um{
