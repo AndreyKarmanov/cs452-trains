@@ -42,7 +42,7 @@ template <typename... Args>
 int Offset_Puts(int tid, int offset, const Args &...args) {
   static constexpr int DEBUG_LINE = 40;
   StaticString<TX::MAX_DATA_LENGTH> str;
-  str.set("\033[s\033[", DEBUG_LINE + offset, ";1H\033[K", args..., "\033[u");
+  str.set("\033[s\033[", DEBUG_LINE + offset, ";1H", args..., "\033[u");
   return Puts(tid, str);
 }
 

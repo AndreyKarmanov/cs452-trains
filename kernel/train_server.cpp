@@ -14,8 +14,8 @@
 namespace {
   auto sid = [](char b, int n) -> uint16_t { return (b - 'A') * 16 + n; };
   constexpr auto TRACK           = 'b';
-  constexpr auto LOOP_START_NODE = "D4";
-  constexpr int LOOP_START_SID   = sid('D', 4);
+  constexpr auto LOOP_START_NODE = "C10";
+  constexpr int LOOP_START_SID   = sid('C', 10);
   constexpr size_t CRAWL_SPEED   = 4;
 
   struct DebugPrintPath : public LeafNode {
@@ -463,28 +463,34 @@ namespace {
 
   struct UpdateModel : public LeafNode {
     NodeResult tick(Blackboard &bb) override {
-      int a      = bb.loco->a_nmpt2[bb.loco->req_speed];
-      int v_m_um = bb.loco->v_max_umpt[bb.loco->req_speed];
+
+      int v_m_nm = bb.loco->v_max_umpt[bb.loco->req_speed] * 1000;
       int v_i_nm = bb.loco->ve_nm;
+      int tmp_um = v_i_nm / 1000;
       int d_t    = bb.curr_tick - bb.last_tick;
 
-      int t_a = std::min(((v_m_um * 1000 - v_i_nm) / a), d_t);
-      if (t_a < 0) {
-        t_a        = std::max(t_a, -d_t);
-        int tmp_um = v_i_nm / 1000;
-        a = std::max((2800 + 4000 * tmp_um - 3 * tmp_um * tmp_um) / 10000, 33);
-      }
-      int t_c = d_t - t_a;
+      auto delta = 0;
+      if (v_m_nm >= v_i_nm) {
+        int a          = bb.loco->a_nmpt2[bb.loco->req_speed];
+        int t_a        = std::min((v_m_nm - v_i_nm) / a, d_t);
+        bb.loco->ve_nm = v_i_nm + a * t_a;
 
-      bb.loco->ve_nm = v_i_nm + a * t_a;
-      auto delta =
-          ((a * t_a * t_a) / 2 + v_m_um * t_c * 1000 + v_i_nm * t_a) / 1000;
+        int t_c = d_t - t_a;
+        delta   = ((a * t_a * t_a) / 2 + v_m_nm * t_c + v_i_nm * t_a) / 1000;
+      } else {
+        int model_d    = (3000 + 4200 * tmp_um - 3 * tmp_um * tmp_um) / 10000;
+        int d          = std::max(model_d, 33);
+        int t_d        = std::min((v_i_nm - v_m_nm) / d, d_t);
+        bb.loco->ve_nm = v_i_nm - d * t_d;
+
+        delta = (t_d * (v_i_nm - v_m_nm) / 2 + v_m_nm * d_t) / 1000;
+      }
+
       bb.dx_um += delta;
 
-      Offset_Puts(bb.txs_tid, -2, "Spd: ", bb.loco->ve_nm / 1000, "um/ms t_a ",
-                  t_a, " d_t ", d_t, " v_i ", v_i_nm / 1000, " v_max ", v_m_um,
-                  " a: ", a, "nm/t^2 dx_mm", bb.dx_um / 1000, " tmp delta",
-                  delta / 1000);
+      Offset_Puts(bb.txs_tid, -2, "Spd: ", bb.loco->ve_nm / 1000, "um/ms d_t ",
+                  d_t, " v_i ", v_i_nm / 1000, " v_max ", v_m_nm / 1000,
+                  "nm/t^2 dx_mm", bb.dx_um / 1000, " tmp delta", delta / 1000);
       if (auto data = std::get_if<SensorData>(&bb.new_event);
           data && data->new_state == 1 && !bb.dists.empty()) {
         auto prev_dist = bb.dists.peek_last();
@@ -556,16 +562,20 @@ namespace {
         return stop.tick(bb);
       }
 
-      auto remaining_dist = std::accumulate(bb.path.begin(), bb.path.end(), 0,
-                                            [](int acc, const PathNode &node) {
-                                              return acc + node.dx_prev;
-                                            }) *
-                                1000 -
-                            bb.dx_um;
-      auto x              = bb.loco->ve_nm / 1000;
-      auto stopping_dist  = 2200 + 8500 * x + 5 * x * x;
+      auto remaining_dist_um =
+          std::accumulate(bb.path.begin(), bb.path.end(), 0,
+                          [](int acc, const PathNode &node) {
+                            return acc + node.dx_prev;
+                          }) *
+              1000 -
+          bb.dx_um;
 
-      if (remaining_dist < stopping_dist) {
+      auto x               = bb.loco->ve_nm / 1000;
+      int stopping_dist_um = 26000 + 550 * x + 3.4 * x * x;
+      Offset_Puts(bb.txs_tid, -3, "D: ", remaining_dist_um / 1000,
+                  "mm sd: ", stopping_dist_um / 1000, "mm");
+
+      if (remaining_dist_um < stopping_dist_um) {
         stop.tick(bb);
       }
       return NodeResult::Running;
@@ -574,6 +584,7 @@ namespace {
 
   struct PathToNode : public LeafNode {
     const char *goal;
+    int goal_idx{-1};
     PathToNode(const char *goal = nullptr) : goal(goal) {}
 
     NodeResult tick(Blackboard &bb) override {
@@ -587,23 +598,27 @@ namespace {
               ? bb.seen_sensors.peek_last()->sid - 1 // sid -1 is it's node_idx
               : bb.path.peek_last().value().node_idx;
 
-      const char *goal_name = goal != nullptr ? goal : bb.nav_goal.c_str();
-      auto goal_idx         = bb.pathfinder.get_idx(goal_name);
-      if (!goal_idx.has_value()) {
-        bb.error_msg = "Failed to find goal";
-        return NodeResult::Failure;
+      if (goal_idx == -1) {
+        const char *goal_name = goal != nullptr ? goal : bb.nav_goal.c_str();
+        auto goal_idx_opt     = bb.pathfinder.get_idx(goal_name);
+        if (!goal_idx_opt.has_value()) {
+          bb.error_msg = "Failed to find goal";
+          return NodeResult::Failure;
+        }
+        goal_idx = goal_idx_opt.value();
       }
+
       auto last_node = bb.path.peek_last();
-      if (last_node.has_value() && last_node->node_idx == goal_idx.value()) {
+      if (last_node.has_value() && last_node->node_idx == goal_idx) {
         // already on a path to the goal.
         return NodeResult::Success;
       }
 
-      auto path_opt = bb.pathfinder.shortest_path(start_idx, goal_idx.value());
+      auto path_opt = bb.pathfinder.shortest_path(start_idx, goal_idx);
 
       if (!path_opt.has_value()) {
         Debug_Puts(bb.txs_tid, "Failed to find path from ", start_idx, " to ",
-                   goal_idx.value());
+                   goal_idx);
         return NodeResult::Failure;
       }
       bb.path = path_opt.value();
@@ -639,7 +654,7 @@ namespace {
 
     NodeResult tick(Blackboard &bb) override {
       if (!initalized) {
-        if (bb.loco->req_speed != CRAWL_SPEED) {
+        if (bb.loco->req_speed != CRAWL_SPEED && bb.loco->req_speed != 0) {
           set_speed = SetSpeed{bb.loco->req_speed};
         }
         initalized = true;
@@ -674,6 +689,7 @@ namespace {
     LocalizerTree localize_tree{};
     PathToNode path_to_loop_start{LOOP_START_NODE};
 
+    bool initalized{false};
     Sequence on_loop{};
     AwaitSensorNode loop_start_sens{LOOP_START_SID};
     DebugPrintDists debug_print_dists{};
@@ -688,7 +704,14 @@ namespace {
       on_loop.children.push(&debug_print_dists);
       test_seq.children.push(&loop_1);
     }
-    NodeResult tick(Blackboard &bb) override { return test_seq.tick(bb); }
+    NodeResult tick(Blackboard &bb) override {
+      if (bb.init_v2 != 0 && !initalized) {
+        path_to_loop_start.goal_idx = static_cast<int>(bb.init_v2) - 1;
+        loop_start_sens = AwaitSensorNode{static_cast<int>(bb.init_v2)};
+        initalized      = true;
+      }
+      return test_seq.tick(bb);
+    }
   };
 
   struct CalibrateTrain : public LeafNode {
@@ -736,17 +759,17 @@ namespace {
       // ensure we're always pathing in a loop
       test_seq.children.push(&path_to_loop_start);
 
-      // // set max speed, loop 2 times, use second for speed
-      // spd_seq.children.push(&max_speed1);
-      // spd_seq.children.push(&loop_1);
-      // spd_seq.children.push(&steady_state_speed);
-      // test_seq.children.push(&measure_speed);
+      // set max speed, loop 2 times, use second for speed
+      spd_seq.children.push(&max_speed1);
+      spd_seq.children.push(&loop_1);
+      spd_seq.children.push(&steady_state_speed);
+      test_seq.children.push(&measure_speed);
 
-      // // going at max speed
-      // stop_seq.children.push(&crawl_speed2);
-      // stop_seq.children.push(&loop_5);
-      // stop_seq.children.push(&calculate_stop);
-      // test_seq.children.push(&measure_stop);
+      // going at max speed
+      stop_seq.children.push(&crawl_speed2);
+      stop_seq.children.push(&loop_5);
+      stop_seq.children.push(&calculate_stop);
+      test_seq.children.push(&measure_stop);
 
       // going at crawl speed
       acc_seq.children.push(&max_speed2);
@@ -814,17 +837,20 @@ namespace {
     CalibrateTrainAllSpeeds() {
       // tree.children.push(&do_speed_2);
       // tree.children.push(&do_speed_3);
+
+      // crawl speed first
       tree.children.push(&do_speed_4);
-      tree.children.push(&do_speed_5);
-      tree.children.push(&do_speed_6);
-      tree.children.push(&do_speed_7);
-      tree.children.push(&do_speed_8);
-      tree.children.push(&do_speed_9);
-      tree.children.push(&do_speed_10);
-      tree.children.push(&do_speed_11);
-      tree.children.push(&do_speed_12);
-      tree.children.push(&do_speed_13);
+
       tree.children.push(&do_speed_14);
+      tree.children.push(&do_speed_13);
+      tree.children.push(&do_speed_12);
+      tree.children.push(&do_speed_11);
+      tree.children.push(&do_speed_10);
+      tree.children.push(&do_speed_9);
+      tree.children.push(&do_speed_8);
+      tree.children.push(&do_speed_7);
+      tree.children.push(&do_speed_6);
+      tree.children.push(&do_speed_5);
     }
 
     NodeResult tick(Blackboard &bb) override {
