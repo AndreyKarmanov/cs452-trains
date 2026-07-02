@@ -956,9 +956,6 @@ namespace {
         set_speed  = SetSpeed{bb.loco->req_speed};
         initalized = true;
       }
-      Debug_Puts(bb.txs_tid, "ReverseTree: at_speed: ", at_speed,
-                 " req_speed: ", bb.loco->req_speed,
-                 " backward: ", bb.loco->backward);
       if (!at_speed) {
         return dir.tick(bb);
       }
