@@ -1,5 +1,3 @@
-
-#include "train_server.h"
 #include "behaviour_tree.h"
 #include "io_helpers.h"
 #include "message.h"
@@ -7,6 +5,7 @@
 #include "pathfind.h"
 #include "time.h"
 #include "train_control.h"
+#include "train_trees.h"
 #include <algorithm>
 #include <cstdint>
 #include <numeric>

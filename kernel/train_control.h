@@ -10,8 +10,8 @@
 #include "static_string.h"
 #include "syscall.h"
 #include "time.h"
-#include "train_server.h"
 #include "train_state.h"
+#include "train_trees.h"
 #include "uart_tx_server.h"
 #include <cstddef>
 #include <type_traits>
