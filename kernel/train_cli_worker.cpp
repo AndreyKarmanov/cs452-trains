@@ -33,6 +33,25 @@ namespace {
     return true;
   }
 
+  bool parse_int(const char *&cursor, const char *end, int &value) {
+    cursor = skip_ws(cursor, end);
+    if (cursor >= end)
+      return false;
+
+    bool negative = false;
+    if (*cursor == '-') {
+      negative = true;
+      ++cursor;
+    }
+
+    uint32_t result = 0;
+    if (!parse_uint(cursor, end, result))
+      return false;
+
+    value = negative ? -static_cast<int>(result) : static_cast<int>(result);
+    return true;
+  }
+
   bool done_parse(const char *cursor, const char *end) {
     return skip_ws(cursor, end) == end;
   }
@@ -186,25 +205,28 @@ TC::Cmd::Any parse_command(StaticString<CLI_BUFFER_SIZE> &buf) {
   if (cmd_len == 3 && strncmp(cmd, "nav", 3) == 0) {
     uint32_t loco_id = 0;
     StaticString<8> to{};
+    uint32_t speed        = 7;
     const char *parse_cur = cur;
     if (parse_uint(parse_cur, end, loco_id) &&
-        parse_token(parse_cur, end, to)) {
-      uint32_t speed = 7;
-      parse_cur      = skip_ws(parse_cur, end);
+        parse_token(parse_cur, end, to) && parse_uint(parse_cur, end, speed) &&
+        speed <= MAX_USER_SPEED && speed > 0) {
+      parse_cur  = skip_ws(parse_cur, end);
+      int offset = 0;
+
       if (parse_cur < end &&
-          (!parse_uint(parse_cur, end, speed) || speed > MAX_USER_SPEED ||
-           !done_parse(parse_cur, end))) {
+          (!parse_int(parse_cur, end, offset) || !done_parse(parse_cur, end))) {
         out = TC::Cmd::Invalid{};
-        buf.set("Error: Format is nav <train number> <to node> [<speed 0-",
-                MAX_USER_SPEED, ">]");
+        buf.set("Error: Format is nav <train number> <to node> <speed 0-",
+                MAX_USER_SPEED, "> [<offset>]");
         return out;
       }
-      out = TC::Cmd::Nav{loco_id, to, speed};
-      buf.set("Success: nav ", loco_id, ' ', to, ' ', speed);
+      out = TC::Cmd::Nav{
+          .id = loco_id, .to = to, .speed = speed, .offset = offset};
+      buf.set("Success: nav ", loco_id, ' ', to, ' ', speed, ' ', offset);
     } else {
       out = TC::Cmd::Invalid{};
-      buf.set("Error: Format is nav <train number> <to node> [<speed 0-",
-              MAX_USER_SPEED, ">]");
+      buf.set("Error: Format is nav <train number> <to node> <speed 0-",
+              MAX_USER_SPEED, "> [<offset>]");
     }
     return out;
   }

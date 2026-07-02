@@ -143,6 +143,7 @@ template <size_t TX_BUFFER_SIZE = 64> class TrainControlServer {
             spawn_tree_task(nav_tree_task, TC::InitNav{.loco_id = cmd.id,
                                                        .to      = cmd.to,
                                                        .speed   = cmd.speed,
+                                                       .offset  = cmd.offset,
                                                        .state   = state});
           } else {
             _assert(false, "UNHANDLED USER COMMAND");

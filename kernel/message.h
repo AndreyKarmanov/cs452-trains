@@ -180,6 +180,7 @@ namespace TC {
       uint32_t id;
       StaticString<8> to;
       uint32_t speed;
+      int offset;
     };
 
     using Any = std::variant<Invalid, Quit, Light, Speed, Switch, Reverse, Stop,
@@ -203,6 +204,7 @@ namespace TC {
     uint32_t loco_id;
     StaticString<8> to;
     uint32_t speed;
+    int offset;
     State state;
   };
 

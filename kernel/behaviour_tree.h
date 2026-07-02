@@ -51,6 +51,7 @@ struct Blackboard {
   uint32_t accel_loop_time{0};
 
   StaticString<8> nav_goal{};
+  int nav_offset_mm{0};
   StaticString<32> error_msg{};
 };
 

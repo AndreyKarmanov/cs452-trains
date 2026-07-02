@@ -568,10 +568,10 @@ namespace {
                             return acc + node.dx_prev;
                           }) *
               1000 -
-          bb.dx_um;
+          bb.dx_um + bb.nav_offset_mm * 1000;
 
       auto x               = bb.loco->ve_nm / 1000;
-      int stopping_dist_um = 26000 + 550 * x + 3.4 * x * x;
+      int stopping_dist_um = 26000 + 582 * x + 3.4 * x * x;
       Offset_Puts(bb.txs_tid, -3, "D: ", remaining_dist_um / 1000,
                   "mm sd: ", stopping_dist_um / 1000, "mm");
 
@@ -610,15 +610,13 @@ namespace {
 
       auto last_node = bb.path.peek_last();
       if (last_node.has_value() && last_node->node_idx == goal_idx) {
-        // already on a path to the goal.
         return NodeResult::Success;
       }
 
       auto path_opt = bb.pathfinder.shortest_path(start_idx, goal_idx);
 
       if (!path_opt.has_value()) {
-        Debug_Puts(bb.txs_tid, "Failed to find path from ", start_idx, " to ",
-                   goal_idx);
+        Debug_Puts(bb.txs_tid, "Can't path ", start_idx, " to ", goal_idx);
         return NodeResult::Failure;
       }
       bb.path = path_opt.value();
@@ -975,11 +973,12 @@ static void run_tree(TreeNode &tree, Blackboard &bb) {
             bb.init_v1 = event.value;
             bb.init_v2 = event.value2;
           } else if constexpr (std::is_same_v<Event, TC::InitNav>) {
-            bb.state        = event.state;
-            bb.loco_id      = event.loco_id;
-            bb.target_speed = event.speed;
-            bb.nav_goal     = event.to;
-            bb.loco         = bb.state.get_loco(bb.loco_id);
+            bb.state         = event.state;
+            bb.loco_id       = event.loco_id;
+            bb.target_speed  = event.speed;
+            bb.nav_goal      = event.to;
+            bb.nav_offset_mm = event.offset;
+            bb.loco          = bb.state.get_loco(bb.loco_id);
 
             if (!bb.pathfinder.get_idx(event.to.c_str()).has_value()) {
               bb.error_msg = "Unknown to node";
