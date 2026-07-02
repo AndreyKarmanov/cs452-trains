@@ -499,10 +499,25 @@ namespace {
         auto prev_dist = bb.dists.peek_last();
         auto error_um  = bb.dx_um - prev_dist->dx_um;
         Offset_Puts(
-            bb.txs_tid, -1, "MSpd: ", prev_dist->dx_um / prev_dist->d_ticks,
-            "Err: ", error_um / 1000, "mm", " d_t: ", prev_dist->d_ticks,
-            " dx_mm: ", prev_dist->dx_um / 1000, " edx_mm: ", bb.dx_um / 1000);
-        bb.dx_um = 0;
+            bb.txs_tid, -1, " Spd: ", prev_dist->dx_um / prev_dist->d_ticks,
+            "um/ms", " Err dx: ", error_um / 1000, "mm", " Err t: ",
+            bb.expected_next_sens_ticks - static_cast<int>(prev_dist->d_ticks),
+            " dx: ", prev_dist->dx_um / 1000, "mm", " edx: ", bb.dx_um / 1000,
+            "mm", " t: ", prev_dist->d_ticks,
+            " e_t: ", bb.expected_next_sens_ticks, "\033[K");
+        bb.dx_um       = 0;
+        auto next_sens = std::ranges::find(bb.path, true, [&](PathNode &node) {
+          return node.type == NODE_SENSOR;
+        });
+        if (next_sens != bb.path.end()) {
+          auto dist_to_next_sens = std::accumulate(
+              bb.path.begin(),
+              bb.path.begin() + std::distance(bb.path.begin(), next_sens), 0,
+              [](int acc, const PathNode &node) { return acc + node.dx_prev; });
+          auto est_ticks_to_next_sens = static_cast<int>(
+              dist_to_next_sens * 1000 * 1000 / bb.loco->ve_nm);
+          bb.expected_next_sens_ticks = est_ticks_to_next_sens;
+        }
       }
       return NodeResult::Success;
     }
@@ -898,7 +913,6 @@ namespace {
     PathLookaheadNode path_lookahead{};
     TargetSpeed2 max_speed{7};
     StopAtDonePath stop_at_done{};
-    WaitNode wait_to_stop{7 * TICKS_PER_S};
     DebugPrintDists debug_print_dists{};
     PrintTrainStats print_train_stats{};
 
@@ -907,7 +921,6 @@ namespace {
       seq.children.push(&path_to_goal_once);
       seq.children.push(&max_speed);
       seq.children.push(&stop_at_done);
-      seq.children.push(&wait_to_stop);
       seq.children.push(&debug_print_dists);
     }
 

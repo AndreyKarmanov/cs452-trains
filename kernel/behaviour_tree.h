@@ -38,6 +38,7 @@ struct Blackboard {
   uint32_t last_sensor_ticks{0};
   uint16_t last_sensor_sid{0};
   int dx_um{0};
+  int expected_next_sens_ticks{0};
 
   uint16_t target_speed{0};
 
