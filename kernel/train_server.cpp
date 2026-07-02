@@ -420,7 +420,10 @@ namespace {
           StaticString<128> path_str{};
           path_str.append("Path: ", bb.path.size(), " ");
           for (auto node : bb.path) {
-            path_str.append(bb.pathfinder.track[node.node_idx].name, " ",
+            path_str.append(bb.pathfinder.track[node.node_idx].name,
+                            node.type == NODE_BRANCH
+                                ? node.should_br_be_curved ? "C " : "S "
+                                : " ",
                             node.dx_next, " >");
           }
           Debug_Puts(bb.txs_tid, path_str);
@@ -490,7 +493,7 @@ namespace {
 
       Offset_Puts(bb.txs_tid, -2, "Spd: ", bb.loco->ve_nm / 1000, "um/ms d_t ",
                   d_t, " v_i ", v_i_nm / 1000, " v_max ", v_m_nm / 1000,
-                  "nm/t^2 dx_mm", bb.dx_um / 1000, " tmp delta", delta / 1000);
+                  "nm/t^2 dx_mm", bb.dx_um / 1000, "\033[K");
       if (auto data = std::get_if<SensorData>(&bb.new_event);
           data && data->new_state == 1 && !bb.dists.empty()) {
         auto prev_dist = bb.dists.peek_last();
@@ -906,7 +909,6 @@ namespace {
       seq.children.push(&stop_at_done);
       seq.children.push(&wait_to_stop);
       seq.children.push(&debug_print_dists);
-      seq.children.push(&print_train_stats);
     }
 
     NodeResult tick(Blackboard &bb) override {

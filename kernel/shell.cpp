@@ -8,6 +8,7 @@
 #include "map.h"
 #include "mcp2515.h"
 #include "name_server.h"
+#include "pathfind.h"
 #include "shell.h"
 #include "syscall.h"
 #include "test.h"
@@ -172,6 +173,8 @@ static void fire_command(char *buf, size_t blen, int tx_tid) {
     create(1, test_can_tx_irq_task);
   } else if (strncmp(cmd, "t can", 5) == 0) {
     create(1, test_can_rx_irq_task);
+  } else if (strncmp(cmd, "t tra", 5) == 0) {
+    test_pathfind();
   } else if (strncmp(cmd, "train", 5) == 0) {
     auto tid    = create(1, train_controller_program_task);
     std::ignore = send<TC::Ack>(tid, TC::UIReady{});

@@ -27,6 +27,17 @@ public:
     return true;
   }
 
+  constexpr bool push_front(const T &elem) {
+    if (_size == SIZE)
+      return false;
+
+    head      = (head + SIZE - 1) % SIZE;
+    arr[head] = elem;
+    ++_size;
+
+    return true;
+  }
+
   constexpr std::optional<T> peek_last() const {
     if (_size == 0)
       return std::nullopt;

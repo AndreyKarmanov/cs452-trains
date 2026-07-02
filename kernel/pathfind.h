@@ -62,8 +62,7 @@ class Pathfind {
   int edge_dist_between(int from_idx, int to_idx) const;
   std::optional<track_edge> get_edge(int from_idx, int to_idx) const;
 
-  std::optional<Path> build_path(int start_idx, int goal_idx,
-                                 const int best_dist[TRACK_MAX],
+  std::optional<Path> build_path(int goal_idx, const int best_dist[TRACK_MAX],
                                  const int predecessor[TRACK_MAX]) const;
 
 public:

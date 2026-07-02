@@ -10,10 +10,19 @@ Path &Path::operator+(const Path &other) {
   if (other.empty())
     return *this;
 
+  if (this->empty()) {
+    *this = other;
+    return *this;
+  }
   auto last_opt  = this->peek_last();
   auto first_opt = other.peek();
 
-  if (!(last_opt->node_idx == first_opt->node_idx)) {
+  if (!last_opt.has_value() || !first_opt.has_value()) {
+    _assert(false, "empty path");
+    return *this;
+  }
+
+  if (last_opt->node_idx != first_opt->node_idx) {
     _assert(false, "other must start at last node of this");
     return *this;
   }
@@ -23,17 +32,21 @@ Path &Path::operator+(const Path &other) {
     return *this;
   }
 
-  this->dist                   += other.dist;
-  (*(this->end() - 1)).dx_next  = first_opt->dx_next;
+  this->dist                               += other.dist;
+  (*(this->end() - 1)).dx_next              = first_opt->dx_next;
+  (*(this->end() - 1)).should_br_be_curved  = first_opt->should_br_be_curved;
+
   for (size_t i = 1; i < other.size(); ++i) {
     auto node = other[i];
-    _assert(node.has_value(), "unexpected empty path node");
+    if (!node.has_value()) {
+      _assert(false, "unexpected empty path node");
+      return *this;
+    }
     this->push(node.value());
   }
 
   return *this;
 }
-
 int Path::lookahead(int distance, PathNode *result, int length,
                     int start_offset, node_type filter_node_type) {
   int count     = 0;
@@ -145,10 +158,8 @@ std::optional<track_edge> Pathfind::get_edge(int from_idx, int to_idx) const {
 }
 
 std::optional<Path>
-Pathfind::build_path(int start_idx, int goal_idx,
-                     const int best_dist[TRACK_MAX],
+Pathfind::build_path(int goal_idx, const int best_dist[TRACK_MAX],
                      const int predecessor[TRACK_MAX]) const {
-  (void)start_idx;
 
   if (best_dist[goal_idx] >= INF)
     return std::nullopt;
@@ -187,7 +198,7 @@ Pathfind::build_path(int start_idx, int goal_idx,
       auto edge    = get_edge(node_idx, next_idx).value_or({});
       dist_to_next = edge.dist;
       if (node.type == NODE_BRANCH) {
-        curved = node_index(node.edge[DIR_CURVED].dest) == next_idx;
+        curved = (node.edge[DIR_CURVED].dest == &track[next_idx]);
       }
     }
 
@@ -219,16 +230,10 @@ std::optional<Path> Pathfind::shortest_loop(int start_idx) const {
     auto curved_p_o1 = shortest_path(start_idx, curved_idx, false);
     auto curved_p_o2 = shortest_path(curved_idx, goal_idx, false);
 
-    if (straight_p_o1.has_value() && curved_p_o1.has_value()) {
-      if (straight_p_o1->dist < curved_p_o1->dist) {
-        return *straight_p_o1 + straight_p_o2.value();
-      } else {
-        return *curved_p_o1 + curved_p_o2.value();
-      }
-    } else if (straight_p_o1.has_value()) {
-      return *straight_p_o1 + straight_p_o2.value();
-    } else if (curved_p_o1.has_value()) {
-      return *curved_p_o1 + curved_p_o2.value();
+    if (straight_p_o1.has_value() && straight_p_o2.has_value()) {
+      return straight_p_o1.value() + straight_p_o2.value();
+    } else if (curved_p_o1.has_value() && curved_p_o2.has_value()) {
+      return curved_p_o1.value() + curved_p_o2.value();
     } else {
       return std::nullopt;
     }
@@ -237,7 +242,9 @@ std::optional<Path> Pathfind::shortest_loop(int start_idx) const {
     auto ahead_idx  = node_index(node.edge[DIR_AHEAD].dest);
     auto ahead_p_o1 = shortest_path(start_idx, ahead_idx, false);
     auto ahead_p_o2 = shortest_path(ahead_idx, goal_idx, false);
-    return *ahead_p_o1 + ahead_p_o2.value();
+    if (!ahead_p_o1.has_value() || !ahead_p_o2.has_value())
+      return std::nullopt;
+    return ahead_p_o1.value() + ahead_p_o2.value();
   } else {
     return std::nullopt;
   }
@@ -314,7 +321,7 @@ std::optional<Path> Pathfind::shortest_path(int start_idx, int goal_idx,
     }
   }
 
-  return build_path(start_idx, goal_idx, best_dist, predecessor);
+  return build_path(goal_idx, best_dist, predecessor);
 }
 
 std::optional<Path> Pathfind::shortest_path(const char *from, const char *to,
@@ -468,8 +475,9 @@ void test_pathfind() {
   print_path(track_a, "A1->ZZZ", track_a.shortest_path("A1", "ZZZ"));
   print_path(track_a, "A13->B6", track_a.shortest_path("A13", "B6"));
 
-  // Pathfind track_b('b');
-  // print_path(track_b, "B1->B16", track_b.shortest_path("B1", "B16"));
+  Pathfind track_b('b');
+  print_path(track_b, "C10->B16", track_b.shortest_path("C10", "B16"));
+  print_path(track_b, "C10->C10", track_b.shortest_path("C10", "C10"));
 
   debug_puts(CONSOLE, "pathfind tests done\n\r");
 }
