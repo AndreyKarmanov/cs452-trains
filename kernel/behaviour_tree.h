@@ -38,7 +38,13 @@ struct Blackboard {
   uint32_t last_sensor_ticks{0};
   uint16_t last_sensor_sid{0};
   int dx_um{0};
-  int expected_next_sens_ticks{0};
+
+  struct SensorPrediction {
+    bool active{false};
+    uint32_t predicted_tick{0};
+    int v_at_prediction_nm{0};
+  };
+  SensorPrediction pending{};
 
   uint16_t target_speed{0};
 

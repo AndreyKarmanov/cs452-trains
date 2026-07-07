@@ -1,3 +1,4 @@
+#include "train_trees.h"
 #include "behaviour_tree.h"
 #include "io_helpers.h"
 #include "message.h"
@@ -5,7 +6,6 @@
 #include "pathfind.h"
 #include "time.h"
 #include "train_control.h"
-#include "train_trees.h"
 #include <algorithm>
 #include <cstdint>
 #include <numeric>
@@ -388,6 +388,61 @@ namespace {
     }
   };
 
+  uint64_t isqrt(uint64_t n) {
+    if (n == 0) {
+      return 0;
+    }
+    uint64_t x = n;
+    uint64_t y = (x + 1) / 2;
+    while (y < x) {
+      x = y;
+      y = (x + n / x) / 2;
+    }
+    return x;
+  }
+
+  int predict_ticks(int dist_um, int v_i_nm, const TrainState &loco) {
+    int v_m_nm      = loco.v_max_umpt[loco.req_speed] * 1000;
+    int64_t dist_nm = static_cast<int64_t>(dist_um) * 1000;
+
+    if (v_m_nm >= v_i_nm) {
+      int a = loco.a_nmpt2[loco.req_speed];
+      if (a <= 0) {
+        return v_i_nm > 0 ? static_cast<int>(dist_nm / v_i_nm) : 0;
+      }
+      int t_ramp        = (v_m_nm - v_i_nm) / a;
+      int64_t d_ramp_nm = (static_cast<int64_t>(a) * t_ramp * t_ramp) / 2 +
+                          static_cast<int64_t>(v_i_nm) * t_ramp;
+      if (dist_nm <= d_ramp_nm) {
+        // solve (a/2) t^2 + v_i t - dist = 0
+        int64_t disc = static_cast<int64_t>(v_i_nm) * v_i_nm +
+                       2 * static_cast<int64_t>(a) * dist_nm;
+        return static_cast<int>((isqrt(disc) - v_i_nm) / a);
+      }
+      int64_t rem_nm   = dist_nm - d_ramp_nm;
+      int64_t t_cruise = v_m_nm > 0 ? rem_nm / v_m_nm : 0;
+      return static_cast<int>(t_ramp + t_cruise);
+    }
+
+    int tmp_um        = v_i_nm / 1000;
+    int model_d       = (3000 + 4200 * tmp_um - 3 * tmp_um * tmp_um) / 10000;
+    int d             = std::max(model_d, 33);
+    int t_ramp        = (v_i_nm - v_m_nm) / d;
+    int64_t d_ramp_nm = static_cast<int64_t>(t_ramp) * (v_i_nm + v_m_nm) / 2;
+    if (dist_nm <= d_ramp_nm) {
+      // solve (d/2) t^2 - v_i t + dist = 0
+      int64_t disc = static_cast<int64_t>(v_i_nm) * v_i_nm -
+                     2 * static_cast<int64_t>(d) * dist_nm;
+      if (disc < 0) {
+        disc = 0;
+      }
+      return static_cast<int>((v_i_nm - isqrt(disc)) / d);
+    }
+    int64_t rem_nm   = dist_nm - d_ramp_nm;
+    int64_t t_cruise = v_m_nm > 0 ? rem_nm / v_m_nm : 0;
+    return static_cast<int>(t_ramp + t_cruise);
+  }
+
   struct LocalizerNode : public LeafNode {
     NodeResult tick(Blackboard &bb) override {
       if (auto data = std::get_if<SensorData>(&bb.new_event);
@@ -451,6 +506,41 @@ namespace {
         auto skipped_nodes = std::distance(bb.path.begin(), idx) + 1;
         bb.path.pop(skipped_nodes);
 
+        // reset distance to next sensor after pop
+        bb.dx_um = 0;
+
+        if (bb.path.empty()) {
+          bb.pending.active = false;
+        } else {
+          if (bb.pending.active) {
+            int dt = static_cast<int>(bb.curr_tick) -
+                     static_cast<int>(bb.pending.predicted_tick);
+            int dx_um = (bb.pending.v_at_prediction_nm / 1000) * dt;
+            Debug_Puts(
+                bb.txs_tid, "sensor ", (char)('A' + data->bank), data->number,
+                " reached: ", "time error (t_actual-t_predicted) = ", dt,
+                " ticks | distance error (v*dt) = ", dx_um / 1000,
+                " mm (v = ", bb.pending.v_at_prediction_nm / 1000, " um/tick)");
+            bb.pending.active = false;
+          }
+
+          auto next_sens = std::ranges::find(
+              bb.path, true, [](PathNode &n) { return n.type == NODE_SENSOR; });
+          if (next_sens != bb.path.end()) {
+            int dist_mm = std::accumulate(
+                bb.path.begin(), next_sens + 1, 0,
+                [](int acc, const PathNode &n) { return acc + n.dx_prev; });
+            bb.pending = {
+                .active = true,
+                .predicted_tick =
+                    bb.curr_tick +
+                    static_cast<uint32_t>(predict_ticks(
+                        dist_mm * 1000, bb.loco->ve_nm, *bb.loco)),
+                .v_at_prediction_nm = bb.loco->ve_nm,
+            };
+          }
+        }
+
         // StaticString<128> path_str{};
         // path_str.append("Path: ", bb.path.size(), " ");
         // for (auto node : bb.path) {
@@ -493,31 +583,6 @@ namespace {
       Offset_Puts(bb.txs_tid, -2, "Spd: ", bb.loco->ve_nm / 1000, "um/ms d_t ",
                   d_t, " v_i ", v_i_nm / 1000, " v_max ", v_m_nm / 1000,
                   "nm/t^2 dx_mm", bb.dx_um / 1000, "\033[K");
-      if (auto data = std::get_if<SensorData>(&bb.new_event);
-          data && data->new_state == 1 && !bb.dists.empty()) {
-        auto prev_dist = bb.dists.peek_last();
-        auto error_um  = bb.dx_um - prev_dist->dx_um;
-        Offset_Puts(
-            bb.txs_tid, -1, " Spd: ", prev_dist->dx_um / prev_dist->d_ticks,
-            "um/ms", " Err dx: ", error_um / 1000, "mm", " Err t: ",
-            bb.expected_next_sens_ticks - static_cast<int>(prev_dist->d_ticks),
-            " dx: ", prev_dist->dx_um / 1000, "mm", " edx: ", bb.dx_um / 1000,
-            "mm", " t: ", prev_dist->d_ticks,
-            " e_t: ", bb.expected_next_sens_ticks, "\033[K");
-        bb.dx_um       = 0;
-        auto next_sens = std::ranges::find(bb.path, true, [&](PathNode &node) {
-          return node.type == NODE_SENSOR;
-        });
-        if (next_sens != bb.path.end()) {
-          auto dist_to_next_sens = std::accumulate(
-              bb.path.begin(),
-              bb.path.begin() + std::distance(bb.path.begin(), next_sens), 0,
-              [](int acc, const PathNode &node) { return acc + node.dx_prev; });
-          auto est_ticks_to_next_sens = static_cast<int>(
-              dist_to_next_sens * 1000 * 1000 / bb.loco->ve_nm);
-          bb.expected_next_sens_ticks = est_ticks_to_next_sens;
-        }
-      }
       return NodeResult::Success;
     }
   };
