@@ -2,6 +2,7 @@
 
 #include "buffer.h"
 #include "mrk.h"
+#include "static_string.h"
 #include <stdint.h>
 
 #define MAX_TRAINS 6
@@ -32,6 +33,9 @@ struct TrainState {
 
   bool backward : 1 = false;
   bool light_on : 1 = true;
+
+  // Todo: use this to let train controller where train starts.
+  StaticString<8> init_sensor{};
 
   // units of um/tick (micrometer per tick)
   std::array<int, 15> v_max_umpt{

@@ -145,6 +145,11 @@ template <size_t TX_BUFFER_SIZE = 64> class TrainControlServer {
                                                        .speed   = cmd.speed,
                                                        .offset  = cmd.offset,
                                                        .state   = state});
+          } else if constexpr (std::is_same_v<Command, Reg>) {
+            if (TrainState *train = state.get_loco(cmd.id)) {
+              train->init_sensor = cmd.sensor;
+              state.trains_dirty = true;
+            }
           } else {
             _assert(false, "UNHANDLED USER COMMAND");
           }

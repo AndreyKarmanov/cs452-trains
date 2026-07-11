@@ -183,8 +183,14 @@ namespace TC {
       int offset;
     };
 
+    struct Reg {
+      uint32_t id;
+      StaticString<8> sensor;
+    };
+
     using Any = std::variant<Invalid, Quit, Light, Speed, Switch, Reverse, Stop,
-                             Go, Reset, RemoveTrains, RunTree, Direction, Nav>;
+                             Go, Reset, RemoveTrains, RunTree, Direction, Nav,
+                             Reg>;
 
   } // namespace Cmd
 

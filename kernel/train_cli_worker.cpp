@@ -202,6 +202,21 @@ TC::Cmd::Any parse_command(StaticString<CLI_BUFFER_SIZE> &buf) {
     return out;
   }
 
+  if (cmd_len == 3 && strncmp(cmd, "reg", 3) == 0) {
+    uint32_t loco_id      = 0;
+    StaticString<8> sensor{};
+    const char *parse_cur = cur;
+    if (parse_uint(parse_cur, end, loco_id) &&
+        parse_token(parse_cur, end, sensor) && done_parse(parse_cur, end)) {
+      out = TC::Cmd::Reg{loco_id, sensor};
+      buf.set("Success: reg ", loco_id, ' ', sensor);
+    } else {
+      out = TC::Cmd::Invalid{};
+      buf.set("Error: Format is reg <train number> <sensor>");
+    }
+    return out;
+  }
+
   if (cmd_len == 3 && strncmp(cmd, "nav", 3) == 0) {
     uint32_t loco_id = 0;
     StaticString<8> to{};
@@ -233,7 +248,7 @@ TC::Cmd::Any parse_command(StaticString<CLI_BUFFER_SIZE> &buf) {
 
   out = TC::Cmd::Invalid{};
   buf.set("Error: cmds: q, tr, sw, rv, lr, stop, go, reset, quirk, rt, "
-          "nav");
+          "reg, nav");
   return out;
 }
 
