@@ -188,9 +188,9 @@ namespace TC {
       StaticString<8> sensor;
     };
 
-    using Any = std::variant<Invalid, Quit, Light, Speed, Switch, Reverse, Stop,
-                             Go, Reset, RemoveTrains, RunTree, Direction, Nav,
-                             Reg>;
+    using Any =
+        std::variant<Invalid, Quit, Light, Speed, Switch, Reverse, Stop, Go,
+                     Reset, RemoveTrains, RunTree, Direction, Nav, Reg>;
 
   } // namespace Cmd
 

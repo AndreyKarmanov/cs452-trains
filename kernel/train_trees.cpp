@@ -15,6 +15,8 @@ namespace {
   constexpr auto TRACK           = 'b';
   constexpr auto LOOP_START_NODE = "C10";
   constexpr int LOOP_START_SID   = sid('C', 10);
+  constexpr int E3_SID           = sid('E', 3);
+  constexpr int E6_SID           = sid('E', 6);
   constexpr size_t CRAWL_SPEED   = 4;
 
   struct DebugPrintPath : public LeafNode {
@@ -516,11 +518,12 @@ namespace {
             int dt = static_cast<int>(bb.curr_tick) -
                      static_cast<int>(bb.pending.predicted_tick);
             int dx_um = (bb.pending.v_at_prediction_nm / 1000) * dt;
-            Debug_Puts(
-                bb.txs_tid, "sensor ", (char)('A' + data->bank), data->number,
-                " reached: ", "time error (t_actual-t_predicted) = ", dt,
-                " ticks | distance error (v*dt) = ", dx_um / 1000,
-                " mm (v = ", bb.pending.v_at_prediction_nm / 1000, " um/tick)");
+            // Debug_Puts(
+            //     bb.txs_tid, "sensor ", (char)('A' + data->bank),
+            //     data->number, " reached: ", "time error
+            //     (t_actual-t_predicted) = ", dt, " ticks | distance error
+            //     (v*dt) = ", dx_um / 1000, " mm (v = ",
+            //     bb.pending.v_at_prediction_nm / 1000, " um/tick)");
             bb.pending.active = false;
           }
 
@@ -945,11 +948,71 @@ namespace {
     }
   };
 
+  struct StopMeasureTree : public LeafNode {
+    Sequence tree{};
+
+    LocalizerTree localize_tree{};
+
+    PathToNode path_to_e3{"E3"};
+    // repeat 1x so that it only sets path to e3 once
+    Repeat path_to_e3_once{&path_to_e3, 1};
+    SetSpeed crawl_to_e3{14};
+    AwaitSensorNode arrive_e3{E3_SID};
+    // repeat 1x so that it only waits for sensor once
+    Repeat arrive_e3_once{&arrive_e3, 1};
+    Sequence pre_loop{};
+
+    Sequence warmup{};
+    SetSpeed set_speed{0};
+    AwaitSensorNode warmup_sens{E3_SID};
+    Repeat warmup_laps{&warmup, 1};
+
+    Sequence approach{};
+    PathToNode path_to_D4{"D4"};
+
+    Sequence stop_on_sens{};
+    AwaitSensorNode stop_sens{E6_SID};
+    Repeat stop_sens_once{&stop_sens, 1};
+    SetSpeed stop_speed{0};
+
+    bool initalized{false};
+
+    StopMeasureTree() {
+      pre_loop.children.push(&path_to_e3_once);
+      pre_loop.children.push(&crawl_to_e3);
+      pre_loop.children.push(&arrive_e3_once);
+
+      warmup.children.push(&set_speed);
+      warmup.children.push(&warmup_sens);
+
+      approach.children.push(&path_to_D4);
+
+      stop_on_sens.children.push(&stop_sens_once);
+      stop_on_sens.children.push(&stop_speed);
+
+      tree.children.push(&localize_tree);
+      tree.children.push(&pre_loop);
+      tree.children.push(&warmup_laps);
+      tree.children.push(&approach);
+      tree.children.push(&stop_on_sens);
+    }
+
+    NodeResult tick(Blackboard &bb) override {
+      if (!initalized) {
+        set_speed  = SetSpeed{static_cast<uint16_t>(bb.init_v2)};
+        initalized = true;
+      }
+      return tree.tick(bb);
+    }
+  };
+
   struct ChooseTree : public LeafNode {
     CalibrateTrainAllSpeeds calibrate_tree{};
     ManualCalibrate manual_tree{};
     StopAtManual stop_manual_tree{};
     PrintTrainStats print_train_stats{};
+    StopMeasureTree stop_measure_tree{};
+
     NodeResult tick(Blackboard &bb) override {
       if (bb.init_v1 == 0) {
         return calibrate_tree.tick(bb);
@@ -959,6 +1022,12 @@ namespace {
         return stop_manual_tree.tick(bb);
       } else if (bb.init_v1 == 3) {
         return print_train_stats.tick(bb);
+      } else if (bb.init_v1 == 4) {
+        if (bb.init_v2 == 0 || bb.init_v2 > MAX_USER_SPEED) {
+          bb.error_msg = "Invalid speed for stop measure (1-14)";
+          return NodeResult::Failure;
+        }
+        return stop_measure_tree.tick(bb);
       } else {
         bb.error_msg = "Invalid init_v1 value";
         return NodeResult::Failure;

@@ -193,8 +193,13 @@ TC::Cmd::Any parse_command(StaticString<CLI_BUFFER_SIZE> &buf) {
     if (parse_uint(parse_cur, end, loco_id) &&
         parse_uint(parse_cur, end, value) &&
         parse_uint(parse_cur, end, value2) && done_parse(parse_cur, end)) {
-      out = TC::Cmd::RunTree{loco_id, value, value2};
-      buf.set("Success: rt ", loco_id, ' ', value, ' ', value2);
+      if (value == 4 && (value2 == 0 || value2 > MAX_USER_SPEED)) {
+        out = TC::Cmd::Invalid{};
+        buf.set("Error: Format is rt <train> 4 <speed 1-", MAX_USER_SPEED, '>');
+      } else {
+        out = TC::Cmd::RunTree{loco_id, value, value2};
+        buf.set("Success: rt ", loco_id, ' ', value, ' ', value2);
+      }
     } else {
       out = TC::Cmd::Invalid{};
       buf.set("Error: Format is rt <train number> <value> <value2>");
@@ -203,7 +208,7 @@ TC::Cmd::Any parse_command(StaticString<CLI_BUFFER_SIZE> &buf) {
   }
 
   if (cmd_len == 3 && strncmp(cmd, "reg", 3) == 0) {
-    uint32_t loco_id      = 0;
+    uint32_t loco_id = 0;
     StaticString<8> sensor{};
     const char *parse_cur = cur;
     if (parse_uint(parse_cur, end, loco_id) &&
