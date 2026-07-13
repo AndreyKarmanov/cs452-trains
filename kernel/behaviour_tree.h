@@ -49,15 +49,9 @@ struct Blackboard {
 
   int dx_um{0};
 
-  uint16_t target_speed{0};
+  std::array<SensorPrediction, 2> sensor_predictions{};
 
-  // depreciated ?
-  struct SensorPrediction {
-    bool active{false};
-    uint32_t predicted_tick{0};
-    int v_at_prediction_nm{0};
-  };
-  SensorPrediction pending{};
+  uint16_t target_speed{0};
 };
 
 enum class NodeResult {

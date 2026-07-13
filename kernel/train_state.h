@@ -3,6 +3,7 @@
 #include "buffer.h"
 #include "mrk.h"
 #include "static_string.h"
+#include "track_data.h"
 #include <stdint.h>
 
 #define MAX_TRAINS 6
@@ -65,6 +66,17 @@ struct TrainState {
   int ve_nm{0};
 };
 
+struct SensorPrediction {
+  uint16_t sensor_id{0};
+  uint32_t min_trigger_ticks{0};
+  uint32_t max_trigger_ticks{0};
+  bool did_error{false}; // error triggers if broken sensor or switch
+  uint32_t predicted_tick{0};
+  int v_at_prediction_nm{0};
+};
+
+int predict_ticks(int dist_um, int v_i_nm, const TrainState &loco);
+
 struct State {
 
   static constexpr uint16_t switch_index(uint16_t sw_id) {
@@ -94,6 +106,11 @@ struct State {
       switches &= ~switch_bit(sw_id);
     }
   }
+
+  int get_next_sensor_predictions(track_node *current_node,
+                                  const TrainState &loco,
+                                  SensorPrediction *result, int length,
+                                  node_type filter_node_type = NODE_SENSOR);
 
   // switches, both tracks have same amount
   // switches[0:17] = 1..18
