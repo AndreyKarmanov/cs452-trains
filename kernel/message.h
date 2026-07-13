@@ -144,6 +144,44 @@ namespace TC {
     uint32_t time;
   };
 
+  namespace Tree {
+
+    enum class Type {
+      CALIBRATE,
+      PRINT_TRAIN_STATS,
+      STOP_MEASURE,
+      REVERSE,
+      NAVIGATE
+    };
+
+    struct Ready {
+      TrainState train;
+    };
+    struct Tick {
+      uint32_t time;
+    };
+
+    struct Exit {};
+
+    struct Init {
+      uint32_t loco_id;
+      Type tree_type;
+      int value1;
+      int value2;
+      int value3;
+
+      State state;
+    };
+
+    struct Update {
+      MRKCmd mrk;
+      uint32_t time;
+    };
+
+    using Msg = std::variant<Tree::Init, Tree::Update>;
+
+  } // namespace Tree
+
   namespace Cmd {
     struct Invalid {};
     struct Quit {};
@@ -172,8 +210,10 @@ namespace TC {
     struct RemoveTrains {};
     struct RunTree {
       uint32_t id;
-      uint32_t value;
-      uint32_t value2;
+      Tree::Type tree_type;
+      int value1;
+      int value2;
+      int value3;
     };
 
     struct Nav {
@@ -194,36 +234,6 @@ namespace TC {
 
   } // namespace Cmd
 
-  struct TreeReady {
-    TrainState train;
-  };
-  struct TreeExit {};
-
-  struct InitTree {
-    uint32_t loco_id;
-    uint32_t value;
-    uint32_t value2;
-    State state;
-  };
-
-  struct InitNav {
-    uint32_t loco_id;
-    StaticString<8> to;
-    uint32_t speed;
-    int offset;
-    State state;
-  };
-
-  struct TreeUpdate {
-    MRKCmd mrk;
-    uint32_t time;
-  };
-
-  using TreeMsg = std::variant<InitTree, InitNav, TreeUpdate>;
-
-  struct TreeTick {
-    uint32_t time;
-  };
   struct Ack {};
   struct Quit {};
 } // namespace TC
@@ -243,7 +253,7 @@ using Message = std::variant<
     TX::InterruptMsg, TX::ReplyMsg, RX::GetcMsg, RX::GetcReplyMsg,
     RX::InterruptMsg, RX::InterruptReplyMsg, ErrorMsg, TaskExitMsg, TC::UIReady,
     TC::UIUpdate, TC::Cmd::Any, TC::Quit, TC::TX, TC::RX, TC::TXReady,
-    TC::TreeReady, TC::TreeExit, TC::TreeMsg, TC::TreeTick, TC::Ack>;
+    TC::Tree::Msg, TC::Tree::Ready, TC::Tree::Tick, TC::Tree::Exit, TC::Ack>;
 
 static_assert(std::is_trivially_copyable<Message>::value,
               "MessageVar must be trivially copyable");

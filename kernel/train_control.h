@@ -7,6 +7,7 @@
 #include "message.h"
 #include "mrk.h"
 #include "name_server.h"
+#include "pathfind.h"
 #include "static_string.h"
 #include "syscall.h"
 #include "time.h"
@@ -16,15 +17,16 @@
 #include <cstddef>
 #include <type_traits>
 
-void train_tree_task();
-
 template <size_t TX_BUFFER_SIZE = 64> class TrainControlServer {
   int waiting_ui_update_worker_tid = -1;
   int waiting_can_tx_worker_tid    = -1;
   bool simple_pacing_can_send      = true;
 
+  static constexpr auto TRACK = 'b';
+  Pathfind pathfind;
+
   struct TreeMailbox {
-    Buffer<TC::TreeMsg, 16> msgs{};
+    Buffer<TC::Tree::Msg, 16> msgs{};
     bool waiting = false;
   };
 
@@ -54,7 +56,7 @@ template <size_t TX_BUFFER_SIZE = 64> class TrainControlServer {
     }
   }
 
-  void spawn_tree_task(void (*entry)(), const TC::TreeMsg &init) {
+  void spawn_tree_task(void (*entry)(), const TC::Tree::Msg &init) {
     int tree_tid = create(4, entry);
     _assert(tree_tid >= 0, "TREE TASK CREATE FAILED");
     TreeMailbox mailbox{};
@@ -62,7 +64,7 @@ template <size_t TX_BUFFER_SIZE = 64> class TrainControlServer {
     trees.set(tree_tid, mailbox);
   }
 
-  void publish_tree_update(const TC::TreeUpdate &update) {
+  void publish_tree_update(const TC::Tree::Update &update) {
     for (auto [tid, mailbox] : trees) {
       _assert(mailbox.msgs.push(update), "TREE MAILBOX FULL");
       if (mailbox.waiting) {
@@ -73,8 +75,8 @@ template <size_t TX_BUFFER_SIZE = 64> class TrainControlServer {
     }
   }
 
-  void expand_user_command(const TC::Cmd::Any &command) {
-    std::visit(
+  bool expand_user_command(const TC::Cmd::Any &command) {
+    return std::visit(
         [&](const auto &cmd) {
           // need to use decay_t to get the "raw" type, like LightCmd
           using Command = std::decay_t<decltype(cmd)>;
@@ -89,10 +91,14 @@ template <size_t TX_BUFFER_SIZE = 64> class TrainControlServer {
             tx_buf.push(TC::TX{
                 .mrk = SwitchCmd(static_cast<uint16_t>(cmd.id), cmd.straight)});
           } else if constexpr (std::is_same_v<Command, Reverse>) {
-            spawn_tree_task(reverse_tree_task, TC::InitTree{.loco_id = cmd.id,
-                                                            .value   = 0,
-                                                            .value2  = 0,
-                                                            .state   = state});
+            spawn_tree_task(run_tree, TC::Tree::Init{
+                                          .loco_id   = cmd.id,
+                                          .tree_type = TC::Tree::Type::REVERSE,
+                                          .value1    = 0,
+                                          .value2    = 0,
+                                          .value3    = 0,
+                                          .state     = state,
+                                      });
           } else if constexpr (std::is_same_v<Command, Direction>) {
             tx_buf.push(TC::TX{.mrk = DirectionCmd(cmd.id, cmd.backward)});
           } else if constexpr (std::is_same_v<Command, Stop>) {
@@ -126,10 +132,12 @@ template <size_t TX_BUFFER_SIZE = 64> class TrainControlServer {
             tx_buf.push(
                 TC::TX{.mrk = ControlCmd(ControlCmd::CMD_REMOVE_TRAINS)});
           } else if constexpr (std::is_same_v<Command, RunTree>) {
-            spawn_tree_task(train_tree_task, TC::InitTree{.loco_id = cmd.id,
-                                                          .value   = cmd.value,
-                                                          .value2  = cmd.value2,
-                                                          .state   = state});
+            spawn_tree_task(run_tree, TC::Tree::Init{.loco_id   = cmd.id,
+                                                     .tree_type = cmd.tree_type,
+                                                     .value1    = cmd.value1,
+                                                     .value2    = cmd.value2,
+                                                     .value3    = cmd.value3,
+                                                     .state     = state});
           } else if constexpr (std::is_same_v<Command, Quit>) {
             if (waiting_ui_update_worker_tid >= 0) {
               reply(waiting_ui_update_worker_tid, TC::Quit{});
@@ -140,19 +148,27 @@ template <size_t TX_BUFFER_SIZE = 64> class TrainControlServer {
               waiting_can_tx_worker_tid = -1;
             }
           } else if constexpr (std::is_same_v<Command, Nav>) {
-            spawn_tree_task(nav_tree_task, TC::InitNav{.loco_id = cmd.id,
-                                                       .to      = cmd.to,
-                                                       .speed   = cmd.speed,
-                                                       .offset  = cmd.offset,
-                                                       .state   = state});
+            auto node_idx = pathfind.get_idx(cmd.to.c_str());
+            if (!node_idx.has_value()) {
+              return false;
+            }
+            spawn_tree_task(
+                run_tree, TC::Tree::Init{.loco_id   = cmd.id,
+                                         .tree_type = TC::Tree::Type::NAVIGATE,
+                                         .value1    = node_idx.value(),
+                                         .value2 = static_cast<int>(cmd.speed),
+                                         .value3 = cmd.offset,
+                                         .state  = state});
           } else if constexpr (std::is_same_v<Command, Reg>) {
             if (TrainState *train = state.get_loco(cmd.id)) {
               train->init_sensor = cmd.sensor;
               state.trains_dirty = true;
             }
           } else {
+            return false;
             _assert(false, "UNHANDLED USER COMMAND");
           }
+          return true;
         },
         command);
   }
@@ -162,7 +178,7 @@ template <size_t TX_BUFFER_SIZE = 64> class TrainControlServer {
     state.update_from_mrk(mrk, msg.time);
     simple_pacing_can_send = simple_pacing_can_send || (msg.frame.resp == 1);
     maybe_tx();
-    publish_tree_update(TC::TreeUpdate{.mrk = mrk, .time = msg.time});
+    publish_tree_update(TC::Tree::Update{.mrk = mrk, .time = msg.time});
     if (state.is_dirty() && waiting_ui_update_worker_tid >= 0) {
       reply(waiting_ui_update_worker_tid, TC::UIUpdate{state});
       state.clear_dirty();
@@ -186,15 +202,16 @@ template <size_t TX_BUFFER_SIZE = 64> class TrainControlServer {
   }
 
   void handle(const int tid, const TC::Cmd::Any &msg) {
-    expand_user_command(msg);
-    maybe_tx();
+    if (expand_user_command(msg)) {
+      maybe_tx();
+    }
     reply(tid, TC::Ack{});
     if (std::get_if<TC::Cmd::Quit>(&msg)) {
       exit();
     }
   }
 
-  void handle(const int tid, const TC::TreeReady &msg) {
+  void handle(const int tid, const TC::Tree::Ready &msg) {
     auto *mailbox = trees.get_ref(tid);
     if (mailbox == nullptr) {
       reply_with_error(tid);
@@ -219,12 +236,13 @@ template <size_t TX_BUFFER_SIZE = 64> class TrainControlServer {
     mailbox->waiting = true;
   }
 
-  void handle(const int tid, const TC::TreeTick &msg) {
+  void handle(const int tid, const TC::Tree::Tick &msg) {
     reply(tid, TC::Ack{});
-    publish_tree_update(TC::TreeUpdate{.mrk = UnknownCmd{}, .time = msg.time});
+    publish_tree_update(
+        TC::Tree::Update{.mrk = UnknownCmd{}, .time = msg.time});
   }
 
-  void handle(const int tid, const TC::TreeExit &) {
+  void handle(const int tid, const TC::Tree::Exit &) {
     trees.remove(tid);
     reply(tid, TC::Ack{});
   }
@@ -236,7 +254,7 @@ template <size_t TX_BUFFER_SIZE = 64> class TrainControlServer {
 public:
   static constexpr auto NAME                      = "TCSERVER";
   static constexpr auto TICKS_BETWEEN_TRAIN_TICKS = 10;
-  TrainControlServer() {
+  TrainControlServer() : pathfind(TRACK) {
     auto response = RegisterAs(NAME);
     _assert(response == 0, "TC  REGISTERAS FAILED");
 

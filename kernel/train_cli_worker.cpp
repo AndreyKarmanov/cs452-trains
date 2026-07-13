@@ -186,24 +186,44 @@ TC::Cmd::Any parse_command(StaticString<CLI_BUFFER_SIZE> &buf) {
   }
 
   if (cmd_len == 2 && strncmp(cmd, "rt", 2) == 0) {
-    uint32_t loco_id      = 0;
-    uint32_t value        = 0;
-    uint32_t value2       = 0;
+    uint32_t loco_id   = 0;
+    uint32_t tree_type = 0;
+    int value1         = 0;
+    int value2         = 0;
+    int value3         = 0;
+
     const char *parse_cur = cur;
-    if (parse_uint(parse_cur, end, loco_id) &&
-        parse_uint(parse_cur, end, value) &&
-        parse_uint(parse_cur, end, value2) && done_parse(parse_cur, end)) {
-      if (value == 4 && (value2 == 0 || value2 > MAX_USER_SPEED)) {
-        out = TC::Cmd::Invalid{};
-        buf.set("Error: Format is rt <train> 4 <speed 1-", MAX_USER_SPEED, '>');
-      } else {
-        out = TC::Cmd::RunTree{loco_id, value, value2};
-        buf.set("Success: rt ", loco_id, ' ', value, ' ', value2);
-      }
-    } else {
+
+    // try to parse the required ones
+    if (!(parse_uint(parse_cur, end, loco_id) &&
+          parse_uint(parse_cur, end, tree_type))) {
       out = TC::Cmd::Invalid{};
-      buf.set("Error: Format is rt <train number> <value> <value2>");
+      buf.set("Error: Format is rt <train number> <tree> [<value1> <value2> "
+              "<value3>]");
+      return out;
     }
+
+    // if required succeeded, try parsing the optional ones
+    parse_int(parse_cur, end, value1);
+    parse_int(parse_cur, end, value2);
+    parse_int(parse_cur, end, value3);
+
+    // Check if we are done parsing. Above parse will leave tokens if they
+    // failed
+    if (!done_parse(parse_cur, end)) {
+      out = TC::Cmd::Invalid{};
+      buf.set("Error: Format is rt <train number> <tree> [<value> <value2> "
+              "<value3>]");
+    }
+    out = TC::Cmd::RunTree{.id        = loco_id,
+                           .tree_type = static_cast<TC::Tree::Type>(tree_type),
+                           .value1    = value1,
+                           .value2    = value2,
+                           .value3    = value3};
+
+    buf.set("Success: rt ", loco_id, ' ', tree_type, ' ', value1, ' ', value2,
+            ' ', value3);
+
     return out;
   }
 

@@ -7,25 +7,35 @@
 #include <cstdint>
 
 struct Blackboard {
+
+  // tree tick data
+  MRKCmd new_event{};
+  uint32_t curr_tick{0};
+  uint32_t last_tick{0};
+
+  // tree state
+  StaticString<32> error_msg{};
+
+  // tids for servers
   int tcs_tid{0};
   int txs_tid{0};
 
+  // track & train data
   Pathfind pathfinder;
   State state{};
   uint32_t loco_id{};
   TrainState *loco{nullptr};
 
-  uint32_t init_v1{0};
-  uint32_t init_v2{0};
-
   Path path{};
 
+  // sensors attributed to this train train
   struct SensorSighting {
     uint16_t sid;
     uint32_t tick;
   };
   Buffer<SensorSighting, TRACK_MAX> seen_sensors{};
 
+  // distance logs for calibraiton
   struct DistLog {
     uint16_t from_sid;
     uint16_t to_sid;
@@ -34,32 +44,20 @@ struct Blackboard {
     SensorData sensor_data;
   };
   Buffer<DistLog, TRACK_MAX> dists{};
-
   uint32_t last_sensor_ticks{0};
   uint16_t last_sensor_sid{0};
+
   int dx_um{0};
 
+  uint16_t target_speed{0};
+
+  // depreciated ?
   struct SensorPrediction {
     bool active{false};
     uint32_t predicted_tick{0};
     int v_at_prediction_nm{0};
   };
   SensorPrediction pending{};
-
-  uint16_t target_speed{0};
-
-  MRKCmd new_event{};
-  uint32_t curr_tick{0};
-  uint32_t last_tick{0};
-  uint32_t lookahead_um{0};
-
-  uint32_t saved_tick{0};
-  uint32_t top_loop_time{0};
-  uint32_t accel_loop_time{0};
-
-  StaticString<8> nav_goal{};
-  int nav_offset_mm{0};
-  StaticString<32> error_msg{};
 };
 
 enum class NodeResult {

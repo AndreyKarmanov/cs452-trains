@@ -66,7 +66,7 @@ template <> void TrainControlServer<>::train_tick_worker() {
     time = static_cast<uint32_t>(
         DelayUntil(cs_tid, time + TICKS_BETWEEN_TRAIN_TICKS));
 
-    auto rcv_msg = send<TC::Ack>(can_tid, TC::TreeTick{.time = time});
+    auto rcv_msg = send<TC::Ack>(can_tid, TC::Tree::Tick{.time = time});
     if (!rcv_msg.has_value()) {
       break;
     }
