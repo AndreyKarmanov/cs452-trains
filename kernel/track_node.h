@@ -13,6 +13,8 @@ typedef enum {
 #define DIR_STRAIGHT 0
 #define DIR_CURVED 1
 
+#define UNRESERVED -1
+
 struct track_node;
 typedef struct track_node track_node;
 typedef struct track_edge track_edge;
@@ -20,8 +22,9 @@ typedef struct track_edge track_edge;
 struct track_edge {
   track_edge *reverse;
   track_node *src, *dest;
-  int dist;       /* in millimetres */
-  int edge_v_pct; /* percentage of max speed for this edge */
+  int dist;        /* in millimetres */
+  int edge_v_pct;  /* percentage of max speed for this edge */
+  int reservation; /* who has reserved this */
 };
 
 struct track_node {
