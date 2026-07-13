@@ -348,73 +348,10 @@ namespace {
     }
   };
 
-  uint64_t isqrt(uint64_t n) {
-    if (n == 0) {
-      return 0;
-    }
-    uint64_t x = n;
-    uint64_t y = (x + 1) / 2;
-    while (y < x) {
-      x = y;
-      y = (x + n / x) / 2;
-    }
-    return x;
-  }
-
-  int predict_ticks(int dist_um, int v_i_nm, const TrainState &loco) {
-    int v_m_nm      = loco.v_max_umpt[loco.req_speed] * 1000;
-    int64_t dist_nm = static_cast<int64_t>(dist_um) * 1000;
-
-    if (v_m_nm >= v_i_nm) {
-      int a = loco.a_nmpt2[loco.req_speed];
-      if (a <= 0) {
-        return v_i_nm > 0 ? static_cast<int>(dist_nm / v_i_nm) : 0;
-      }
-      int t_ramp        = (v_m_nm - v_i_nm) / a;
-      int64_t d_ramp_nm = (static_cast<int64_t>(a) * t_ramp * t_ramp) / 2 +
-                          static_cast<int64_t>(v_i_nm) * t_ramp;
-      if (dist_nm <= d_ramp_nm) {
-        // solve (a/2) t^2 + v_i t - dist = 0
-        int64_t disc = static_cast<int64_t>(v_i_nm) * v_i_nm +
-                       2 * static_cast<int64_t>(a) * dist_nm;
-        return static_cast<int>((isqrt(disc) - v_i_nm) / a);
-      }
-      int64_t rem_nm   = dist_nm - d_ramp_nm;
-      int64_t t_cruise = v_m_nm > 0 ? rem_nm / v_m_nm : 0;
-      return static_cast<int>(t_ramp + t_cruise);
-    }
-
-    int tmp_um        = v_i_nm / 1000;
-    int model_d       = (3000 + 4200 * tmp_um - 3 * tmp_um * tmp_um) / 10000;
-    int d             = std::max(model_d, 33);
-    int t_ramp        = (v_i_nm - v_m_nm) / d;
-    int64_t d_ramp_nm = static_cast<int64_t>(t_ramp) * (v_i_nm + v_m_nm) / 2;
-    if (dist_nm <= d_ramp_nm) {
-      // solve (d/2) t^2 - v_i t + dist = 0
-      int64_t disc = static_cast<int64_t>(v_i_nm) * v_i_nm -
-                     2 * static_cast<int64_t>(d) * dist_nm;
-      if (disc < 0) {
-        disc = 0;
-      }
-      return static_cast<int>((v_i_nm - isqrt(disc)) / d);
-    }
-    int64_t rem_nm   = dist_nm - d_ramp_nm;
-    int64_t t_cruise = v_m_nm > 0 ? rem_nm / v_m_nm : 0;
-    return static_cast<int>(t_ramp + t_cruise);
-  }
-
   struct LocalizerNode : public LeafNode {
     NodeResult tick(Blackboard &bb) override {
       if (auto data = std::get_if<SensorData>(&bb.new_event);
           data && data->new_state == 1) {
-
-        if (bb.seen_sensors.size() == bb.seen_sensors.capacity()) {
-          bb.seen_sensors.pop();
-        }
-        bb.seen_sensors.push({
-            .sid  = data->sensor_id,
-            .tick = bb.curr_tick,
-        });
 
         if (bb.path.empty()) {
           return NodeResult::Success;
@@ -441,6 +378,7 @@ namespace {
                             node.dx_next, " >");
           }
           Debug_Puts(bb.txs_tid, path_str);
+          bb.error_msg = "Sensor not in path";
           return NodeResult::Failure;
         }
 
@@ -468,39 +406,6 @@ namespace {
 
         // reset distance to next sensor after pop
         bb.dx_um = 0;
-
-        if (bb.path.empty()) {
-          bb.pending.active = false;
-        } else {
-          if (bb.pending.active) {
-            int dt    = static_cast<int>(bb.curr_tick) -
-                        static_cast<int>(bb.pending.predicted_tick);
-            int dx_um = (bb.pending.v_at_prediction_nm / 1000) * dt;
-            // Debug_Puts(
-            //     bb.txs_tid, "sensor ", (char)('A' + data->bank),
-            //     data->number, " reached: ", "time error
-            //     (t_actual-t_predicted) = ", dt, " ticks | distance error
-            //     (v*dt) = ", dx_um / 1000, " mm (v = ",
-            //     bb.pending.v_at_prediction_nm / 1000, " um/tick)");
-            bb.pending.active = false;
-          }
-
-          auto next_sens = std::ranges::find(
-              bb.path, true, [](PathNode &n) { return n.type == NODE_SENSOR; });
-          if (next_sens != bb.path.end()) {
-            int dist_mm = std::accumulate(
-                bb.path.begin(), next_sens + 1, 0,
-                [](int acc, const PathNode &n) { return acc + n.dx_prev; });
-            bb.pending = {
-                .active = true,
-                .predicted_tick =
-                    bb.curr_tick +
-                    static_cast<uint32_t>(predict_ticks(
-                        dist_mm * 1000, bb.loco->ve_nm, *bb.loco)),
-                .v_at_prediction_nm = bb.loco->ve_nm,
-            };
-          }
-        }
 
         // StaticString<128> path_str{};
         // path_str.append("Path: ", bb.path.size(), " ");
@@ -577,6 +482,7 @@ namespace {
             auto res =
                 send<TC::Ack>(bb.tcs_tid, TC::Cmd::Switch(node.num, false));
             if (!res.has_value()) {
+              bb.error_msg = "Switch cmd failed";
               return NodeResult::Failure;
             }
           } else if (!node.should_br_be_curved &&
@@ -586,6 +492,7 @@ namespace {
             auto res =
                 send<TC::Ack>(bb.tcs_tid, TC::Cmd::Switch(node.num, true));
             if (!res.has_value()) {
+              bb.error_msg = "Switch cmd failed";
               return NodeResult::Failure;
             }
           }
@@ -653,9 +560,125 @@ namespace {
 
       if (!path_opt.has_value()) {
         Debug_Puts(bb.txs_tid, "Can't path ", start_idx, " to ", goal_idx);
+        bb.error_msg = "No path to goal";
         return NodeResult::Failure;
       }
       bb.path = path_opt.value();
+      return NodeResult::Success;
+    }
+  };
+
+  struct AttributeSensorNode : public LeafNode {
+    bool initialized{false};
+
+    void push_to_seen_sensors(Blackboard &bb, uint16_t sensor_id) {
+      if (bb.seen_sensors.size() == bb.seen_sensors.capacity()) {
+        bb.seen_sensors.pop();
+      }
+      bb.seen_sensors.push({
+          .sid  = sensor_id,
+          .tick = bb.curr_tick,
+      });
+    }
+
+    NodeResult tick(Blackboard &bb) override {
+      if (auto data = std::get_if<SensorData>(&bb.new_event);
+          data && data->new_state == 1) {
+        // If not init, then return success if incoming sensor is
+        // bb.init_sensor.
+        if (!initialized) {
+          if (!bb.loco || bb.loco->init_sensor.empty()) {
+            bb.error_msg = "No init sensor";
+            return NodeResult::Failure;
+          }
+
+          // if sensor is not the initial sensor, return running
+          if (bb.pathfinder.get_idx(bb.loco->init_sensor.c_str()) !=
+              static_cast<int>(data->sensor_id) - 1) {
+            Debug_Puts(bb.txs_tid, "Init sensor mismatch: expected ",
+                       bb.loco->init_sensor.c_str(), " got sid ",
+                       data->sensor_id, " train ", bb.loco_id);
+            bb.error_msg = "Init sensor mismatch";
+            return NodeResult::Running;
+          }
+          Debug_Puts(bb.txs_tid, "Attributed init sensor ",
+                     bb.loco->init_sensor.c_str(), " to train ", bb.loco_id);
+          initialized = true;
+
+          push_to_seen_sensors(bb, data->sensor_id);
+          return NodeResult::Success;
+        }
+
+        // otherwise, reference past bb sensor predictions to see if this
+        // sensor can be attributed to this train
+        for (const auto &pred : bb.sensor_predictions) {
+          if (pred.sensor_id != 0 && pred.sensor_id == data->sensor_id) {
+            // only push if falls within delta
+            if (bb.curr_tick >= pred.min_trigger_ticks &&
+                bb.curr_tick <= pred.max_trigger_ticks) {
+              push_to_seen_sensors(bb, data->sensor_id);
+            }
+            return NodeResult::Success;
+          }
+        }
+        return NodeResult::Running;
+      }
+      return NodeResult::Success;
+    }
+  };
+
+  struct PredictSensorNode : public LeafNode {
+    NodeResult tick(Blackboard &bb) override {
+      if (auto data = std::get_if<SensorData>(&bb.new_event);
+          data && data->new_state == 1) {
+        // AttributeSensorNode already gated attribution; refresh predictions.
+        if (!bb.loco) {
+          bb.error_msg = "No loco";
+          return NodeResult::Failure;
+        }
+
+        int node_idx = static_cast<int>(data->sensor_id) - 1;
+        if (node_idx < 0 || node_idx >= TRACK_MAX) {
+          bb.error_msg = "Bad sensor id";
+          return NodeResult::Failure;
+        }
+
+        // Compare arrival against the prior expected (non-error) prediction
+        // before we overwrite sensor_predictions.
+        const SensorPrediction *expected = nullptr;
+        for (const auto &pred : bb.sensor_predictions) {
+          if (!pred.did_error && pred.sensor_id != 0) {
+            expected = &pred;
+            break;
+          }
+        }
+        if (expected && expected->predicted_tick != 0 &&
+            expected->sensor_id == data->sensor_id) {
+          int dt = static_cast<int>(bb.curr_tick) -
+                   static_cast<int>(expected->predicted_tick);
+          int dx_um = (expected->v_at_prediction_nm / 1000) * dt;
+          Debug_Puts(
+              bb.txs_tid, "sensor ", (char)('A' + data->bank), data->number,
+              " reached: time diff (t_actual-t_predicted) = ", dt,
+              " ticks | distance diff (v*dt) = ", dx_um / 1000,
+              " mm (v = ", expected->v_at_prediction_nm / 1000, " um/tick)");
+        }
+
+        // Get next predictions and add current time offset
+        bb.sensor_predictions = {};
+        bb.state.get_next_sensor_predictions(
+            &bb.pathfinder.track[node_idx], *bb.loco,
+            bb.sensor_predictions.data(), 2, NODE_SENSOR);
+        for (auto &pred : bb.sensor_predictions) {
+          if (pred.sensor_id == 0) {
+            continue;
+          }
+          pred.predicted_tick    += bb.curr_tick;
+          pred.min_trigger_ticks += bb.curr_tick;
+          pred.max_trigger_ticks += bb.curr_tick;
+        }
+        return NodeResult::Success;
+      }
       return NodeResult::Success;
     }
   };
@@ -666,11 +689,14 @@ namespace {
     Sequence inital{};
     SetSpeed set_speed{CRAWL_SPEED};
     AwaitSensorNode await_sensor{};
+    AttributeSensorNode attribute_sensor{};
+    PredictSensorNode init_predict_sensor{};
     bool initalized{false};
 
     Repeat localize_init{&inital, 1};
 
     Sequence loop{};
+    PredictSensorNode predict_sensor{};
     LocalizerNode localize{};
     UpdateModel model{};
     PathLookaheadNode lookahead{};
@@ -678,10 +704,15 @@ namespace {
     LocalizerTree() {
       inital.children.push(&set_speed);
       inital.children.push(&await_sensor);
+      inital.children.push(&attribute_sensor);
+      inital.children.push(&init_predict_sensor);
       tree.children.push(&localize_init);
 
-      loop.children.push(&localize);
+      // Same Attribute instance so initialized=true after init sequence
       loop.children.push(&model);
+      loop.children.push(&attribute_sensor);
+      loop.children.push(&predict_sensor);
+      loop.children.push(&localize);
       loop.children.push(&lookahead);
       tree.children.push(&loop);
     }
