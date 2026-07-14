@@ -671,8 +671,6 @@ namespace {
     SetSpeed set_speed{CRAWL_SPEED};
     AwaitSensorNode await_sensor{};
 
-    Repeat localize_init{&inital, 1};
-
     Sequence loop{};
     UpdateModel model{};
     AttributeSensorNode attribute_sensor{};
