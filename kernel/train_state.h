@@ -36,7 +36,7 @@ struct TrainState {
   bool light_on : 1 = true;
 
   // Todo: use this to let train controller where train starts.
-  StaticString<8> init_sensor{};
+  int inital_node_idx{};
 
   // units of um/tick (micrometer per tick)
   std::array<int, 15> v_max_umpt{

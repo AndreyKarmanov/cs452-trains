@@ -570,14 +570,12 @@ namespace {
   };
 
   struct AttributeSensorNode : public LeafNode {
-    bool initialized{false};
-
-    void push_to_seen_sensors(Blackboard &bb, uint16_t sensor_id) {
+    void push_to_seen_sensors(Blackboard &bb, SensorData *data) {
       if (bb.seen_sensors.size() == bb.seen_sensors.capacity()) {
         bb.seen_sensors.pop();
       }
       bb.seen_sensors.push({
-          .sid  = sensor_id,
+          .sid  = data->sensor_id,
           .tick = bb.curr_tick,
       });
     }
@@ -585,44 +583,28 @@ namespace {
     NodeResult tick(Blackboard &bb) override {
       if (auto data = std::get_if<SensorData>(&bb.new_event);
           data && data->new_state == 1) {
-        // If not init, then return success if incoming sensor is
-        // bb.init_sensor.
-        if (!initialized) {
-          if (!bb.loco || bb.loco->init_sensor.empty()) {
-            bb.error_msg = "No init sensor";
-            return NodeResult::Failure;
-          }
 
-          // if sensor is not the initial sensor, return running
-          if (bb.pathfinder.get_idx(bb.loco->init_sensor.c_str()) !=
-              static_cast<int>(data->sensor_id) - 1) {
-            Debug_Puts(bb.txs_tid, "Init sensor mismatch: expected ",
-                       bb.loco->init_sensor.c_str(), " got sid ",
-                       data->sensor_id, " train ", bb.loco_id);
-            bb.error_msg = "Init sensor mismatch";
+        // if it's our first sensor, wait for the given inital sensor
+        if (bb.seen_sensors.empty()) {
+          if (bb.loco->inital_node_idx != data->sensor_id) {
             return NodeResult::Running;
           }
-          Debug_Puts(bb.txs_tid, "Attributed init sensor ",
-                     bb.loco->init_sensor.c_str(), " to train ", bb.loco_id);
-          initialized = true;
-
-          push_to_seen_sensors(bb, data->sensor_id);
+          push_to_seen_sensors(bb, data);
           return NodeResult::Success;
         }
 
-        // otherwise, reference past bb sensor predictions to see if this
-        // sensor can be attributed to this train
-        for (const auto &pred : bb.sensor_predictions) {
-          if (pred.sensor_id != 0 && pred.sensor_id == data->sensor_id) {
-            // only push if falls within delta
-            if (bb.curr_tick >= pred.min_trigger_ticks &&
-                bb.curr_tick <= pred.max_trigger_ticks) {
-              push_to_seen_sensors(bb, data->sensor_id);
-            }
-            return NodeResult::Success;
-          }
+        // otherwise, check how far we are from the sensor
+        // we always use shortest path for travel, so can safely use this dist.
+        auto path = bb.pathfinder.shortest_path(bb.last_sensor_sid - 1,
+                                                data->sensor_id - 1);
+
+        // if there's no path, or 20% off our estimate, we ignore
+        if (!path.has_value() || path->dist > (bb.dx_um * 12) / 10 ||
+            path->dist < (bb.dx_um * 8) / 10) {
+          return NodeResult::Running;
         }
-        return NodeResult::Running;
+
+        push_to_seen_sensors(bb, data);
       }
       return NodeResult::Success;
     }
@@ -689,17 +671,17 @@ namespace {
 
     Sequence inital{};
     SetSpeed set_speed{CRAWL_SPEED};
-    AwaitSensorNode await_sensor{};
     AttributeSensorNode attribute_sensor{};
+    AwaitSensorNode await_sensor{};
     PredictSensorNode init_predict_sensor{};
     bool initalized{false};
 
     Repeat localize_init{&inital, 1};
 
     Sequence loop{};
+    UpdateModel model{};
     PredictSensorNode predict_sensor{};
     LocalizerNode localize{};
-    UpdateModel model{};
     PathLookaheadNode lookahead{};
 
     LocalizerTree() {
