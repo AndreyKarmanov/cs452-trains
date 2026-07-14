@@ -1,8 +1,6 @@
 #include "train_state.h"
 #include "mrk.h"
 #include "overloaded.h"
-#include "pathfind.h"
-#include "track_node.h"
 
 #define STATE_ROW "6"
 #define STATE_ROW_INT 7
@@ -152,61 +150,4 @@ int predict_ticks(int dist_um, int v_i_nm, const TrainState &loco) {
   int64_t rem_nm   = dist_nm - d_ramp_nm;
   int64_t t_cruise = v_m_nm > 0 ? rem_nm / v_m_nm : 0;
   return static_cast<int>(t_ramp + t_cruise);
-}
-
-static const track_edge *next_edge(const State &state, const track_node &node) {
-  switch (node.type) {
-  case NODE_SENSOR:
-  case NODE_MERGE:
-  case NODE_ENTER:
-    return node.edge[DIR_AHEAD].dest ? &node.edge[DIR_AHEAD] : nullptr;
-  case NODE_BRANCH:
-    return state.is_switch_straight(node.num) ? &node.edge[DIR_STRAIGHT]
-                                              : &node.edge[DIR_CURVED];
-  default:
-    return nullptr;
-  }
-}
-
-int State::get_next_sensor_predictions(track_node *current_node,
-                                       const TrainState &loco,
-                                       SensorPrediction *result, int length,
-                                       node_type filter_node_type) {
-  if (!current_node || !result || length <= 0) {
-    return 0;
-  }
-
-  int count              = 0;
-  int travelled          = 0;
-  const track_node *node = current_node;
-
-  for (int steps = 0; steps < TRACK_MAX && count < length; ++steps) {
-    const track_edge *edge = next_edge(*this, *node);
-    if (!edge) {
-      break;
-    }
-
-    travelled += edge->dist;
-    node       = edge->dest;
-
-    if (filter_node_type != NODE_NONE && node->type != filter_node_type) {
-      continue;
-    }
-    if (node == current_node) {
-      continue;
-    }
-
-    const int dist_um    = travelled * 1000;
-    const int base_ticks = predict_ticks(dist_um, loco.ve_nm, loco);
-    result[count]        = {
-        .sensor_id = static_cast<uint16_t>((node - Pathfind::track) + 1),
-        .min_trigger_ticks  = static_cast<uint32_t>(base_ticks * 4 / 5),
-        .max_trigger_ticks  = static_cast<uint32_t>(base_ticks * 6 / 5),
-        .did_error          = (count == 1),
-        .predicted_tick     = static_cast<uint32_t>(base_ticks),
-        .v_at_prediction_nm = loco.ve_nm,
-    };
-    ++count;
-  }
-  return count;
 }

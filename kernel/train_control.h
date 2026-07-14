@@ -23,8 +23,8 @@ template <size_t TX_BUFFER_SIZE = 64> class TrainControlServer {
   int waiting_can_tx_worker_tid    = -1;
   bool simple_pacing_can_send      = true;
 
-  static constexpr auto TRACK = 'b';
-  Pathfind pathfind;
+  static constexpr auto TRACK = Track::Layout::A;
+  Track pathfind;
 
   struct TreeMailbox {
     Buffer<TC::Tree::Msg, 16> msgs{};
@@ -160,7 +160,7 @@ template <size_t TX_BUFFER_SIZE = 64> class TrainControlServer {
             [&](const TC::Cmd::Nav &cmd) {
               auto node_idx = pathfind.get_idx(cmd.to.c_str());
               if (!node_idx.has_value()) {
-                Debug_Puts(tx_tid, "Invalid sensor name in nav command");
+                Debug_Puts(tx_tid, "Invalid name in nav command");
                 return;
               }
               spawn_tree_task(
@@ -179,7 +179,7 @@ template <size_t TX_BUFFER_SIZE = 64> class TrainControlServer {
                   Debug_Puts(tx_tid, "Invalid sensor name in reg command");
                   return;
                 }
-                train->inital_node_idx = node_idx.value() - 1;
+                train->inital_node_idx = node_idx.value();
                 state.trains_dirty     = true;
               }
             },
@@ -194,7 +194,7 @@ template <size_t TX_BUFFER_SIZE = 64> class TrainControlServer {
                   break;
                 }
 
-                auto edge = pathfind.track[node.node_idx].edge[node.dir];
+                auto edge = pathfind[node.node_idx].edge[node.dir];
 
                 if (edge.reservation != UNRESERVED &&
                     static_cast<uint32_t>(edge.reservation) != cmd.id) {
@@ -214,14 +214,7 @@ template <size_t TX_BUFFER_SIZE = 64> class TrainControlServer {
                              "Invalid node index or direction in reserve path");
                   break;
                 }
-
-                auto edge = pathfind.track[node.node_idx].edge[node.dir];
-                if (edge.reservation == UNRESERVED ||
-                    static_cast<uint32_t>(edge.reservation) != cmd.id) {
-                  continue;
-                }
-
-                pathfind.release(node.node_idx, node.dir);
+                pathfind.release(node.node_idx, node.dir, cmd.id);
               }
             },
             [&](const TC::Cmd::Invalid &) { return; },

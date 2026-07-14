@@ -21,7 +21,7 @@ struct Blackboard {
   int txs_tid{0};
 
   // track & train data
-  Pathfind pathfinder;
+  Track track;
   State state{};
   uint32_t loco_id{};
   TrainState *loco{nullptr};

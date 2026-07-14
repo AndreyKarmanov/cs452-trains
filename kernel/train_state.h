@@ -36,7 +36,7 @@ struct TrainState {
   bool light_on : 1 = true;
 
   // Todo: use this to let train controller where train starts.
-  int inital_node_idx{};
+  int inital_node_idx{-1};
 
   // units of um/tick (micrometer per tick)
   std::array<int, 15> v_max_umpt{
@@ -106,11 +106,6 @@ struct State {
       switches &= ~switch_bit(sw_id);
     }
   }
-
-  int get_next_sensor_predictions(track_node *current_node,
-                                  const TrainState &loco,
-                                  SensorPrediction *result, int length,
-                                  node_type filter_node_type = NODE_SENSOR);
 
   // switches, both tracks have same amount
   // switches[0:17] = 1..18

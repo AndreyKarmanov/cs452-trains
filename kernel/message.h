@@ -157,7 +157,8 @@ namespace TC {
       PRINT_TRAIN_STATS,
       STOP_MEASURE,
       REVERSE,
-      NAVIGATE
+      NAVIGATE,
+      FOREVER_NAVIGATE
     };
 
     struct Ready {
