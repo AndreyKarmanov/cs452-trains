@@ -8,6 +8,7 @@
 #include "message.h"
 #include "mrk.h"
 #include "name_server.h"
+#include "overloaded.h"
 #include "pathfind.h"
 #include "static_string.h"
 #include "syscall.h"
@@ -16,7 +17,6 @@
 #include "train_trees.h"
 #include "uart_tx_server.h"
 #include <cstddef>
-#include <type_traits>
 
 template <size_t TX_BUFFER_SIZE = 64> class TrainControlServer {
   int waiting_ui_update_worker_tid = -1;
@@ -76,142 +76,149 @@ template <size_t TX_BUFFER_SIZE = 64> class TrainControlServer {
     }
   }
 
-  bool expand_user_command(const TC::Cmd::Any &command) {
-    return std::visit(
-        [&](const auto &cmd) {
-          // need to use decay_t to get the "raw" type, like LightCmd
-          using Command = std::decay_t<decltype(cmd)>;
-          using namespace TC::Cmd;
-
-          if constexpr (std::is_same_v<Command, Light>) {
-            tx_buf.push(TC::TX{.mrk = LightCmd(cmd.id, cmd.on)});
-          } else if constexpr (std::is_same_v<Command, Speed>) {
-            tx_buf.push(TC::TX{
-                .mrk = SpeedCmd(cmd.id, user_speed_to_mrk_level(cmd.value))});
-          } else if constexpr (std::is_same_v<Command, Switch>) {
-            tx_buf.push(TC::TX{
-                .mrk = SwitchCmd(static_cast<uint16_t>(cmd.id), cmd.straight)});
-          } else if constexpr (std::is_same_v<Command, Reverse>) {
-            spawn_tree_task(run_tree, TC::Tree::Init{
-                                          .loco_id   = cmd.id,
-                                          .tree_type = TC::Tree::Type::REVERSE,
-                                          .value1    = 0,
-                                          .value2    = 0,
-                                          .value3    = 0,
-                                          .state     = state,
-                                      });
-          } else if constexpr (std::is_same_v<Command, Direction>) {
-            tx_buf.push(TC::TX{.mrk = DirectionCmd(cmd.id, cmd.backward)});
-          } else if constexpr (std::is_same_v<Command, Stop>) {
-            tx_buf.push(TC::TX{.mrk = ControlCmd(ControlCmd::CMD_STOP)});
-          } else if constexpr (std::is_same_v<Command, Go>) {
-            tx_buf.push(TC::TX{.mrk = ControlCmd(ControlCmd::CMD_GO)});
-          } else if constexpr (std::is_same_v<Command, Reset>) {
-            State default_state{};
-
-            tx_buf.push(
-                TC::TX{.mrk = ControlCmd(ControlCmd::CMD_REMOVE_TRAINS)});
-            tx_buf.push(TC::TX{.mrk = ControlCmd(ControlCmd::CMD_GO)});
-
-            for (const TrainState &train : default_state.trains) {
-              tx_buf.push(
-                  TC::TX{.mrk = LightCmd(train.loco_id, train.light_on)});
+  void expand_user_command(const TC::Cmd::Any &command) {
+    std::visit(
+        Overloaded{
+            [&](const TC::Cmd::Light &cmd) {
+              tx_buf.push(TC::TX{.mrk = LightCmd(cmd.id, cmd.on)});
+            },
+            [&](const TC::Cmd::Speed &cmd) {
               tx_buf.push(TC::TX{
-                  .mrk = SpeedCmd(train.loco_id,
-                                  user_speed_to_mrk_level(train.req_speed))});
+                  .mrk = SpeedCmd(cmd.id, user_speed_to_mrk_level(cmd.value))});
+            },
+            [&](const TC::Cmd::Switch &cmd) {
+              tx_buf.push(TC::TX{.mrk = SwitchCmd(static_cast<uint16_t>(cmd.id),
+                                                  cmd.straight)});
+            },
+            [&](const TC::Cmd::Reverse &cmd) {
+              spawn_tree_task(run_tree,
+                              TC::Tree::Init{
+                                  .loco_id   = cmd.id,
+                                  .tree_type = TC::Tree::Type::REVERSE,
+                                  .value1    = 0,
+                                  .value2    = 0,
+                                  .value3    = 0,
+                                  .state     = state,
+                              });
+            },
+            [&](const TC::Cmd::Direction &cmd) {
+              tx_buf.push(TC::TX{.mrk = DirectionCmd(cmd.id, cmd.backward)});
+            },
+            [&](const TC::Cmd::Stop &) {
+              tx_buf.push(TC::TX{.mrk = ControlCmd(ControlCmd::CMD_STOP)});
+            },
+            [&](const TC::Cmd::Go &) {
+              tx_buf.push(TC::TX{.mrk = ControlCmd(ControlCmd::CMD_GO)});
+            },
+            [&](const TC::Cmd::Reset &) {
+              State default_state{};
+
               tx_buf.push(
-                  TC::TX{.mrk = DirectionCmd(train.loco_id, train.backward)});
-            }
+                  TC::TX{.mrk = ControlCmd(ControlCmd::CMD_REMOVE_TRAINS)});
+              tx_buf.push(TC::TX{.mrk = ControlCmd(ControlCmd::CMD_GO)});
 
-            for (uint32_t sw_id = 0; sw_id < 22; ++sw_id) {
+              for (const TrainState &train : default_state.trains) {
+                tx_buf.push(
+                    TC::TX{.mrk = LightCmd(train.loco_id, train.light_on)});
+                tx_buf.push(TC::TX{
+                    .mrk = SpeedCmd(train.loco_id,
+                                    user_speed_to_mrk_level(train.req_speed))});
+                tx_buf.push(
+                    TC::TX{.mrk = DirectionCmd(train.loco_id, train.backward)});
+              }
+
+              for (uint32_t sw_id = 0; sw_id < 22; ++sw_id) {
+                tx_buf.push(
+                    TC::TX{.mrk = SwitchCmd(State::switch_id(sw_id),
+                                            default_state.is_switch_straight(
+                                                State::switch_id(sw_id)))});
+              }
+            },
+            [&](const TC::Cmd::RemoveTrains &) {
               tx_buf.push(
-                  TC::TX{.mrk = SwitchCmd(State::switch_id(sw_id),
-                                          default_state.is_switch_straight(
-                                              State::switch_id(sw_id)))});
-            }
-          } else if constexpr (std::is_same_v<Command, RemoveTrains>) {
-            tx_buf.push(
-                TC::TX{.mrk = ControlCmd(ControlCmd::CMD_REMOVE_TRAINS)});
-          } else if constexpr (std::is_same_v<Command, RunTree>) {
-            spawn_tree_task(run_tree, TC::Tree::Init{.loco_id   = cmd.id,
-                                                     .tree_type = cmd.tree_type,
-                                                     .value1    = cmd.value1,
-                                                     .value2    = cmd.value2,
-                                                     .value3    = cmd.value3,
-                                                     .state     = state});
-          } else if constexpr (std::is_same_v<Command, Quit>) {
-            if (waiting_ui_update_worker_tid >= 0) {
-              reply(waiting_ui_update_worker_tid, TC::Quit{});
-              waiting_ui_update_worker_tid = -1;
-            }
-            if (waiting_can_tx_worker_tid >= 0) {
-              reply(waiting_can_tx_worker_tid, TC::Quit{});
-              waiting_can_tx_worker_tid = -1;
-            }
-          } else if constexpr (std::is_same_v<Command, Nav>) {
-            auto node_idx = pathfind.get_idx(cmd.to.c_str());
-            if (!node_idx.has_value()) {
-              return false;
-            }
-            spawn_tree_task(
-                run_tree, TC::Tree::Init{.loco_id   = cmd.id,
-                                         .tree_type = TC::Tree::Type::NAVIGATE,
-                                         .value1    = node_idx.value(),
-                                         .value2 = static_cast<int>(cmd.speed),
-                                         .value3 = cmd.offset,
-                                         .state  = state});
-          } else if constexpr (std::is_same_v<Command, Reg>) {
-            if (TrainState *train = state.get_loco(cmd.id)) {
-              train->init_sensor = cmd.sensor;
-              state.trains_dirty = true;
-            }
-          } else if constexpr (std::is_same_v<Command, Reserve>) {
-
-            auto msg    = TC::Tree::TrackReserved{};
-            msg.loco_id = cmd.id;
-            for (auto &node : cmd.path) {
-              if (node.node_idx < 0 || node.node_idx >= TRACK_MAX ||
-                  (node.dir != 0 && node.dir != 1)) {
-                Debug_Puts(tx_tid,
-                           "Invalid node index or direction in reserve path");
-                break;
+                  TC::TX{.mrk = ControlCmd(ControlCmd::CMD_REMOVE_TRAINS)});
+            },
+            [&](const TC::Cmd::RunTree &cmd) {
+              spawn_tree_task(run_tree,
+                              TC::Tree::Init{.loco_id   = cmd.id,
+                                             .tree_type = cmd.tree_type,
+                                             .value1    = cmd.value1,
+                                             .value2    = cmd.value2,
+                                             .value3    = cmd.value3,
+                                             .state     = state});
+            },
+            [&](const TC::Cmd::Quit &) {
+              if (waiting_ui_update_worker_tid >= 0) {
+                reply(waiting_ui_update_worker_tid, TC::Quit{});
+                waiting_ui_update_worker_tid = -1;
               }
-
-              auto edge = pathfind.track[node.node_idx].edge[node.dir];
-
-              if (edge.reservation != UNRESERVED &&
-                  static_cast<uint32_t>(edge.reservation) != cmd.id) {
-                break;
+              if (waiting_can_tx_worker_tid >= 0) {
+                reply(waiting_can_tx_worker_tid, TC::Quit{});
+                waiting_can_tx_worker_tid = -1;
               }
-
-              pathfind.reserve(node.node_idx, node.dir, cmd.id);
-              msg.path.push(node);
-            }
-            publish_tree_update(msg);
-          } else if constexpr (std::is_same_v<Command, ReleaseReserve>) {
-
-            for (auto &node : cmd.path) {
-              if (node.node_idx < 0 || node.node_idx >= TRACK_MAX ||
-                  (node.dir != 0 && node.dir != 1)) {
-                Debug_Puts(tx_tid,
-                           "Invalid node index or direction in reserve path");
-                break;
+            },
+            [&](const TC::Cmd::Nav &cmd) {
+              auto node_idx = pathfind.get_idx(cmd.to.c_str());
+              if (!node_idx.has_value()) {
+                return;
               }
-
-              auto edge = pathfind.track[node.node_idx].edge[node.dir];
-              if (edge.reservation == UNRESERVED ||
-                  static_cast<uint32_t>(edge.reservation) != cmd.id) {
-                continue;
+              spawn_tree_task(
+                  run_tree,
+                  TC::Tree::Init{.loco_id   = cmd.id,
+                                 .tree_type = TC::Tree::Type::NAVIGATE,
+                                 .value1    = node_idx.value(),
+                                 .value2    = static_cast<int>(cmd.speed),
+                                 .value3    = cmd.offset,
+                                 .state     = state});
+            },
+            [&](const TC::Cmd::Reg &cmd) {
+              if (TrainState *train = state.get_loco(cmd.id)) {
+                train->init_sensor = cmd.sensor;
+                state.trains_dirty = true;
               }
+            },
+            [&](const TC::Cmd::Reserve &cmd) {
+              auto msg    = TC::Tree::TrackReserved{};
+              msg.loco_id = cmd.id;
+              for (auto &node : cmd.path) {
+                if (node.node_idx < 0 || node.node_idx >= TRACK_MAX ||
+                    (node.dir != 0 && node.dir != 1)) {
+                  Debug_Puts(tx_tid,
+                             "Invalid node index or direction in reserve path");
+                  break;
+                }
 
-              pathfind.release(node.node_idx, node.dir);
-            }
+                auto edge = pathfind.track[node.node_idx].edge[node.dir];
 
-          } else {
-            return false;
-            _assert(false, "UNHANDLED USER COMMAND");
-          }
-          return true;
+                if (edge.reservation != UNRESERVED &&
+                    static_cast<uint32_t>(edge.reservation) != cmd.id) {
+                  break;
+                }
+
+                pathfind.reserve(node.node_idx, node.dir, cmd.id);
+                msg.path.push(node);
+              }
+              publish_tree_update(msg);
+            },
+            [&](const TC::Cmd::ReleaseReserve &cmd) {
+              for (auto &node : cmd.path) {
+                if (node.node_idx < 0 || node.node_idx >= TRACK_MAX ||
+                    (node.dir != 0 && node.dir != 1)) {
+                  Debug_Puts(tx_tid,
+                             "Invalid node index or direction in reserve path");
+                  break;
+                }
+
+                auto edge = pathfind.track[node.node_idx].edge[node.dir];
+                if (edge.reservation == UNRESERVED ||
+                    static_cast<uint32_t>(edge.reservation) != cmd.id) {
+                  continue;
+                }
+
+                pathfind.release(node.node_idx, node.dir);
+              }
+            },
+            [&](const TC::Cmd::Invalid &) { return; },
         },
         command);
   }
@@ -245,9 +252,8 @@ template <size_t TX_BUFFER_SIZE = 64> class TrainControlServer {
   }
 
   void handle(const int tid, const TC::Cmd::Any &msg) {
-    if (expand_user_command(msg)) {
-      maybe_tx();
-    }
+    expand_user_command(msg);
+    maybe_tx();
     reply(tid, TC::Ack{});
     if (std::get_if<TC::Cmd::Quit>(&msg)) {
       exit();
