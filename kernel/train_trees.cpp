@@ -667,47 +667,38 @@ namespace {
   };
 
   struct LocalizerTree : public LeafNode {
-    Sequence tree{};
-
     Sequence inital{};
     SetSpeed set_speed{CRAWL_SPEED};
-    AttributeSensorNode attribute_sensor{};
     AwaitSensorNode await_sensor{};
-    PredictSensorNode init_predict_sensor{};
-    bool initalized{false};
 
     Repeat localize_init{&inital, 1};
 
     Sequence loop{};
     UpdateModel model{};
-    PredictSensorNode predict_sensor{};
+    AttributeSensorNode attribute_sensor{};
     LocalizerNode localize{};
     PathLookaheadNode lookahead{};
 
     LocalizerTree() {
       inital.children.push(&set_speed);
       inital.children.push(&await_sensor);
-      inital.children.push(&attribute_sensor);
-      inital.children.push(&init_predict_sensor);
-      tree.children.push(&localize_init);
 
       // Same Attribute instance so initialized=true after init sequence
       loop.children.push(&model);
       loop.children.push(&attribute_sensor);
-      loop.children.push(&predict_sensor);
       loop.children.push(&localize);
       loop.children.push(&lookahead);
-      tree.children.push(&loop);
     }
 
     NodeResult tick(Blackboard &bb) override {
-      if (!initalized) {
+      if (bb.seen_sensors.empty()) {
         if (bb.loco->req_speed != CRAWL_SPEED && bb.loco->req_speed != 0) {
           set_speed = SetSpeed{bb.loco->req_speed};
         }
-        initalized = true;
+        await_sensor.sensor_id = bb.loco->inital_node_idx;
+        return inital.tick(bb);
       }
-      return tree.tick(bb);
+      return loop.tick(bb);
     }
   };
 
