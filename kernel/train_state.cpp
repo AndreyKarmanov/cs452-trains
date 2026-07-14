@@ -12,6 +12,7 @@
 #define SWITCH_ROW (SENSOR_ROW + 3)
 
 void State::update_from_mrk(const MRKCmd &cmd, uint32_t tick) {
+  (void)tick;
   std::visit(
       [&](const auto &command) {
         using Command = std::decay_t<decltype(command)>;
@@ -183,7 +184,7 @@ int State::get_next_sensor_predictions(track_node *current_node,
     }
 
     travelled += edge->dist;
-    node = edge->dest;
+    node       = edge->dest;
 
     if (filter_node_type != NODE_NONE && node->type != filter_node_type) {
       continue;
@@ -195,12 +196,12 @@ int State::get_next_sensor_predictions(track_node *current_node,
     const int dist_um    = travelled * 1000;
     const int base_ticks = predict_ticks(dist_um, loco.ve_nm, loco);
     result[count]        = {
-               .sensor_id = static_cast<uint16_t>((node - Pathfind::track) + 1),
-               .min_trigger_ticks = static_cast<uint32_t>(base_ticks * 4 / 5),
-               .max_trigger_ticks = static_cast<uint32_t>(base_ticks * 6 / 5),
-               .did_error         = (count == 1),
-               .predicted_tick    = static_cast<uint32_t>(base_ticks),
-               .v_at_prediction_nm = loco.ve_nm,
+        .sensor_id = static_cast<uint16_t>((node - Pathfind::track) + 1),
+        .min_trigger_ticks  = static_cast<uint32_t>(base_ticks * 4 / 5),
+        .max_trigger_ticks  = static_cast<uint32_t>(base_ticks * 6 / 5),
+        .did_error          = (count == 1),
+        .predicted_tick     = static_cast<uint32_t>(base_ticks),
+        .v_at_prediction_nm = loco.ve_nm,
     };
     ++count;
   }

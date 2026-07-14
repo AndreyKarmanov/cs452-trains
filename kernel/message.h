@@ -129,6 +129,12 @@ namespace FUT {
 } // namespace FUT
 
 namespace TC {
+
+  struct TrackEdge {
+    int node_idx;
+    int dir;
+  };
+
   struct UIReady {};
   struct UIUpdate {
     State state;
@@ -157,6 +163,7 @@ namespace TC {
     struct Ready {
       TrainState train;
     };
+
     struct Tick {
       uint32_t time;
     };
@@ -173,12 +180,17 @@ namespace TC {
       State state;
     };
 
+    struct TrackReserved {
+      uint32_t loco_id;
+      Buffer<TrackEdge, 16> path;
+    };
+
     struct Update {
       MRKCmd mrk;
       uint32_t time;
     };
 
-    using Msg = std::variant<Tree::Init, Tree::Update>;
+    using Msg = std::variant<Tree::Init, Tree::Update, Tree::TrackReserved>;
 
   } // namespace Tree
 
@@ -228,9 +240,19 @@ namespace TC {
       StaticString<8> sensor;
     };
 
-    using Any =
-        std::variant<Invalid, Quit, Light, Speed, Switch, Reverse, Stop, Go,
-                     Reset, RemoveTrains, RunTree, Direction, Nav, Reg>;
+    struct Reserve {
+      uint32_t id;
+      Buffer<TrackEdge, 16> path;
+    };
+
+    struct ReleaseReserve {
+      uint32_t id;
+      Buffer<TrackEdge, 16> path;
+    };
+
+    using Any = std::variant<Invalid, Quit, Light, Speed, Switch, Reverse, Stop,
+                             Go, Reset, RemoveTrains, RunTree, Direction, Nav,
+                             Reg, Reserve, ReleaseReserve>;
 
   } // namespace Cmd
 

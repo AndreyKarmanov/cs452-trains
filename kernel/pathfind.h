@@ -6,6 +6,8 @@
 #include "track_data.h"
 #include <optional>
 
+// todo: change this so that it's pointers to nodes, not sure we need type /
+// node
 struct PathNode {
   int node_idx;
   node_type type;
@@ -70,6 +72,9 @@ public:
   static constexpr int REVERSE_COST = 500;
 
   explicit Pathfind(char track_layout);
+
+  void reserve(int node_idx, int dir, int id);
+  void release(int node_idx, int dir);
 
   std::optional<int> get_idx(const char *name) const;
 

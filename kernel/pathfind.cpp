@@ -88,6 +88,18 @@ Pathfind::Pathfind(char track_layout) {
   }
 }
 
+void Pathfind::reserve(int node_idx, int dir, int id) {
+  auto &edge                = track[node_idx].edge[dir];
+  edge.reservation          = id;
+  edge.reverse->reservation = id;
+}
+
+void Pathfind::release(int node_idx, int dir) {
+  auto &edge                = track[node_idx].edge[dir];
+  edge.reservation          = UNRESERVED;
+  edge.reverse->reservation = UNRESERVED;
+}
+
 std::optional<int> Pathfind::get_idx(const char *name) const {
   StaticString<8> node_name(name);
   return node_to_idx.get(node_name);

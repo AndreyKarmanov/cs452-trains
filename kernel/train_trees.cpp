@@ -3,6 +3,7 @@
 #include "io_helpers.h"
 #include "message.h"
 #include "mrk.h"
+#include "overloaded.h"
 #include "pathfind.h"
 #include "time.h"
 #include "train_control.h"
@@ -654,8 +655,8 @@ namespace {
         }
         if (expected && expected->predicted_tick != 0 &&
             expected->sensor_id == data->sensor_id) {
-          int dt = static_cast<int>(bb.curr_tick) -
-                   static_cast<int>(expected->predicted_tick);
+          int dt    = static_cast<int>(bb.curr_tick) -
+                      static_cast<int>(expected->predicted_tick);
           int dx_um = (expected->v_at_prediction_nm / 1000) * dt;
           Debug_Puts(
               bb.txs_tid, "sensor ", (char)('A' + data->bank), data->number,
@@ -1021,48 +1022,49 @@ void run_tree() {
     }
 
     auto msg_result = std::visit(
-        [&](auto &&event) {
-          using Event = std::decay_t<decltype(event)>;
-          if constexpr (std::is_same_v<Event, TC::Tree::Init>) {
-            bb.state   = event.state;
-            bb.loco_id = event.loco_id;
-            bb.loco    = bb.state.get_loco(bb.loco_id);
+        Overloaded{
+            [&](const TC::Tree::Init &msg) {
+              bb.state   = msg.state;
+              bb.loco_id = msg.loco_id;
+              bb.loco    = bb.state.get_loco(bb.loco_id);
 
-            switch (event.tree_type) {
-            case TC::Tree::Type::CALIBRATE:
-              tree.emplace<CalibrateTrainAllSpeeds>(event.value1);
-              break;
-            case TC::Tree::Type::PRINT_TRAIN_STATS:
-              tree.emplace<PrintTrainStats>();
-              break;
-            case TC::Tree::Type::STOP_MEASURE:
-              tree.emplace<StopMeasureTree>(event.value1);
-              break;
-            case TC::Tree::Type::REVERSE:
-              tree.emplace<ReverseTree>();
-              break;
-            case TC::Tree::Type::NAVIGATE: {
-              tree.emplace<NavigateTree>(event.value1, event.value2,
-                                         event.value3);
-              break;
-            }
-            default: {
-              bb.error_msg = "Unknown tree type";
-              return false;
-            }
-            }
-            return true;
-          } else if constexpr (std::is_same_v<Event, TC::Tree::Update>) {
-            bb.state.update_from_mrk(event.mrk, event.time);
-            bb.new_event = event.mrk;
-            bb.last_tick = bb.curr_tick;
-            bb.curr_tick = event.time;
-          } else {
-            bb.error_msg = "Unknown event type";
-            return false;
-          }
-          return true;
-        },
+              switch (msg.tree_type) {
+              case TC::Tree::Type::CALIBRATE:
+                tree.emplace<CalibrateTrainAllSpeeds>(msg.value1);
+                break;
+              case TC::Tree::Type::PRINT_TRAIN_STATS:
+                tree.emplace<PrintTrainStats>();
+                break;
+              case TC::Tree::Type::STOP_MEASURE:
+                tree.emplace<StopMeasureTree>(msg.value1);
+                break;
+              case TC::Tree::Type::REVERSE:
+                tree.emplace<ReverseTree>();
+                break;
+              case TC::Tree::Type::NAVIGATE: {
+                tree.emplace<NavigateTree>(msg.value1, msg.value2, msg.value3);
+                break;
+              }
+              default: {
+                bb.error_msg = "Unknown tree type";
+                return false;
+              }
+              }
+              return true;
+            },
+            [&](const TC::Tree::Update &msg) {
+              bb.state.update_from_mrk(msg.mrk, msg.time);
+              bb.new_event = msg.mrk;
+              bb.last_tick = bb.curr_tick;
+              bb.curr_tick = msg.time;
+              return true;
+            },
+            [&](const TC::Tree::TrackReserved &msg) {
+              for (auto &node : msg.path) {
+                bb.pathfinder.reserve(node.node_idx, node.dir, msg.loco_id);
+              }
+              return true;
+            }},
         next_msg.value());
     if (!msg_result) {
       Debug_Puts(bb.txs_tid, "Error: ", bb.error_msg);

@@ -3,6 +3,7 @@
 #include "buffer.h"
 #include "clock_server.h"
 #include "debug.h"
+#include "io_helpers.h"
 #include "map.h"
 #include "message.h"
 #include "mrk.h"
@@ -64,8 +65,8 @@ template <size_t TX_BUFFER_SIZE = 64> class TrainControlServer {
     trees.set(tree_tid, mailbox);
   }
 
-  void publish_tree_update(const TC::Tree::Update &update) {
-    for (auto [tid, mailbox] : trees) {
+  void publish_tree_update(const TC::Tree::Msg &update) {
+    for (const auto &[tid, mailbox] : trees) {
       _assert(mailbox.msgs.push(update), "TREE MAILBOX FULL");
       if (mailbox.waiting) {
         auto next_msg = mailbox.msgs.pop();
@@ -164,6 +165,48 @@ template <size_t TX_BUFFER_SIZE = 64> class TrainControlServer {
               train->init_sensor = cmd.sensor;
               state.trains_dirty = true;
             }
+          } else if constexpr (std::is_same_v<Command, Reserve>) {
+
+            auto msg    = TC::Tree::TrackReserved{};
+            msg.loco_id = cmd.id;
+            for (auto &node : cmd.path) {
+              if (node.node_idx < 0 || node.node_idx >= TRACK_MAX ||
+                  (node.dir != 0 && node.dir != 1)) {
+                Debug_Puts(tx_tid,
+                           "Invalid node index or direction in reserve path");
+                break;
+              }
+
+              auto edge = pathfind.track[node.node_idx].edge[node.dir];
+
+              if (edge.reservation != UNRESERVED &&
+                  static_cast<uint32_t>(edge.reservation) != cmd.id) {
+                break;
+              }
+
+              pathfind.reserve(node.node_idx, node.dir, cmd.id);
+              msg.path.push(node);
+            }
+            publish_tree_update(msg);
+          } else if constexpr (std::is_same_v<Command, ReleaseReserve>) {
+
+            for (auto &node : cmd.path) {
+              if (node.node_idx < 0 || node.node_idx >= TRACK_MAX ||
+                  (node.dir != 0 && node.dir != 1)) {
+                Debug_Puts(tx_tid,
+                           "Invalid node index or direction in reserve path");
+                break;
+              }
+
+              auto edge = pathfind.track[node.node_idx].edge[node.dir];
+              if (edge.reservation == UNRESERVED ||
+                  static_cast<uint32_t>(edge.reservation) != cmd.id) {
+                continue;
+              }
+
+              pathfind.release(node.node_idx, node.dir);
+            }
+
           } else {
             return false;
             _assert(false, "UNHANDLED USER COMMAND");
