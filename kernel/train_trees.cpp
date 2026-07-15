@@ -831,7 +831,7 @@ namespace {
         auto res = train_cal.tick(bb);
 
         // if this speed cal is done and we have more, update to next cal
-        if (res == NodeResult::Success && curr_speed <= 14) {
+        if (res == NodeResult::Success && curr_speed < 14) {
           curr_speed += 1;
           train_cal   = CalibrateTrain{curr_speed};
           return NodeResult::Running;
