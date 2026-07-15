@@ -1,5 +1,9 @@
 #pragma once
 
+#include "debug.h"
+#include "ranges"
+#include "uart.h"
+#include <algorithm>
 #include <array>
 #include <cstddef>
 #include <iterator>
@@ -173,8 +177,10 @@ public:
     }
   };
 
-  using Iterator      = IteratorBase<false>;
-  using ConstIterator = IteratorBase<true>;
+  using Iterator             = IteratorBase<false>;
+  using ConstIterator        = IteratorBase<true>;
+  using ReverseIterator      = std::reverse_iterator<Iterator>;
+  using ConstReverseIterator = std::reverse_iterator<ConstIterator>;
 
   static_assert(std::forward_iterator<Iterator>);
   static_assert(std::bidirectional_iterator<Iterator>);
@@ -186,4 +192,60 @@ public:
   constexpr ConstIterator end() const { return ConstIterator(this, _size); }
   constexpr ConstIterator cbegin() const { return begin(); }
   constexpr ConstIterator cend() const { return end(); }
+
+  constexpr ReverseIterator rbegin() { return ReverseIterator(end()); }
+  constexpr ReverseIterator rend() { return ReverseIterator(begin()); }
+  constexpr ConstReverseIterator rbegin() const {
+    return ConstReverseIterator(end());
+  }
+  constexpr ConstReverseIterator rend() const {
+    return ConstReverseIterator(begin());
+  }
+  constexpr ConstReverseIterator crbegin() const { return rbegin(); }
+  constexpr ConstReverseIterator crend() const { return rend(); }
 };
+
+inline void test_buffer() {
+  Buffer<int, 4> buf{};
+  _assert(buf.push(1), "buffer push 1 failed");
+  _assert(buf.push(2), "buffer push 2 failed");
+  _assert(buf.push(3), "buffer push 3 failed");
+
+  int expected_forward[] = {1, 2, 3};
+  int index              = 0;
+  for (auto it = buf.begin(); it != buf.end(); ++it) {
+    _assert(*it == expected_forward[index], "buffer forward iteration failed");
+    ++index;
+  }
+  _assert(index == 3, "buffer forward iteration count failed");
+
+  const auto &const_buf = buf;
+  index                 = 0;
+  for (auto it = const_buf.cbegin(); it != const_buf.cend(); ++it) {
+    _assert(*it == expected_forward[index], "buffer const iteration failed");
+    ++index;
+  }
+  _assert(index == 3, "buffer const iteration count failed");
+
+  int expected_reverse[] = {3, 2, 1};
+  index                  = 0;
+  for (auto it = buf.rbegin(); it != buf.rend(); ++it) {
+    _assert(*it == expected_reverse[index], "buffer reverse iteration failed");
+    ++index;
+  }
+  _assert(index == 3, "buffer reverse iteration count failed");
+
+  index = 0;
+  for (auto it = const_buf.crbegin(); it != const_buf.crend(); ++it) {
+    _assert(*it == expected_reverse[index],
+            "buffer const reverse iteration failed");
+    ++index;
+  }
+  _assert(index == 3, "buffer const reverse iteration count failed");
+
+  for (auto ele : std::views::reverse(const_buf)) {
+    debug_printf(CONSOLE, "%d ", ele);
+  }
+
+  debug_puts(CONSOLE, "\n\rBuffer iteration test passed\n\r");
+}
