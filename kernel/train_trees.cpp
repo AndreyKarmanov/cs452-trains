@@ -373,10 +373,15 @@ namespace {
       if (auto data = std::get_if<SensorData>(&bb.new_event);
           data && data->new_state == 1) {
 
+        // not registered? only one train
+        if (bb.loco->inital_node_idx == -1) {
+          push_to_seen_sensors(bb, data);
+          return NodeResult::Success;
+        }
+
         // if it's our first sensor, wait for the given inital sensor
         if (bb.seen_sensors.empty()) {
-          if (bb.loco->inital_node_idx != -1 &&
-              bb.loco->inital_node_idx + 1 != data->sensor_id) {
+          if (bb.loco->inital_node_idx + 1 != data->sensor_id) {
             Debug_Puts(bb.txs_tid, "Ignored Inital: ", data->sensor_id, " ",
                        (char)('A' + data->bank), data->number, " expected ",
                        bb.loco->inital_node_idx + 1);
@@ -830,29 +835,29 @@ namespace {
     AwaitSensorNode await_loop_sid{loop_start_sid};
 
     Sequence test_seq{
-        // &localize, &set_speed, &path_in_loop, &print_path, &await_loop_sid,
+        &localize, &set_speed, &path_in_loop, &print_path, &await_loop_sid,
     };
 
     SetSpeed done_speed{0};
     Invert invert_done_speed{&done_speed};
     Fallback tree{
-        // &set_speed,
-        // &test_seq,
-        // &invert_done_speed,
+        &set_speed,
+        &test_seq,
+        &invert_done_speed,
     };
 
     CalibrateTrain2(uint16_t speed = 10, uint16_t loop_start_sid = sid('C', 12))
         : speed(speed), loop_start_sid(loop_start_sid) {
       // ok what is the plan for this calibration?
 
-      test_seq.children.push(&localize);
-      test_seq.children.push(&set_speed);
-      test_seq.children.push(&path_in_loop);
-      test_seq.children.push(&print_path_once);
-      test_seq.children.push(&await_loop_sid);
+      // test_seq.children.push(&localize);
+      // test_seq.children.push(&set_speed);
+      // test_seq.children.push(&path_in_loop);
+      // test_seq.children.push(&print_path_once);
+      // test_seq.children.push(&await_loop_sid);
 
-      tree.children.push(&test_seq);
-      tree.children.push(&invert_done_speed);
+      // tree.children.push(&test_seq);
+      // tree.children.push(&invert_done_speed);
 
       // three things:
       // top speed
