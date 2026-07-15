@@ -11,7 +11,7 @@ static int debug_scroll_line          = 0;
 
 int Debug_Puts(int tid, const char *str) {
   const int row     = DEBUG_LINE_START + debug_scroll_line;
-  debug_scroll_line = (debug_scroll_line + 1);
+  debug_scroll_line = (debug_scroll_line + 1) % 40;
 
   StaticString<TX::MAX_DATA_LENGTH> out;
   out.set("\033[s\033[", row, ";1H\033[K", str, "\n\r\033[K\033[u");

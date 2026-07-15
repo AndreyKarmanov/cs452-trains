@@ -48,10 +48,6 @@ struct Blackboard {
   uint16_t last_sensor_sid{0};
 
   int dx_um{0};
-
-  std::array<SensorPrediction, 2> sensor_predictions{};
-
-  uint16_t target_speed{0};
 };
 
 enum class NodeResult {
