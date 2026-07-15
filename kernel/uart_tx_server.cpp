@@ -43,8 +43,12 @@ void UART_TX_Server::reply_to_notifier() {
 }
 
 void UART_TX_Server::handle(const int tid, const TX::SendMsg &msg) {
+  bool overflowed = false;
   for (int i = 0; i < msg.len; ++i) {
-    tx_buffer.push(msg.data[i]);
+    if (!tx_buffer.push(msg.data[i]) && !overflowed) {
+      overflowed = true;
+      debug_puts(CONSOLE, "FAIL: TX buffer overflow\n\r");
+    }
   }
   drain();
 

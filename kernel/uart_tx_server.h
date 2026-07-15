@@ -13,7 +13,7 @@ public:
     _assert(response == 0, "TX SERVER REGISTERAS FAILED");
   }
 
-  static constexpr size_t TX_BUFFER_SIZE = 2048;
+  static constexpr size_t TX_BUFFER_SIZE = 20480;
   Buffer<char, TX_BUFFER_SIZE> tx_buffer;
   int notifier_tid;
   bool can_reply_to_notifier = false;

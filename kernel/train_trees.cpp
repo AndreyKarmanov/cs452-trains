@@ -363,6 +363,7 @@ namespace {
 
   struct UpdateModel : public LeafNode {
     int last_tick{0};
+    int last_print{0};
 
     NodeResult tick(Blackboard &bb) override {
       if (last_tick == 0) {
@@ -396,9 +397,13 @@ namespace {
       bb.dx_um += delta;
       bb.dx_um  = std::max(bb.dx_um, 0);
 
-      Offset_Puts(bb.txs_tid, -2, "Spd: ", bb.loco->ve_nm / 1000, "um/ms d_t ",
-                  d_t, " v_i ", v_i_nm / 1000, " v_max ", v_m_nm / 1000,
-                  "nm/t^2 dx_mm", bb.dx_um / 1000, "\033[K");
+      if (bb.curr_tick - last_print > 100) {
+        last_print = bb.curr_tick;
+        Offset_Puts(bb.txs_tid, -2, "Spd: ", bb.loco->ve_nm / 1000,
+                    "um/ms d_t ", d_t, " v_i ", v_i_nm / 1000, " v_max ",
+                    v_m_nm / 1000, "nm/t^2 dx_mm", bb.dx_um / 1000, "\033[K");
+      }
+
       return NodeResult::Success;
     }
   };
