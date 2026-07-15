@@ -12,6 +12,7 @@
 #include <algorithm>
 #include <cstdint>
 #include <numeric>
+#include <optional>
 
 namespace {
   auto sid = [](char b, int n) -> uint16_t { return (b - 'A') * 16 + n; };
@@ -623,7 +624,7 @@ namespace {
   struct PathToNode : public LeafNode {
     int goal_idx{};
 
-    ReverseTree rev_tree;
+    std::optional<ReverseTree> rev_tree{std::in_place};
 
     DebugPrintPath print_path{};
 
@@ -683,9 +684,9 @@ namespace {
       }
 
       if (should_reverse) {
-        auto res = rev_tree.tick(bb);
+        auto res = rev_tree->tick(bb);
         if (res == NodeResult::Success) {
-          rev_tree = ReverseTree{};
+          rev_tree.emplace();
         } else {
           return res;
         }
@@ -817,10 +818,56 @@ namespace {
     }
   };
 
+  struct CalibrateTrain2 : public LeafNode {
+    uint16_t speed          = 10;
+    uint16_t loop_start_sid = sid('C', 12);
+
+    LocalizerTree localize{};
+    SetSpeed set_speed{speed};
+    PathToNode path_in_loop{loop_start_sid - 1};
+    DebugPrintPath print_path{};
+    Repeat print_path_once{&print_path, 1};
+    AwaitSensorNode await_loop_sid{loop_start_sid};
+
+    Sequence test_seq{
+        // &localize, &set_speed, &path_in_loop, &print_path, &await_loop_sid,
+    };
+
+    SetSpeed done_speed{0};
+    Invert invert_done_speed{&done_speed};
+    Fallback tree{
+        // &set_speed,
+        // &test_seq,
+        // &invert_done_speed,
+    };
+
+    CalibrateTrain2(uint16_t speed = 10, uint16_t loop_start_sid = sid('C', 12))
+        : speed(speed), loop_start_sid(loop_start_sid) {
+      // ok what is the plan for this calibration?
+
+      test_seq.children.push(&localize);
+      test_seq.children.push(&set_speed);
+      test_seq.children.push(&path_in_loop);
+      test_seq.children.push(&print_path_once);
+      test_seq.children.push(&await_loop_sid);
+
+      tree.children.push(&test_seq);
+      tree.children.push(&invert_done_speed);
+
+      // three things:
+      // top speed
+      // this one is accurately measured by doing loops
+      // acceleration
+      // deceleration
+    }
+
+    NodeResult tick(Blackboard &bb) override { return tree.tick(bb); }
+  };
+
   struct CalibrateTrainAllSpeeds : public LeafNode {
     uint16_t cal_speed  = 0;
     uint16_t curr_speed = 4;
-    CalibrateTrain train_cal{curr_speed};
+    std::optional<CalibrateTrain2> train_cal{std::in_place, curr_speed};
 
     CalibrateTrainAllSpeeds(uint16_t cal_speed) : cal_speed(cal_speed) {}
 
@@ -828,12 +875,12 @@ namespace {
 
       // cal_speed = 0 -> iterate through all speeds
       if (cal_speed == 0) {
-        auto res = train_cal.tick(bb);
+        auto res = train_cal->tick(bb);
 
         // if this speed cal is done and we have more, update to next cal
         if (res == NodeResult::Success && curr_speed < 14) {
           curr_speed += 1;
-          train_cal   = CalibrateTrain{curr_speed};
+          train_cal.emplace(curr_speed);
           return NodeResult::Running;
         }
 
@@ -841,9 +888,9 @@ namespace {
       } else {
         if (curr_speed != cal_speed) {
           curr_speed = cal_speed;
-          train_cal  = CalibrateTrain{cal_speed};
+          train_cal.emplace(curr_speed);
         }
-        return train_cal.tick(bb);
+        return train_cal->tick(bb);
       }
     }
   };
@@ -924,13 +971,14 @@ namespace {
 
     Sequence seq{};
     LocalizerTree localizer_tree{};
-    PathToNode path_to_goal{static_cast<int>(prng.nextNum())};
+    std::optional<PathToNode> path_to_goal{std::in_place,
+                                           static_cast<int>(prng.nextNum())};
     SetSpeed max_speed{14};
     StopAtDonePath stop_at_done{};
 
     ForeverNavigateTree() {
       seq.children.push(&localizer_tree);
-      seq.children.push(&path_to_goal);
+      seq.children.push(&(*path_to_goal));
       seq.children.push(&max_speed);
       seq.children.push(&stop_at_done);
     }
@@ -938,11 +986,11 @@ namespace {
     NodeResult tick(Blackboard &bb) override {
       auto res = seq.tick(bb);
       if (res == NodeResult::Success) {
-        path_to_goal = PathToNode{static_cast<int>(prng.nextNum())};
+        path_to_goal.emplace(static_cast<int>(prng.nextNum()));
         max_speed    = SetSpeed{7};
         stop_at_done = StopAtDonePath{};
         Debug_Puts(bb.txs_tid, "Going to new node ",
-                   bb.track[path_to_goal.goal_idx].name);
+                   bb.track[path_to_goal->goal_idx].name);
         return NodeResult::Running;
       }
       return res;

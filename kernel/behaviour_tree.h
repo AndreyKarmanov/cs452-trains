@@ -79,6 +79,13 @@ struct ControlNode : public TreeNode {
 };
 
 struct Fallback : public ControlNode {
+  Fallback() = default;
+  Fallback(std::initializer_list<TreeNode *> init) {
+    for (TreeNode *n : init) {
+      children.push(n);
+    }
+  }
+
   NodeResult tick(Blackboard &bb) override {
     for (TreeNode *child : children) {
       NodeResult result = child->tick(bb);
@@ -91,6 +98,14 @@ struct Fallback : public ControlNode {
 };
 
 struct Sequence : public ControlNode {
+
+  Sequence() = default;
+  Sequence(std::initializer_list<TreeNode *> init) {
+    for (TreeNode *n : init) {
+      children.push(n);
+    }
+  }
+
   NodeResult tick(Blackboard &bb) override {
     for (TreeNode *child : children) {
       NodeResult result = child->tick(bb);
