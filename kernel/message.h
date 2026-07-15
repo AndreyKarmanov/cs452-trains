@@ -153,12 +153,12 @@ namespace TC {
   namespace Tree {
 
     enum class Type {
-      CALIBRATE,
-      PRINT_TRAIN_STATS,
-      STOP_MEASURE,
-      REVERSE,
-      NAVIGATE,
-      FOREVER_NAVIGATE
+      CALIBRATE         = 0,
+      PRINT_TRAIN_STATS = 1,
+      STOP_MEASURE      = 2,
+      REVERSE           = 3,
+      NAVIGATE          = 4,
+      FOREVER_NAVIGATE  = 5
     };
 
     struct Ready {
