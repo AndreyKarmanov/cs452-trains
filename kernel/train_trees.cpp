@@ -28,8 +28,12 @@ namespace {
     NodeResult tick(Blackboard &bb) override {
       StaticString<128> path_str{};
       path_str.append("Path: ", bb.path.size(), " ");
-      for (auto node : bb.path) {
-        path_str.append(bb.track[node.node_idx].name, " ");
+      for (const auto &node : bb.path) {
+        path_str.append(bb.track[node.node_idx].name,
+                        node.type == NODE_BRANCH
+                            ? node.should_br_be_curved ? "C " : "S "
+                            : " ",
+                        node.dx_next, " >");
       }
       Debug_Puts(bb.txs_tid, path_str);
       return NodeResult::Success;
@@ -360,9 +364,6 @@ namespace {
         bb.seen_sensors.pop();
       }
 
-      Debug_Puts(bb.txs_tid, "Attributed sensor: ", data->sensor_id,
-                 (char)('A' + data->bank), data->number);
-
       bb.seen_sensors.push({
           .sid  = data->sensor_id,
           .tick = bb.curr_tick,
@@ -406,8 +407,8 @@ namespace {
           return NodeResult::Running;
         }
 
-        if (auto sens_dist_um = path->dist_mm * 1000;
-            sens_dist_um > (bb.dx_um * 12) / 10 ||
+        auto sens_dist_um = path->dist_mm * 1000;
+        if (sens_dist_um > (bb.dx_um * 12) / 10 ||
             sens_dist_um < (bb.dx_um * 8) / 10) {
           Debug_Puts(bb.txs_tid, "Ignored sensor (out of range): ",
                      (char)('A' + data->bank), data->number, " ", sens_dist_um,
@@ -415,7 +416,9 @@ namespace {
                      (sens_dist_um - bb.dx_um) * 100 / bb.dx_um, "%");
           return NodeResult::Running;
         }
-
+        Debug_Puts(bb.txs_tid, "Attributed: ", data->sensor_id,
+                   (char)('A' + data->bank), data->number, " diff ",
+                   (sens_dist_um - bb.dx_um) * 100 / bb.dx_um, "%");
         push_to_seen_sensors(bb, data);
       }
       return NodeResult::Success;
@@ -423,6 +426,8 @@ namespace {
   };
 
   struct LocalizerNode : public LeafNode {
+
+    DebugPrintPath print_path{};
     NodeResult tick(Blackboard &bb) override {
       if (auto data = std::get_if<SensorData>(&bb.new_event);
           data && data->new_state == 1) {
@@ -442,16 +447,7 @@ namespace {
         if (idx == bb.path.end()) {
           Debug_Puts(bb.txs_tid, "Couldn't find ", data->sensor_id,
                      (char)('A' + data->bank), data->number, " in path");
-          StaticString<128> path_str{};
-          path_str.append("Path: ", bb.path.size(), " ");
-          for (auto node : bb.path) {
-            path_str.append(bb.track[node.node_idx].name,
-                            node.type == NODE_BRANCH
-                                ? node.should_br_be_curved ? "C " : "S "
-                                : " ",
-                            node.dx_next, " >");
-          }
-          Debug_Puts(bb.txs_tid, path_str);
+          print_path.tick(bb);
           bb.error_msg = "Sensor not in path";
           return NodeResult::Failure;
         }
@@ -477,17 +473,7 @@ namespace {
 
         auto skipped_nodes = std::distance(bb.path.begin(), idx) + 1;
         bb.path.pop(skipped_nodes);
-
-        // reset distance to next sensor after pop
         bb.dx_um = 0;
-
-        // StaticString<128> path_str{};
-        // path_str.append("Path: ", bb.path.size(), " ");
-        // for (auto node : bb.path) {
-        //   path_str.append(bb.pathfinder[node.node_idx].name, " ",
-        //                   node.dx_next, " >");
-        // }
-        // Debug_Puts(bb.txs_tid, path_str);
       }
       return NodeResult::Success;
     }
@@ -704,21 +690,15 @@ namespace {
   };
 
   struct LocalizerTree : public LeafNode {
-    SetSpeed set_speed{CRAWL_SPEED};
-
-    Sequence loop{};
     UpdateModel model{};
+    SetSpeed set_speed{CRAWL_SPEED};
     AttributeSensorNode attribute_sensor{};
     LocalizerNode localize{};
     PathLookaheadNode lookahead{};
 
-    LocalizerTree() {
-      loop.children.push(&model);
-      loop.children.push(&set_speed);
-      loop.children.push(&attribute_sensor);
-      loop.children.push(&localize);
-      loop.children.push(&lookahead);
-    }
+    Sequence loop{
+        &model, &set_speed, &attribute_sensor, &localize, &lookahead,
+    };
 
     NodeResult tick(Blackboard &bb) override {
 
@@ -1085,6 +1065,7 @@ void run_tree() {
       Debug_Puts(bb.txs_tid, "Error: ", bb.error_msg);
       break;
     } else if (result == NodeResult::Success) {
+      Debug_Puts(bb.txs_tid, "Done Tree");
       break;
     }
   }
