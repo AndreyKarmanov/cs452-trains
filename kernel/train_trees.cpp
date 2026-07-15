@@ -832,23 +832,26 @@ namespace {
       }
       // once we've succeeded, we can calculate the speed, accel, and decel
 
-      // get an iterator to the beginning of the loops.
-      auto cursor_it =
-          std::ranges::find_if(std::views::reverse(bb.dists),
-                               [&, count = 0](auto const &x) mutable {
-                                 return x.from_sid == loop_start_sid &&
-                                        ++count == TOTAL_LOOPS;
-                               })
-              .base();
+      auto cursor_rev_it = std::ranges::find_if(
+          std::views::reverse(bb.dists), [&, count = 0](auto const &x) mutable {
+            return x.from_sid == loop_start_sid && ++count == TOTAL_LOOPS;
+          });
+      if (cursor_rev_it == std::views::reverse(bb.dists).end()) {
+        bb.error_msg = "Failed to locate calibration loop start";
+        return NodeResult::Failure;
+      }
+
+      auto cursor_it = std::prev(cursor_rev_it.base());
 
       print_dists(bb.txs_tid, bb.dists);
 
       auto count = 0;
       Debug_Puts(bb.txs_tid, "TOP_SPEED_DISTS:");
       Debug_Puts(bb.txs_tid, "from, to, dist (mm), ticks");
-      for (; cursor_it != bb.dists.end(); cursor_it++) {
+      for (; cursor_it != bb.dists.end() && count < TOP_SPEED_LOOPS;
+           cursor_it++) {
         auto log = *cursor_it;
-        if (log.from_sid == loop_start_sid && ++count == TOP_SPEED_LOOPS) {
+        if (log.from_sid == loop_start_sid && count++ == TOP_SPEED_LOOPS) {
           break;
         }
         Debug_Puts(bb.txs_tid, log.from_sid, ", ", log.to_sid, ", ",
@@ -858,9 +861,9 @@ namespace {
       count = 0;
       Debug_Puts(bb.txs_tid, "DECEL_DISTS:");
       Debug_Puts(bb.txs_tid, "from, to, dist (mm), ticks");
-      for (; cursor_it != bb.dists.end(); cursor_it++) {
+      for (; cursor_it != bb.dists.end() && count < DECEL_LOOPS; cursor_it++) {
         auto log = *cursor_it;
-        if (log.from_sid == loop_start_sid && ++count == DECEL_LOOPS) {
+        if (log.from_sid == loop_start_sid && count++ == DECEL_LOOPS) {
           break;
         }
         Debug_Puts(bb.txs_tid, log.from_sid, ", ", log.to_sid, ", ",
@@ -870,9 +873,9 @@ namespace {
       count = 0;
       Debug_Puts(bb.txs_tid, "ACCEL_DISTS:");
       Debug_Puts(bb.txs_tid, "from, to, dist (mm), ticks");
-      for (; cursor_it != bb.dists.end(); cursor_it++) {
+      for (; cursor_it != bb.dists.end() && count < ACCEL_LOOPS; cursor_it++) {
         auto log = *cursor_it;
-        if (log.from_sid == loop_start_sid && ++count == ACCEL_LOOPS) {
+        if (log.from_sid == loop_start_sid && count++ == ACCEL_LOOPS) {
           break;
         }
         Debug_Puts(bb.txs_tid, log.from_sid, ", ", log.to_sid, ", ",
