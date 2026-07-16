@@ -362,8 +362,8 @@ namespace {
   };
 
   struct UpdateModel : public LeafNode {
-    int last_tick{0};
-    int last_print{0};
+    uint64_t last_tick{0};
+    uint64_t last_print{0};
 
     NodeResult tick(Blackboard &bb) override {
       if (last_tick == 0) {
@@ -371,21 +371,21 @@ namespace {
         return NodeResult::Success;
       }
 
-      int v_m_nm = bb.loco->v_max_umpt[bb.loco->req_speed] * 1000;
-      int v_i_nm = bb.loco->ve_nm;
-      int tmp_um = v_i_nm / 1000;
-      int d_t    = bb.curr_tick - last_tick;
-      last_tick  = bb.curr_tick;
+      uint64_t v_m_nm = bb.loco->v_max_umpt[bb.loco->req_speed] * 1000;
+      uint64_t v_i_nm = bb.loco->ve_nm;
+      uint64_t d_t    = bb.curr_tick - last_tick;
+      last_tick       = bb.curr_tick;
 
-      auto delta = 0;
+      uint64_t delta = 0;
       if (v_m_nm >= v_i_nm) {
-        int a          = bb.loco->a_nmpt2[bb.loco->req_speed];
-        int t_a        = std::min((v_m_nm - v_i_nm) / a, d_t);
+        uint64_t a     = bb.loco->accel;
+        uint64_t t_a   = std::min((v_m_nm - v_i_nm) / a, d_t);
         bb.loco->ve_nm = v_i_nm + a * t_a;
 
-        int t_c = d_t - t_a;
-        delta   = ((a * t_a * t_a) / 2 + v_m_nm * t_c + v_i_nm * t_a) / 1000;
+        uint64_t t_c = d_t - t_a;
+        delta = ((a * t_a * t_a) / 2 + v_m_nm * t_c + v_i_nm * t_a) / 1000;
       } else {
+        int tmp_um     = v_i_nm / 1000;
         int model_d    = (3000 + 4200 * tmp_um - 3 * tmp_um * tmp_um) / 10000;
         int d          = std::max(model_d, 33);
         int t_d        = std::min((v_i_nm - v_m_nm) / d, d_t);
@@ -393,16 +393,23 @@ namespace {
 
         delta = (t_d * (v_i_nm - v_m_nm) / 2 + v_m_nm * d_t) / 1000;
       }
+      // } else {
+      //   uint64_t d        = bb.loco->decel_rate;
+      //   uint64_t decel_nm = std::max((d * v_i_nm * d_t) / 100000, 300ul);
+      //   bb.loco->ve_nm    = decel_nm >= v_i_nm ? 0 : v_i_nm - decel_nm;
+      //   delta             = ((v_i_nm + bb.loco->ve_nm) * d_t) / 2000;
+      // }
 
       bb.dx_um += delta;
-      bb.dx_um  = std::max(bb.dx_um, 0);
 
+#if !defined(DATA_COLLECTION) || !DATA_COLLECTION
       if (bb.curr_tick - last_print > 100) {
         last_print = bb.curr_tick;
         Offset_Puts(bb.txs_tid, -2, "Spd: ", bb.loco->ve_nm / 1000,
                     "um/ms d_t ", d_t, " v_i ", v_i_nm / 1000, " v_max ",
                     v_m_nm / 1000, "nm/t^2 dx_mm", bb.dx_um / 1000, "\033[K");
       }
+#endif
 
       return NodeResult::Success;
     }
@@ -461,14 +468,15 @@ namespace {
         if (sens_dist_um > (bb.dx_um * 12) / 10 ||
             sens_dist_um < (bb.dx_um * 8) / 10) {
           Debug_Puts(bb.txs_tid, "Ignored sensor (out of range): ",
-                     (char)('A' + data->bank), data->number, " ", sens_dist_um,
-                     "um vs our ", bb.dx_um, "um diff ",
-                     (sens_dist_um - bb.dx_um) * 100 / bb.dx_um, "%");
+                     (char)('A' + data->bank), data->number, " pos ",
+                     bb.dx_um * 100 / sens_dist_um, "% ",
+                     (bb.dx_um - sens_dist_um) / 1000, " mm");
           return NodeResult::Running;
         }
-        Debug_Puts(bb.txs_tid, "Attributed: ", data->sensor_id,
-                   (char)('A' + data->bank), data->number, " diff ",
-                   (sens_dist_um - bb.dx_um) * 100 / bb.dx_um, "%");
+        Debug_Puts(bb.txs_tid, "Attributed: ", data->sensor_id, " ",
+                   (char)('A' + data->bank), data->number, " pos ",
+                   bb.dx_um * 100 / sens_dist_um, "% ",
+                   (bb.dx_um - sens_dist_um) / 1000, " mm");
         push_to_seen_sensors(bb, data);
       }
       return NodeResult::Success;
@@ -483,6 +491,7 @@ namespace {
           data && data->new_state == 1) {
 
         if (bb.path.empty()) {
+          bb.dx_um = 0;
           return NodeResult::Success;
         }
 
@@ -762,28 +771,32 @@ namespace {
   struct CalibrateTree : public LeafNode {
 
     constexpr static auto DEFAULT_SPEED    = 10;
-    constexpr static auto DEFAULT_LOOP_SID = sid('C', 12);
+    constexpr static auto SLOW_SPEED       = 2;
+    constexpr static auto DEFAULT_LOOP_SID = sid('B', 3);
 
     constexpr static auto TOP_SPEED_LOOPS = 2;
     constexpr static auto ACCEL_LOOPS     = 2;
-    constexpr static auto DECEL_LOOPS     = 2;
+    constexpr static auto DECEL_LOOPS     = 1;
     constexpr static auto TOTAL_LOOPS =
         TOP_SPEED_LOOPS + ACCEL_LOOPS + DECEL_LOOPS;
 
-    uint16_t speed{DEFAULT_SPEED};
+    uint16_t cal_speed{DEFAULT_SPEED};
     uint16_t loop_start_sid{DEFAULT_LOOP_SID};
 
     LocalizerTree localize{};
-    SetSpeed test_speed{speed};
-    SetSpeed test_speed_2{speed};
-    SetSpeed crawl_speed{CRAWL_SPEED};
+    SetSpeed test_speed{cal_speed};
+    SetSpeed test_speed_2{cal_speed};
+    SetSpeed zero_speed{0};
+    SetSpeed crawl_speed{SLOW_SPEED};
+    SetSpeed done_speed{0};
 
     PathToNode path_in_loop{loop_start_sid - 1};
 
     AwaitSensorNode await_loop_sid{loop_start_sid};
     Repeat loop_3x{&await_loop_sid, TOP_SPEED_LOOPS + 1};
-    Repeat loop_2x{&await_loop_sid, DECEL_LOOPS};
-    Repeat loop_2x_2{&await_loop_sid, ACCEL_LOOPS};
+    WaitNode wait_to_stop{10 * TICKS_PER_S};
+    Repeat loop_1x{&await_loop_sid, DECEL_LOOPS};
+    Repeat loop_2x{&await_loop_sid, ACCEL_LOOPS};
 
     PrintLastLoopDists print_last_six_loops{6, loop_start_sid};
 
@@ -802,19 +815,21 @@ namespace {
 
         // do two loops at crawl speed
         // gets deceleration data
+        &zero_speed,
+        &wait_to_stop,
         &crawl_speed,
-        &loop_2x,
+        &loop_1x,
 
         // do two loops at test speed
         // gets acceleration data
         &test_speed_2,
-        &loop_2x_2,
+        &loop_2x,
 
         // print raw data from test loops,
         // &print_last_six_loops,
+        &done_speed,
     };
 
-    SetSpeed done_speed{0};
     Invert invert_done_speed{&done_speed};
     Fallback tree{
         &test_seq,
@@ -823,7 +838,7 @@ namespace {
 
     CalibrateTree(uint16_t speed          = DEFAULT_SPEED,
                   uint16_t loop_start_sid = DEFAULT_LOOP_SID)
-        : speed(speed), loop_start_sid(loop_start_sid) {}
+        : cal_speed(speed), loop_start_sid(loop_start_sid) {}
 
     NodeResult tick(Blackboard &bb) override {
       auto res = tree.tick(bb);
@@ -843,43 +858,35 @@ namespace {
 
       auto cursor_it = std::prev(cursor_rev_it.base());
 
-      print_dists(bb.txs_tid, bb.dists);
-
       auto count = 0;
-      Debug_Puts(bb.txs_tid, "TOP_SPEED_DISTS:");
-      Debug_Puts(bb.txs_tid, "from, to, dist (mm), ticks");
-      for (; cursor_it != bb.dists.end() && count < TOP_SPEED_LOOPS;
-           cursor_it++) {
+      Debug_Puts(bb.txs_tid, "from,to,dist(mm),ticks,mode,cal_speed");
+      for (; cursor_it != bb.dists.end(); cursor_it++) {
         auto log = *cursor_it;
         if (log.from_sid == loop_start_sid && count++ == TOP_SPEED_LOOPS) {
           break;
         }
-        Debug_Puts(bb.txs_tid, log.from_sid, ", ", log.to_sid, ", ",
-                   log.dx_um / 1000, ", ", log.d_ticks);
+        Debug_Puts(bb.txs_tid, log.from_sid, ",", log.to_sid, ",",
+                   log.dx_um / 1000, ",", log.d_ticks, ",speed,", cal_speed);
       }
 
       count = 0;
-      Debug_Puts(bb.txs_tid, "DECEL_DISTS:");
-      Debug_Puts(bb.txs_tid, "from, to, dist (mm), ticks");
-      for (; cursor_it != bb.dists.end() && count < DECEL_LOOPS; cursor_it++) {
+      for (; cursor_it != bb.dists.end(); cursor_it++) {
         auto log = *cursor_it;
         if (log.from_sid == loop_start_sid && count++ == DECEL_LOOPS) {
           break;
         }
-        Debug_Puts(bb.txs_tid, log.from_sid, ", ", log.to_sid, ", ",
-                   log.dx_um / 1000, ", ", log.d_ticks);
+        Debug_Puts(bb.txs_tid, log.from_sid, ",", log.to_sid, ",",
+                   log.dx_um / 1000, ",", log.d_ticks, ",decel,", cal_speed);
       }
 
       count = 0;
-      Debug_Puts(bb.txs_tid, "ACCEL_DISTS:");
-      Debug_Puts(bb.txs_tid, "from, to, dist (mm), ticks");
-      for (; cursor_it != bb.dists.end() && count < ACCEL_LOOPS; cursor_it++) {
+      for (; cursor_it != bb.dists.end(); cursor_it++) {
         auto log = *cursor_it;
         if (log.from_sid == loop_start_sid && count++ == ACCEL_LOOPS) {
           break;
         }
-        Debug_Puts(bb.txs_tid, log.from_sid, ", ", log.to_sid, ", ",
-                   log.dx_um / 1000, ", ", log.d_ticks);
+        Debug_Puts(bb.txs_tid, log.from_sid, ",", log.to_sid, ",",
+                   log.dx_um / 1000, ",", log.d_ticks, ",accel,", cal_speed);
       }
 
       return NodeResult::Success;
@@ -888,7 +895,7 @@ namespace {
 
   struct CalibrateTrain : public LeafNode {
     uint16_t cal_speed  = 0;
-    uint16_t curr_speed = 4;
+    uint16_t curr_speed = 2;
     std::optional<CalibrateTree> train_cal{std::in_place, curr_speed};
 
     CalibrateTrain(uint16_t cal_speed) : cal_speed(cal_speed) {}

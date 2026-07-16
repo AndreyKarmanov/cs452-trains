@@ -11,7 +11,6 @@ struct Blackboard {
   // tree tick data
   MRKCmd new_event{};
   uint32_t curr_tick{0};
-  uint32_t last_tick{0};
 
   // tree state
   StaticString<32> error_msg{};

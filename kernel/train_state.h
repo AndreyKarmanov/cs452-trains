@@ -52,6 +52,12 @@ struct TrainState {
   std::array<int, 15> d_nmpt2{33, 33, 33, 33, 33, 33, 33, 56,
                               52, 57, 63, 64, 71, 75, 78};
 
+  // unit of nm/tick^2
+  int accel = 90;
+
+  // unit of 100000/tick (divide by 100000 after mul)
+  uint64_t decel_rate = 30;
+
   std::array<uint32_t, 15> stop_dist_um{
       1000,   40000,  55000,  80000,  90000,  100000,  154000,  249000,
       336000, 391000, 501000, 683000, 833000, 1055000, 1307000,
@@ -63,7 +69,7 @@ struct TrainState {
   // };
 
   // units of nm / tick
-  int ve_nm{0};
+  uint64_t ve_nm{0};
 };
 
 struct SensorPrediction {
@@ -74,8 +80,6 @@ struct SensorPrediction {
   uint32_t predicted_tick{0};
   int v_at_prediction_nm{0};
 };
-
-int predict_ticks(int dist_um, int v_i_nm, const TrainState &loco);
 
 struct State {
 
