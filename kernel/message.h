@@ -158,7 +158,8 @@ namespace TC {
       STOP_MEASURE      = 2,
       REVERSE           = 3,
       NAVIGATE          = 4,
-      FOREVER_NAVIGATE  = 5
+      FOREVER_NAVIGATE  = 5,
+      TEST              = 6
     };
 
     struct Ready {

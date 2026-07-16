@@ -291,6 +291,32 @@ namespace {
     }
   };
 
+  struct SetFunction : public LeafNode {
+    uint8_t function{0};
+    uint8_t value{0};
+    bool sent{false};
+
+    SetFunction(uint8_t function, uint8_t value)
+        : function(function), value(value) {}
+
+    NodeResult tick(Blackboard &bb) override {
+      if (sent) {
+        return NodeResult::Success;
+      }
+
+      auto resp =
+          send<TC::Ack>(bb.tcs_tid, TC::Cmd::Function{.id       = bb.loco_id,
+                                                      .function = function,
+                                                      .value    = value});
+      if (!resp.has_value()) {
+        bb.error_msg = "Failed to set function";
+        return NodeResult::Failure;
+      }
+      sent = true;
+      return NodeResult::Success;
+    }
+  };
+
   struct TrackStop : public LeafNode {
     bool set = false;
     NodeResult tick(Blackboard &bb) override {
@@ -1073,6 +1099,74 @@ namespace {
     }
   };
 
+  struct LogTestDataNode : public LeafNode {
+    uint32_t init_tick{0};
+    size_t last_logged_count{0};
+    bool logged_init{false};
+
+    NodeResult tick(Blackboard &bb) override {
+      if (!logged_init) {
+        init_tick   = bb.curr_tick;
+        logged_init = true;
+        Debug_Puts(bb.txs_tid, "Test init tick: ", init_tick);
+        Debug_Puts(bb.txs_tid, "sensor, elapsed, dist_mm");
+      }
+
+      while (last_logged_count < bb.seen_sensors.size()) {
+        auto curr = bb.seen_sensors[last_logged_count];
+        if (!curr.has_value()) {
+          break;
+        }
+
+        const auto sid     = curr->sid;
+        const auto elapsed = bb.curr_tick - init_tick;
+        int dist_mm        = 0;
+
+        if (last_logged_count > 0) {
+          if (auto prev = bb.seen_sensors[last_logged_count - 1]) {
+            if (auto path = bb.track.find_path(prev->sid - 1, curr->sid - 1)) {
+              dist_mm = path->dist_mm;
+            }
+          }
+        }
+
+        Debug_Puts(bb.txs_tid, (char)('A' + (sid - 1) / 16), (sid - 1) % 16 + 1,
+                   ", ", elapsed, ", ", dist_mm);
+        last_logged_count++;
+      }
+
+      return NodeResult::Success;
+    }
+  };
+
+  struct TestTree : public TreeNode {
+    SetFunction enable_f4{4, 1};
+    SetSpeed set_speed{4};
+    AttributeSensorNode attribute_sensor{};
+    LogTestDataNode log_data{};
+    Sequence loop{&attribute_sensor, &log_data};
+
+    TestTree(uint16_t speed = 4) : set_speed(speed) {}
+
+    NodeResult tick(Blackboard &bb) override {
+      auto fn_res = enable_f4.tick(bb);
+      if (fn_res != NodeResult::Success) {
+        return fn_res;
+      }
+
+      auto speed_res = set_speed.tick(bb);
+      if (speed_res != NodeResult::Success) {
+        return speed_res;
+      }
+
+      auto res = loop.tick(bb);
+      if (res == NodeResult::Failure) {
+        return NodeResult::Failure;
+      }
+      return NodeResult::Running;
+    }
+  };
+
   struct ForeverNavigateTree : public TreeNode {
     Unif prng{time_get(), 0, TRACK_MAX - 1};
 
@@ -1105,8 +1199,9 @@ namespace {
   };
 } // namespace
 
-using Tree = std::variant<CalibrateTrain, PrintTrainStats, StopMeasureTree,
-                          NavigateTree, ForeverNavigateTree, ReverseTree>;
+using Tree =
+    std::variant<CalibrateTrain, PrintTrainStats, StopMeasureTree, NavigateTree,
+                 ForeverNavigateTree, ReverseTree, TestTree>;
 
 void run_tree() {
   auto tcs_tid = WhoIs(TrainControlServer<>::NAME);
@@ -1154,6 +1249,11 @@ void run_tree() {
                      }
                      case TC::Tree::Type::FOREVER_NAVIGATE: {
                        tree.emplace<ForeverNavigateTree>();
+                       break;
+                     }
+                     case TC::Tree::Type::TEST: {
+                       tree.emplace<TestTree>(msg.value1 != 0 ? msg.value1
+                                                              : CRAWL_SPEED);
                        break;
                      }
                      default: {
