@@ -27,6 +27,21 @@
 //  13   , 512 ,    75 ,    75 , 1055
 //  14   , 584 ,    78 ,    78 , 1307
 
+// spd,vmax,a,d
+// 2,33,0,33
+// 3,44,0,33
+// 4,66,33,0
+// 5,98,598,0
+// 6,137,56,4
+// 7,185,62,10
+// 8,232,67,18
+// 9,286,66,30
+// 10,343,74,44
+// 11,405,78,58
+// 12,470,81,72
+// 13,534,84,85
+// 14,607,86,94
+
 struct TrainState {
   uint32_t loco_id;
 
@@ -35,7 +50,6 @@ struct TrainState {
   bool backward : 1 = false;
   bool light_on : 1 = true;
 
-  // Todo: use this to let train controller where train starts.
   int inital_node_idx{-1};
 
   // units of um/tick (micrometer per tick)
@@ -52,21 +66,11 @@ struct TrainState {
   std::array<int, 15> d_nmpt2{33, 33, 33, 33, 33, 33, 33, 56,
                               52, 57, 63, 64, 71, 75, 78};
 
-  // unit of nm/tick^2
-  int accel = 90;
-
-  // unit of 100000/tick (divide by 100000 after mul)
-  uint64_t decel_rate = 30;
-
+  // manually determined
   std::array<uint32_t, 15> stop_dist_um{
       1000,   40000,  55000,  80000,  90000,  100000,  154000,  249000,
       336000, 391000, 501000, 683000, 833000, 1055000, 1307000,
   };
-
-  // std::array<uint32_t, 15> stop_dist_um{
-  //     1000,   40000,  55000,  80000,  110000, 140000,  18000,   250000,
-  //     340000, 440000, 660000, 770000, 970000, 1140000, 1350000,
-  // };
 
   // units of nm / tick
   uint64_t ve_nm{0};

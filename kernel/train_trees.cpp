@@ -272,18 +272,21 @@ namespace {
     bool sent_cmd      = false;
     SetSpeed(uint16_t speed) : req_speed(speed) {}
     NodeResult tick(Blackboard &bb) override {
-      if (reached_speed || bb.loco->req_speed == req_speed) {
+      if (reached_speed || (sent_cmd && bb.loco->req_speed == req_speed)) {
         reached_speed = true;
         return NodeResult::Success;
       }
 
-      auto resp = send<TC::Ack>(
-          bb.tcs_tid, TC::Cmd::Speed{.id = bb.loco_id, .value = req_speed});
-      if (!resp.has_value()) {
-        bb.error_msg = "Failed to set speed";
-        return NodeResult::Failure;
+      if (!sent_cmd) {
+        auto resp = send<TC::Ack>(
+            bb.tcs_tid, TC::Cmd::Speed{.id = bb.loco_id, .value = req_speed});
+        if (!resp.has_value()) {
+          bb.error_msg = "Failed to set speed";
+          return NodeResult::Failure;
+        }
+        sent_cmd = true;
       }
-      sent_cmd = true;
+
       return NodeResult::Running;
     }
   };
@@ -364,6 +367,7 @@ namespace {
   struct UpdateModel : public LeafNode {
     uint64_t last_tick{0};
     uint64_t last_print{0};
+    uint16_t decel_from_speed{0}; // speed level we started decelerating from
 
     NodeResult tick(Blackboard &bb) override {
       if (last_tick == 0) {
@@ -378,38 +382,48 @@ namespace {
 
       uint64_t delta = 0;
       if (v_m_nm >= v_i_nm) {
-        uint64_t a     = bb.loco->accel;
+        // accelerating (or cruising): constant a until v_max, then cruise
+        uint64_t a     = bb.loco->a_nmpt2[bb.loco->req_speed];
         uint64_t t_a   = std::min((v_m_nm - v_i_nm) / a, d_t);
         bb.loco->ve_nm = v_i_nm + a * t_a;
 
         uint64_t t_c = d_t - t_a;
         delta = ((a * t_a * t_a) / 2 + v_m_nm * t_c + v_i_nm * t_a) / 1000;
-      } else {
-        int tmp_um     = v_i_nm / 1000;
-        int model_d    = (3000 + 4200 * tmp_um - 3 * tmp_um * tmp_um) / 10000;
-        int d          = std::max(model_d, 33);
-        int t_d        = std::min((v_i_nm - v_m_nm) / d, d_t);
-        bb.loco->ve_nm = v_i_nm - d * t_d;
 
-        delta = (t_d * (v_i_nm - v_m_nm) / 2 + v_m_nm * d_t) / 1000;
+        // track which speed level our current velocity corresponds to,
+        // so a later slow-down uses the right decel constant
+        decel_from_speed = bb.loco->req_speed;
+      } else {
+        // decelerating: derive d from stopping distance of our decel from speed
+        auto stopping_d = bb.loco->d_nmpt2[decel_from_speed];
+        auto v_m_stop   = bb.loco->v_max_umpt[decel_from_speed];
+        auto d          = (v_m_stop * v_m_stop) / (2 * stopping_d);
+        uint64_t t_d    = std::min((v_i_nm - v_m_nm) / d, d_t);
+        bb.loco->ve_nm  = v_i_nm - d * t_d;
+        uint64_t t_c    = d_t - t_d;
+        delta = (v_i_nm * t_d - (d * t_d * t_d) / 2 + v_m_nm * t_c) / 1000;
       }
+
       // } else {
-      //   uint64_t d        = bb.loco->decel_rate;
-      //   uint64_t decel_nm = std::max((d * v_i_nm * d_t) / 100000, 300ul);
-      //   bb.loco->ve_nm    = decel_nm >= v_i_nm ? 0 : v_i_nm - decel_nm;
-      //   delta             = ((v_i_nm + bb.loco->ve_nm) * d_t) / 2000;
+      //   // decelerating: constant d until v_max of target speed, then cruise
+      //   uint64_t d     = bb.loco->d_nmpt2[decel_from_speed];
+      //   uint64_t t_d   = std::min((v_i_nm - v_m_nm) / d, d_t);
+      //   bb.loco->ve_nm = v_i_nm - d * t_d;
+
+      //   uint64_t t_c = d_t - t_d;
+      //   delta = (v_i_nm * t_d - (d * t_d * t_d) / 2 + v_m_nm * t_c) / 1000;
       // }
 
       bb.dx_um += delta;
 
-#if !defined(DATA_COLLECTION) || !DATA_COLLECTION
+      // #if !defined(DATA_COLLECTION) || !DATA_COLLECTION
       if (bb.curr_tick - last_print > 100) {
         last_print = bb.curr_tick;
         Offset_Puts(bb.txs_tid, -2, "Spd: ", bb.loco->ve_nm / 1000,
                     "um/ms d_t ", d_t, " v_i ", v_i_nm / 1000, " v_max ",
                     v_m_nm / 1000, "nm/t^2 dx_mm", bb.dx_um / 1000, "\033[K");
       }
-#endif
+      // #endif
 
       return NodeResult::Success;
     }
@@ -626,8 +640,17 @@ namespace {
 
       auto remaining_um = remaining_mm * 1000 - bb.dx_um + offset_mm * 1000;
 
-      auto x               = bb.loco->ve_nm / 1000;
-      int stopping_dist_um = 26000 + 582 * x + 3.4 * x * x;
+      // auto x = bb.loco->ve_nm / 1000;
+      // int stopping_dist_um = 26000 + 582 * x + 3.4 * x * x;
+
+      // stopping distance is a linear interpolation between our measured
+      // stopping distances
+
+      auto u_v_m   = bb.loco->v_max_umpt[bb.loco->req_speed];
+      auto u_sd_um = bb.loco->stop_dist_um[bb.loco->req_speed];
+
+      auto stopping_dist_um = (u_sd_um * bb.loco->ve_nm) / (u_v_m * 1000);
+
       Offset_Puts(bb.txs_tid, -3, "D: ", remaining_um / 1000,
                   "mm sd: ", stopping_dist_um / 1000, "mm");
 
@@ -754,7 +777,8 @@ namespace {
 
       // if we're already moving, keep the same speed
       // otherwise sets to crawl speed to start localizing
-      if (bb.seen_sensors.empty() && bb.loco->req_speed != 0) {
+      if (bb.seen_sensors.empty() && bb.loco->req_speed != 0 &&
+          set_speed.req_speed != bb.loco->req_speed) {
         set_speed = SetSpeed{bb.loco->req_speed};
       }
 
@@ -771,11 +795,11 @@ namespace {
   struct CalibrateTree : public LeafNode {
 
     constexpr static auto DEFAULT_SPEED    = 10;
-    constexpr static auto SLOW_SPEED       = 2;
+    constexpr static auto SLOW_SPEED       = 4;
     constexpr static auto DEFAULT_LOOP_SID = sid('B', 3);
 
     constexpr static auto TOP_SPEED_LOOPS = 2;
-    constexpr static auto ACCEL_LOOPS     = 2;
+    constexpr static auto ACCEL_LOOPS     = 1;
     constexpr static auto DECEL_LOOPS     = 1;
     constexpr static auto TOTAL_LOOPS =
         TOP_SPEED_LOOPS + ACCEL_LOOPS + DECEL_LOOPS;
@@ -786,17 +810,15 @@ namespace {
     LocalizerTree localize{};
     SetSpeed test_speed{cal_speed};
     SetSpeed test_speed_2{cal_speed};
-    SetSpeed zero_speed{0};
     SetSpeed crawl_speed{SLOW_SPEED};
     SetSpeed done_speed{0};
 
     PathToNode path_in_loop{loop_start_sid - 1};
 
     AwaitSensorNode await_loop_sid{loop_start_sid};
-    Repeat loop_3x{&await_loop_sid, TOP_SPEED_LOOPS + 1};
-    WaitNode wait_to_stop{10 * TICKS_PER_S};
-    Repeat loop_1x{&await_loop_sid, DECEL_LOOPS};
-    Repeat loop_2x{&await_loop_sid, ACCEL_LOOPS};
+    Repeat loop_speed{&await_loop_sid, TOP_SPEED_LOOPS + 1};
+    Repeat loop_decel{&await_loop_sid, DECEL_LOOPS};
+    Repeat loop_accel{&await_loop_sid, ACCEL_LOOPS};
 
     PrintLastLoopDists print_last_six_loops{6, loop_start_sid};
 
@@ -811,19 +833,18 @@ namespace {
         // first loop ignored for (accel / decel)
         // gets top speed data
         &test_speed,
-        &loop_3x,
+        &loop_speed,
 
-        // do two loops at crawl speed
+        // drop directly to crawl speed at the loop sensor
+        // loop contains decel (v_f -> v_c) then cruise at v_c
         // gets deceleration data
-        &zero_speed,
-        &wait_to_stop,
         &crawl_speed,
-        &loop_1x,
+        &loop_decel,
 
-        // do two loops at test speed
-        // gets acceleration data
+        // go to test speed at the loop sensor
+        // loop contains accel (v_c -> v_f) then cruise at v_f (if done accel)
         &test_speed_2,
-        &loop_2x,
+        &loop_accel,
 
         // print raw data from test loops,
         // &print_last_six_loops,
@@ -845,6 +866,8 @@ namespace {
       if (res != NodeResult::Success) {
         return res;
       }
+
+      print_dists(bb.txs_tid, bb.dists);
       // once we've succeeded, we can calculate the speed, accel, and decel
 
       auto cursor_rev_it = std::ranges::find_if(
@@ -858,6 +881,10 @@ namespace {
 
       auto cursor_it = std::prev(cursor_rev_it.base());
 
+      // --- top speed: steady-state loops, average time first (sum d / sum t)
+      int64_t speed_d_um = 0;
+      int64_t speed_t    = 0;
+
       auto count = 0;
       Debug_Puts(bb.txs_tid, "from,to,dist(mm),ticks,mode,cal_speed");
       for (; cursor_it != bb.dists.end(); cursor_it++) {
@@ -865,9 +892,16 @@ namespace {
         if (log.from_sid == loop_start_sid && count++ == TOP_SPEED_LOOPS) {
           break;
         }
+        speed_d_um += log.dx_um;
+        speed_t    += log.d_ticks;
         Debug_Puts(bb.txs_tid, log.from_sid, ",", log.to_sid, ",",
                    log.dx_um / 1000, ",", log.d_ticks, ",speed,", cal_speed);
       }
+
+      // --- decel: loop starts with a drop v_f -> v_c at the loop sensor,
+      // then cruises at v_c for the rest of the loop
+      int64_t decel_d_um = 0;
+      int64_t decel_t    = 0;
 
       count = 0;
       for (; cursor_it != bb.dists.end(); cursor_it++) {
@@ -875,9 +909,16 @@ namespace {
         if (log.from_sid == loop_start_sid && count++ == DECEL_LOOPS) {
           break;
         }
+        decel_d_um += log.dx_um;
+        decel_t    += log.d_ticks;
         Debug_Puts(bb.txs_tid, log.from_sid, ",", log.to_sid, ",",
                    log.dx_um / 1000, ",", log.d_ticks, ",decel,", cal_speed);
       }
+
+      // --- accel: only the first loop after the v_c -> v_f speed-up carries
+      // the transient; later loops are pure cruise and only amplify v_f error
+      int64_t accel_d_um = 0;
+      int64_t accel_t    = 0;
 
       count = 0;
       for (; cursor_it != bb.dists.end(); cursor_it++) {
@@ -885,9 +926,46 @@ namespace {
         if (log.from_sid == loop_start_sid && count++ == ACCEL_LOOPS) {
           break;
         }
+        accel_d_um += log.dx_um;
+        accel_t    += log.d_ticks;
         Debug_Puts(bb.txs_tid, log.from_sid, ",", log.to_sid, ",",
                    log.dx_um / 1000, ",", log.d_ticks, ",accel,", cal_speed);
       }
+
+      // --- solve the constant-accel model
+      // v_f from this run's steady loops; v_c from the crawl-speed table
+      if (speed_t == 0 || decel_t == 0 || accel_t == 0) {
+        bb.error_msg = "Calibration collected no data";
+        return NodeResult::Failure;
+      }
+
+      int64_t vf = speed_d_um / speed_t; // um/tick
+      int64_t vc = bb.loco->v_max_umpt[SLOW_SPEED];
+
+      bb.loco->v_max_umpt[cal_speed] = vf;
+
+      // accel: d = vf*t - (vf-vc)^2 / (2a)  =>  a = (vf-vc)^2 / (2(vf*t - d))
+      // scenario 2 (accel not done by loop end, d/t < (vc+vf)/2):
+      //   v_avg = d/t, v_reached = 2*v_avg - vc  =>  a = 2*(v_avg - vc) / t
+      // result in nm/tick^2 (x1000)
+      if (2 * accel_d_um < (vc + vf) * accel_t) {
+        bb.loco->a_nmpt2[cal_speed] =
+            (2 * (accel_d_um - vc * accel_t) * 1000) / (accel_t * accel_t);
+      } else if (vf * accel_t > accel_d_um) {
+        bb.loco->a_nmpt2[cal_speed] =
+            ((vf - vc) * (vf - vc) * 1000) / (2 * (vf * accel_t - accel_d_um));
+      } // else: d == vf*t exactly, accel effectively instant; keep old value
+
+      // decel: d = vc*t + (vf-vc)^2 / (2*dec) => dec = (vf-vc)^2 / (2(d -
+      // vc*t))
+      if (decel_d_um > vc * decel_t) {
+        bb.loco->d_nmpt2[cal_speed] =
+            ((vf - vc) * (vf - vc) * 1000) / (2 * (decel_d_um - vc * decel_t));
+      }
+
+      Debug_Puts(bb.txs_tid, "cal ", cal_speed, ": v_max ", vf, " um/t, a ",
+                 bb.loco->a_nmpt2[cal_speed], " nm/t^2, d ",
+                 bb.loco->d_nmpt2[cal_speed], " nm/t^2");
 
       return NodeResult::Success;
     }
