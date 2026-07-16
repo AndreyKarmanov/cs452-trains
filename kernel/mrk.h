@@ -59,6 +59,33 @@ struct LightCmd {
   }
 };
 
+struct FunctionCmd {
+  static constexpr uint8_t cmdid = 0x06;
+
+  uint32_t loco_id;
+  uint8_t function;
+  uint8_t value;
+
+  FunctionCmd(uint32_t loco_id, uint8_t function, uint8_t value)
+      : loco_id(loco_id), function(function), value(value) {}
+
+  FunctionCmd(const CANFRAME &frame)
+      : loco_id(frame.decode_data_0_4()), function(frame.data[4]),
+        value(frame.data[5]) {}
+
+  CANFRAME to_frame() const {
+    CANFRAME frame;
+
+    frame.cmdid = cmdid;
+    frame.dlc   = 6;
+    frame.encode_data_0_4(loco_id);
+    frame.data[4] = function;
+    frame.data[5] = value;
+
+    return frame;
+  }
+};
+
 constexpr uint32_t MAX_USER_SPEED     = 14;
 constexpr uint32_t SPEED_LEVEL_STRIDE = 77;
 
@@ -212,8 +239,8 @@ struct UnknownCmd {
   CANFRAME to_frame() const { return {}; }
 };
 
-using MRKCmd = std::variant<UnknownCmd, LightCmd, SpeedCmd, DirectionCmd,
-                            SwitchCmd, SensorData, ControlCmd>;
+using MRKCmd = std::variant<UnknownCmd, LightCmd, FunctionCmd, SpeedCmd,
+                            DirectionCmd, SwitchCmd, SensorData, ControlCmd>;
 
 constexpr size_t MRK_CMD_COUNT = std::variant_size<MRKCmd>::value;
 
@@ -225,8 +252,14 @@ inline CANFRAME encode_frame(const MRKCmd &cmd) {
 
 inline MRKCmd decode_frame(const CANFRAME &frame) {
   switch (frame.cmdid) {
-  case LightCmd::cmdid:
-    return LightCmd(frame);
+  case FunctionCmd::cmdid: {
+    auto cmd = FunctionCmd(frame);
+    if (cmd.function == 0) {
+      return LightCmd(cmd.loco_id, cmd.value != 0);
+    } else {
+      return FunctionCmd(frame);
+    }
+  }
   case SpeedCmd::cmdid:
     return SpeedCmd(frame);
   case DirectionCmd::cmdid:

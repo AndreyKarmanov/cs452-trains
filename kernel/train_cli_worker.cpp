@@ -126,6 +126,24 @@ TC::Cmd::Any parse_command(StaticString<CLI_BUFFER_SIZE> &buf) {
     return out;
   }
 
+  if (cmd_len == 2 && strncmp(cmd, "lf", 2) == 0) {
+    uint32_t loco_id         = 0;
+    uint32_t function        = 0;
+    uint32_t value           = 0;
+    const char *parse_cursor = cur;
+    if (parse_uint(parse_cursor, end, loco_id) &&
+        parse_uint(parse_cursor, end, function) &&
+        parse_uint(parse_cursor, end, value) && done_parse(parse_cursor, end)) {
+      out = TC::Cmd::Function{loco_id, static_cast<uint8_t>(function),
+                              static_cast<uint8_t>(value)};
+      buf.set("Success: lf ", loco_id, ' ', function, ' ', value);
+    } else {
+      out = TC::Cmd::Invalid{};
+      buf.set("Error: Format is lf <train number> <function> <state>");
+    }
+    return out;
+  }
+
   if (cmd_len == 2 && strncmp(cmd, "sw", 2) == 0) {
     uint32_t sw_id           = 0;
     char dir                 = '\0';

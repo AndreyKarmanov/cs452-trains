@@ -82,6 +82,10 @@ template <size_t TX_BUFFER_SIZE = 64> class TrainControlServer {
             [&](const TC::Cmd::Light &cmd) {
               tx_buf.push(TC::TX{.mrk = LightCmd(cmd.id, cmd.on)});
             },
+            [&](const TC::Cmd::Function &cmd) {
+              tx_buf.push(
+                  TC::TX{.mrk = FunctionCmd(cmd.id, cmd.function, cmd.value)});
+            },
             [&](const TC::Cmd::Speed &cmd) {
               tx_buf.push(TC::TX{
                   .mrk = SpeedCmd(cmd.id, user_speed_to_mrk_level(cmd.value))});

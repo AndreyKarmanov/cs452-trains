@@ -21,6 +21,7 @@ void State::update_from_mrk(const MRKCmd &cmd, uint32_t tick) {
                      }
                    }
                  },
+                 [&](const FunctionCmd &) {},
                  [&](const SpeedCmd &cmd) {
                    trains_dirty = true;
                    for (TrainState &train : trains) {
@@ -95,17 +96,4 @@ void State::update_from_mrk(const MRKCmd &cmd, uint32_t tick) {
                  [&](const UnknownCmd &) { return; },
              },
              cmd);
-}
-
-static uint64_t isqrt(uint64_t n) {
-  if (n == 0) {
-    return 0;
-  }
-  uint64_t x = n;
-  uint64_t y = (x + 1) / 2;
-  while (y < x) {
-    x = y;
-    y = (x + n / x) / 2;
-  }
-  return x;
 }

@@ -202,6 +202,11 @@ namespace TC {
       uint32_t id;
       bool on;
     };
+    struct Function {
+      uint32_t id;
+      uint8_t function;
+      uint8_t value;
+    };
     struct Speed {
       uint32_t id;
       uint32_t value;
@@ -251,9 +256,9 @@ namespace TC {
       Buffer<TrackEdge, 16> path;
     };
 
-    using Any = std::variant<Invalid, Quit, Light, Speed, Switch, Reverse, Stop,
-                             Go, Reset, RemoveTrains, RunTree, Direction, Nav,
-                             Reg, Reserve, ReleaseReserve>;
+    using Any = std::variant<Invalid, Quit, Light, Function, Speed, Switch,
+                             Reverse, Stop, Go, Reset, RemoveTrains, RunTree,
+                             Direction, Nav, Reg, Reserve, ReleaseReserve>;
 
   } // namespace Cmd
 
