@@ -1,5 +1,6 @@
 #include "cache.h"
 #include "first_user_task.h"
+#include "gic.h"
 #include "internal_syscall.h"
 #include "kernel_state.h"
 #include "mcp2515.h"
@@ -28,9 +29,9 @@ extern "C" int kmain() {
 #endif
   gpio_init();
   gpio_init_interrupt();
+  gic_init();
   mcp2515_init();
   uart_config_and_enable(CONSOLE);
-
   data_cache_set(DATA_CACHE);
   instruction_cache_set(INSTRUCTION_CACHE);
 
@@ -45,7 +46,7 @@ extern "C" int kmain() {
     auto request    = activate(active_tid);
     handle(active_tid, request);
   }
-
+  debug_printf(CONSOLE, "KERNEL HALTED\n\r");
   return 0;
 }
 

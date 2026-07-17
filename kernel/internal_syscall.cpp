@@ -106,6 +106,7 @@ static void initalize_event(Event event) {
 
   switch (event) {
   case Event::CLOCK_TICK: {
+    set_interrupt_group0(GIC_TIMER_IRQ_C1, true);
     set_interrupt_core_routing(0, GIC_TIMER_IRQ_C1, true);
     set_interrupt(GIC_TIMER_IRQ_C1, true);
     clear_timer_interrupt(1);
@@ -113,6 +114,7 @@ static void initalize_event(Event event) {
     break;
   }
   case Event::DELAY_5S: {
+    set_interrupt_group0(GIC_TIMER_IRQ_C3, true);
     set_interrupt_core_routing(0, GIC_TIMER_IRQ_C3, true);
     set_interrupt(GIC_TIMER_IRQ_C3, true);
     clear_timer_interrupt(3);
@@ -127,7 +129,6 @@ static void initalize_event(Event event) {
   }
   case Event::UART_TX_IRQ: {
     enable_uart_interrupt(UARTInterruptType::TXIM);
-    enable_uart_interrupt(UARTInterruptType::CTSMIM);
     break;
   }
   case Event::CAN_RX_IRQ: {
@@ -137,6 +138,7 @@ static void initalize_event(Event event) {
       handle_event(Event::CAN_RX_IRQ);
     } else {
       // set up interrupts
+      set_interrupt_group0(GIC_MCP2515_IRQ, true);
       set_interrupt_core_routing(0, GIC_MCP2515_IRQ, true);
       set_interrupt(GIC_MCP2515_IRQ, true);
       enable_mcp2515_interrupt(CANINT{.rxi1e = true, .rxi0ie = true});
@@ -150,6 +152,7 @@ static void initalize_event(Event event) {
       handle_event(Event::CAN_TX_IRQ);
     } else {
       // set up interrupts
+      set_interrupt_group0(GIC_MCP2515_IRQ, true);
       set_interrupt_core_routing(0, GIC_MCP2515_IRQ, true);
       set_interrupt(GIC_MCP2515_IRQ, true);
       enable_mcp2515_interrupt(CANINT{
@@ -191,7 +194,6 @@ static void handle_event(Event event, int arg0) {
   case Event::UART_TX_IRQ: {
     // immediately disable after firing as they will keep firing
     disable_uart_interrupt(UARTInterruptType::TXIM);
-    disable_uart_interrupt(UARTInterruptType::CTSMIM);
     uninitialize_event(event);
     break;
   }
@@ -209,9 +211,8 @@ static void handle_event(Event event, int arg0) {
   }
 
   if (!event_buffers.contains(event)) {
-    if (event != Event::SENSOR_B6) {
-      _assert(false, "Received event with no waiting tasks");
-    }
+    debug_printf(CONSOLE, "No waiting tasks for %d\n\r",
+                 static_cast<int>(event));
     return;
   }
 
@@ -268,7 +269,7 @@ static void handle_uart_irq() {
   }
 
   // handling tx interrupts
-  if (!is_uart_mis_tx_pending() && !is_uart_mis_cts_pending()) {
+  if (!is_uart_mis_tx_pending()) {
     return;
   }
 
@@ -280,13 +281,10 @@ static void handle_uart_irq() {
   if (is_uart_mis_tx_pending()) {
     disable_uart_interrupt(UARTInterruptType::TXIM);
   }
-  if (is_uart_mis_cts_pending()) {
-    clear_uart_interrupt(UARTInterruptType::CTSMIM);
-  }
 }
 
 static void handle_mcp2515_irq() {
-  auto source = mcp2515_get_irq_source();
+  auto source = mcp2515_get_active_irq();
   if (!gpio_get_event_detect_status(17)) {
     debug_printf(CONSOLE, "GPIO 17 event detect not set\n\r");
     return;
@@ -297,7 +295,7 @@ static void handle_mcp2515_irq() {
   } else if (source.tx0ie || source.tx1ie || source.tx2ie) {
     handle_event(Event::CAN_TX_IRQ);
   } else {
-    debug_printf(CONSOLE, "Unhandled MCP2515 IRQ\n\r");
+    debug_printf(CONSOLE, "Unhandled MCP2515 IRQ %d\n\r", source);
   }
 
   gpio_clr_event_detect_status(17);

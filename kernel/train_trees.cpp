@@ -375,7 +375,8 @@ namespace {
         return NodeResult::Success;
       }
 
-      uint64_t v_m_nm = bb.loco->v_max_umpt[bb.loco->req_speed] * 1000;
+      uint64_t v_m_nm = bb.loco->v_max_umpt[bb.loco->req_speed] * 1000 *
+                        (TICK_TIME_US / 1'000);
       uint64_t v_i_nm = bb.loco->ve_nm;
       uint64_t d_t    = bb.curr_tick - last_tick;
       last_tick       = bb.curr_tick;
@@ -383,7 +384,8 @@ namespace {
       uint64_t delta = 0;
       if (v_m_nm >= v_i_nm) {
         // accelerating (or cruising): constant a until v_max, then cruise
-        uint64_t a     = bb.loco->a_nmpt2[bb.loco->req_speed];
+        uint64_t a =
+            bb.loco->a_nmpt2[bb.loco->req_speed] * (TICK_TIME_US / 1'000);
         uint64_t t_a   = std::min((v_m_nm - v_i_nm) / a, d_t);
         bb.loco->ve_nm = v_i_nm + a * t_a;
 
@@ -394,7 +396,8 @@ namespace {
         // so a later slow-down uses the right decel constant
         decel_from_speed = bb.loco->req_speed;
       } else {
-        uint64_t d     = bb.loco->d_nmpt2[decel_from_speed];
+        uint64_t d =
+            bb.loco->d_nmpt2[decel_from_speed] * (TICK_TIME_US / 1'000);
         uint64_t t_d   = std::min((v_i_nm - v_m_nm) / d, d_t);
         bb.loco->ve_nm = v_i_nm - d * t_d;
 

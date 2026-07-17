@@ -114,8 +114,6 @@ bool mcp2515_recieve(CANFRAME &frame);
 bool mcp2515_recieve_RXn(bool rx0, CANFRAME &frame);
 
 bool mcp2515_send(const TXBnFrame frame);
-void mcp2515_send(const TXBnFrame frame, uint32_t delay_us);
-void mcp2515_send_pending();
 bool mcp2515_tx_ready();
 bool mcp2515_rx_pending();
 
@@ -155,12 +153,7 @@ void enable_mcp2515_interrupt(const CANINT &interrupts);
 
 void disable_mcp2515_interrupt(const CANINT &interrupts);
 
-void clear_mcp2515_interrupt(const CANINT &interrupts);
-
 CANINT mcp2515_get_enabled_interrupt();
 
 // all active interrupts
 CANINT mcp2515_get_active_irq();
-
-// source of current interrupt
-CANINT mcp2515_get_irq_source();
