@@ -168,8 +168,6 @@ static void fire_command(char *buf, size_t blen, int tx_tid) {
     Printf(tx_tid, "CAN irq flags: %b\n\r", mcp2515_get_active_irq());
   } else if (strncmp(cmd, "t cane", 6) == 0) {
     Printf(tx_tid, "CAN enabled irq: %b\n\r", mcp2515_get_enabled_interrupt());
-  } else if (strncmp(cmd, "t cani", 6) == 0) {
-    Printf(tx_tid, "CAN irq source: %b\n\r", mcp2515_get_irq_source());
   } else if (strncmp(cmd, "t cans", 6) == 0) {
     create(1, test_can_tx_irq_task);
   } else if (strncmp(cmd, "t can", 5) == 0) {

@@ -6,7 +6,6 @@
 #include "message.h"
 #include "name_server.h"
 #include "syscall.h"
-#include "uart_tx_server.h"
 #include <cstdint>
 #include <stdint.h>
 #include <utility>
@@ -14,7 +13,6 @@
 template <size_t MAX_WAITING = MAX_TASKS> class ClockServer {
   uint32_t curr_tick{};
   Heap<std::pair<uint32_t, int>, MAX_WAITING> waiting_heap;
-  int tx_tid;
 
   static void clock_tick_task();
 
@@ -25,9 +23,6 @@ public:
   ClockServer() {
     auto response = RegisterAs(NAME);
     _assert(response == 0, "CLOCK SERVER REGISTERAS FAILED");
-
-    tx_tid = WhoIs(UART_TX_Server::NAME);
-    _assert(tx_tid >= 0, "TX SERVER WHOIS FAILED");
 
     create(2, clock_tick_task);
   }
