@@ -18,13 +18,16 @@
 
 namespace {
   auto sid = [](char b, int n) -> uint16_t { return (b - 'A') * 16 + n; };
-  constexpr auto TRACK_LAYOUT       = Track::Layout::B;
-  constexpr auto LOOP_START_NODE    = "C12";
-  constexpr int LOOP_START_SID      = sid('C', 12);
-  constexpr int LOOP_START_NODE_IDX = LOOP_START_SID - 1;
-  constexpr int E3_SID              = sid('E', 3);
-  constexpr int E6_SID              = sid('E', 6);
-  constexpr size_t CRAWL_SPEED      = 4;
+  constexpr auto TRACK_LAYOUT        = Track::Layout::B;
+  constexpr auto LOOP_START_NODE     = "C12";
+  constexpr int LOOP_START_SID       = sid('C', 12);
+  constexpr int LOOP_START_NODE_IDX  = LOOP_START_SID - 1;
+  constexpr int E3_SID               = sid('E', 3);
+  constexpr int E6_SID               = sid('E', 6);
+  constexpr size_t CRAWL_SPEED       = 4;
+  constexpr size_t RESET_CRAWL_SPEED = 4; // 65.7 um/tick
+  constexpr int RESET_CRAWL_UM_PER_TICK =
+      64685; // 65.7 um/tick (fixed point x10)
 
   void print_dists(int txs_tid,
                    const Buffer<Blackboard::DistLog, TRACK_MAX> &dists) {
@@ -1139,6 +1142,76 @@ namespace {
     }
   };
 
+  struct RulerNode : public LeafNode {
+    uint32_t start_tick{0};
+    bool started{false};
+    bool done{false};
+    SetSpeed crawl{RESET_CRAWL_SPEED};
+
+    NodeResult tick(Blackboard &bb) override {
+      if (done) {
+        return NodeResult::Success;
+      }
+
+      auto speed_res = crawl.tick(bb);
+      if (speed_res != NodeResult::Success) {
+        return speed_res;
+      }
+
+      if (!started) {
+        start_tick = bb.curr_tick;
+        Debug_Puts(bb.txs_tid, "Start tick: ", start_tick);
+        started = true;
+      }
+
+      if (auto data = std::get_if<SensorData>(&bb.new_event);
+          data && data->new_state == 1) {
+        const auto ticks = bb.curr_tick - start_tick;
+        Debug_Puts(bb.txs_tid, "Cur tick: ", bb.curr_tick,
+                   "Start tick: ", start_tick);
+        Debug_Puts(bb.txs_tid, "Ruler dist (mm): ",
+                   ticks * RESET_CRAWL_UM_PER_TICK / 1000000);
+        done = true;
+        return NodeResult::Success;
+      }
+
+      return NodeResult::Running;
+    }
+  };
+
+  struct ResetTree : public LeafNode {
+    Sequence tree{};
+
+    SetFunction enable_f4{4, 1};
+    RulerNode ruler{};
+    PathToNode path_to_e6{E6_SID - 1};
+    Repeat path_to_e6_once{&path_to_e6, 1};
+    SetSpeed crawl_to_e6{RESET_CRAWL_SPEED};
+
+    Sequence stop_on_sens{};
+    AwaitSensorNode stop_sens{};
+    Repeat stop_sens_once{&stop_sens, 1};
+    SetSpeed stop_speed{0};
+
+    WaitNode wait_after_stop{2 * TICKS_PER_S};
+    SetFunction disable_f4{4, 0};
+
+    ResetTree() {
+      stop_on_sens.children.push(&stop_sens_once);
+      stop_on_sens.children.push(&stop_speed);
+
+      tree.children.push(&enable_f4);
+      tree.children.push(&ruler);
+      tree.children.push(&path_to_e6_once);
+      tree.children.push(&crawl_to_e6);
+      tree.children.push(&wait_after_stop);
+      tree.children.push(&stop_on_sens);
+      tree.children.push(&disable_f4);
+    }
+
+    NodeResult tick(Blackboard &bb) override { return tree.tick(bb); }
+  };
+
   struct TestTree : public TreeNode {
     SetFunction enable_f4{4, 1};
     SetSpeed set_speed{4};
@@ -1201,7 +1274,7 @@ namespace {
 
 using Tree =
     std::variant<CalibrateTrain, PrintTrainStats, StopMeasureTree, NavigateTree,
-                 ForeverNavigateTree, ReverseTree, TestTree>;
+                 ForeverNavigateTree, ReverseTree, TestTree, ResetTree>;
 
 void run_tree() {
   auto tcs_tid = WhoIs(TrainControlServer<>::NAME);
@@ -1254,6 +1327,10 @@ void run_tree() {
                      case TC::Tree::Type::TEST: {
                        tree.emplace<TestTree>(msg.value1 != 0 ? msg.value1
                                                               : CRAWL_SPEED);
+                       break;
+                     }
+                     case TC::Tree::Type::RESET: {
+                       tree.emplace<ResetTree>();
                        break;
                      }
                      default: {

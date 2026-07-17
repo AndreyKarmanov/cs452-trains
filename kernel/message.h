@@ -159,7 +159,8 @@ namespace TC {
       REVERSE           = 3,
       NAVIGATE          = 4,
       FOREVER_NAVIGATE  = 5,
-      TEST              = 6
+      TEST              = 6,
+      RESET             = 7
     };
 
     struct Ready {
