@@ -276,7 +276,8 @@ template <size_t TX_BUFFER_SIZE = 64> class TrainControlServer {
           msg.train.v_max_umpt[msg.train.req_speed];
       loco->a_nmpt2[msg.train.req_speed] =
           msg.train.a_nmpt2[msg.train.req_speed];
-      state.trains_dirty = true;
+      loco->target_node_idx = msg.train.target_node_idx;
+      state.trains_dirty    = true;
     }
 
     auto next_msg = mailbox->msgs.pop();

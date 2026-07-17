@@ -22,7 +22,8 @@ uint32_t print_state(int tx_tid, const State &state) {
   }
 
   if (state.trains_dirty) {
-    line.set("\033[", TRAIN_ROW, ";2HTrain | Dir | Lamp | spd | Est | Top\n\r");
+    line.set("\033[", TRAIN_ROW,
+             ";2HTrain | Dir | Lamp | spd | Est | Top | Target\n\r");
     for (const TrainState &train : state.trains) {
       line.append("\033[K   ", train.loco_id, "  | ",
                   train.backward ? "Rev" : "Fwd", " | ",
@@ -32,6 +33,8 @@ uint32_t print_state(int tx_tid, const State &state) {
       AppendPadded(line, train.ve_nm / 1000, 3);
       line.append(" | ");
       AppendPadded(line, train.v_max_umpt[train.req_speed], 3);
+      line.append(" | ");
+      AppendPadded(line, train.target_node_idx, 3);
       line.append("\n\r");
     }
     Puts(tx_tid, line);

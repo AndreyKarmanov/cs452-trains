@@ -18,7 +18,7 @@
 
 namespace {
   auto sid = [](char b, int n) -> uint16_t { return (b - 'A') * 16 + n; };
-  constexpr auto TRACK_LAYOUT       = Track::Layout::B;
+  constexpr auto TRACK_LAYOUT       = Track::Layout::A;
   constexpr auto LOOP_START_NODE    = "C12";
   constexpr int LOOP_START_SID      = sid('C', 12);
   constexpr int LOOP_START_NODE_IDX = LOOP_START_SID - 1;
@@ -367,7 +367,7 @@ namespace {
   struct UpdateModel : public LeafNode {
     uint64_t last_tick{0};
     uint64_t last_print{0};
-    uint16_t decel_from_speed{0}; // speed level we started decelerating from
+    uint16_t decel_from_speed{0};
 
     NodeResult tick(Blackboard &bb) override {
       if (last_tick == 0) {
@@ -394,42 +394,32 @@ namespace {
         // so a later slow-down uses the right decel constant
         decel_from_speed = bb.loco->req_speed;
       } else {
-        // decelerating: derive d from stopping distance of our decel from speed
-        auto stopping_d = bb.loco->d_nmpt2[decel_from_speed];
-        auto v_m_stop   = bb.loco->v_max_umpt[decel_from_speed];
-        auto d          = (v_m_stop * v_m_stop) / (2 * stopping_d);
-        uint64_t t_d    = std::min((v_i_nm - v_m_nm) / d, d_t);
-        bb.loco->ve_nm  = v_i_nm - d * t_d;
-        uint64_t t_c    = d_t - t_d;
+        uint64_t d     = bb.loco->d_nmpt2[decel_from_speed];
+        uint64_t t_d   = std::min((v_i_nm - v_m_nm) / d, d_t);
+        bb.loco->ve_nm = v_i_nm - d * t_d;
+
+        uint64_t t_c = d_t - t_d;
         delta = (v_i_nm * t_d - (d * t_d * t_d) / 2 + v_m_nm * t_c) / 1000;
       }
 
-      // } else {
-      //   // decelerating: constant d until v_max of target speed, then cruise
-      //   uint64_t d     = bb.loco->d_nmpt2[decel_from_speed];
-      //   uint64_t t_d   = std::min((v_i_nm - v_m_nm) / d, d_t);
-      //   bb.loco->ve_nm = v_i_nm - d * t_d;
-
-      //   uint64_t t_c = d_t - t_d;
-      //   delta = (v_i_nm * t_d - (d * t_d * t_d) / 2 + v_m_nm * t_c) / 1000;
-      // }
-
       bb.dx_um += delta;
 
-      // #if !defined(DATA_COLLECTION) || !DATA_COLLECTION
+#if !defined(DATA_COLLECTION) || !DATA_COLLECTION
       if (bb.curr_tick - last_print > 100) {
         last_print = bb.curr_tick;
         Offset_Puts(bb.txs_tid, -2, "Spd: ", bb.loco->ve_nm / 1000,
                     "um/ms d_t ", d_t, " v_i ", v_i_nm / 1000, " v_max ",
                     v_m_nm / 1000, "nm/t^2 dx_mm", bb.dx_um / 1000, "\033[K");
       }
-      // #endif
+#endif
 
       return NodeResult::Success;
     }
   };
 
   struct AttributeSensorNode : public LeafNode {
+    static constexpr int PCT_TOLERANCE = 50;
+
     void push_to_seen_sensors(Blackboard &bb, SensorData *data) {
       if (bb.seen_sensors.size() == bb.seen_sensors.capacity()) {
         bb.seen_sensors.pop();
@@ -479,8 +469,8 @@ namespace {
         }
 
         auto sens_dist_um = path->dist_mm * 1000;
-        if (sens_dist_um > (bb.dx_um * 12) / 10 ||
-            sens_dist_um < (bb.dx_um * 8) / 10) {
+        if (sens_dist_um > (bb.dx_um * (100 + PCT_TOLERANCE)) / 100 ||
+            sens_dist_um < (bb.dx_um * (100 - PCT_TOLERANCE)) / 100) {
           Debug_Puts(bb.txs_tid, "Ignored sensor (out of range): ",
                      (char)('A' + data->bank), data->number, " pos ",
                      bb.dx_um * 100 / sens_dist_um, "% ",
@@ -565,6 +555,8 @@ namespace {
       lookahead_um =
           lookahead_um > 1500u * 1000u ? lookahead_um : 1500u * 1000u;
 
+      auto stopping_dist = bb.loco->stop_dist_um[bb.loco->req_speed];
+
       // calculate distance travelled given current velocity
       // safe estimate is max velocity for speed
       // then, calculate distance based on velocity. suppose distance is 500
@@ -640,16 +632,16 @@ namespace {
 
       auto remaining_um = remaining_mm * 1000 - bb.dx_um + offset_mm * 1000;
 
-      // auto x = bb.loco->ve_nm / 1000;
-      // int stopping_dist_um = 26000 + 582 * x + 3.4 * x * x;
+      auto x               = bb.loco->ve_nm / 1000;
+      int stopping_dist_um = 26000 + 582 * x + 3.4 * x * x;
 
       // stopping distance is a linear interpolation between our measured
       // stopping distances
 
-      auto u_v_m   = bb.loco->v_max_umpt[bb.loco->req_speed];
-      auto u_sd_um = bb.loco->stop_dist_um[bb.loco->req_speed];
-
-      auto stopping_dist_um = (u_sd_um * bb.loco->ve_nm) / (u_v_m * 1000);
+      // auto u_v_m   = bb.loco->v_max_umpt[bb.loco->req_speed];
+      // auto u_sd_um = bb.loco->stop_dist_um[bb.loco->req_speed];
+      // auto stopping_dist_um = (u_sd_um * bb.loco->ve_nm) / (u_v_m * 1000);
+      // auto stopping_dist_um = bb.loco->stop_dist_um[bb.loco->req_speed];
 
       Offset_Puts(bb.txs_tid, -3, "D: ", remaining_um / 1000,
                   "mm sd: ", stopping_dist_um / 1000, "mm");
@@ -688,9 +680,17 @@ namespace {
         initalized = true;
       }
       if (!at_speed) {
-        return dir.tick(bb);
+        auto res = dir.tick(bb);
+        if (res == NodeResult::Success) {
+          bb.reversed_since_last_sensor = true;
+        }
+        return res;
       }
-      return going_seq.tick(bb);
+      auto res = going_seq.tick(bb);
+      if (res == NodeResult::Success) {
+        bb.reversed_since_last_sensor = true;
+      }
+      return res;
     }
   };
 
@@ -757,7 +757,8 @@ namespace {
         }
       }
 
-      bb.path = path_opt.value();
+      bb.path                  = bb.path + path_opt.value();
+      bb.loco->target_node_idx = goal_idx;
       return NodeResult::Success;
     }
   };

@@ -51,6 +51,7 @@ struct TrainState {
   bool light_on : 1 = true;
 
   int inital_node_idx{-1};
+  int target_node_idx{-1};
 
   // units of um/tick (micrometer per tick)
   std::array<int, 15> v_max_umpt{
@@ -58,13 +59,14 @@ struct TrainState {
   };
 
   // units of nm/ticks^2 (nanometer per tick^2) aka 1000*um / ticks^2
-  std::array<int, 15> a_nmpt2{33, 33, 33, 33, 33, 33, 33, 56,
-                              52, 57, 63, 64, 71, 75, 78};
+  std::array<int, 15> a_nmpt2{
+      33, 33, 33, 33, 33, 33, 33, 56, 52, 57, 63, 64, 71, 75, 78,
+  };
 
   // units of -nm/ticks^2 (nanometer per tick^2) aka 1000*um / ticks^2
-  // these are wrong values right now, I forgot to ca
-  std::array<int, 15> d_nmpt2{33, 33, 33, 33, 33, 33, 33, 56,
-                              52, 57, 63, 64, 71, 75, 78};
+  std::array<int, 15> d_nmpt2{
+      33, 33, 33, 33, 33, 33, 33, 56, 52, 57, 63, 64, 71, 75, 78,
+  };
 
   // manually determined
   std::array<uint32_t, 15> stop_dist_um{
