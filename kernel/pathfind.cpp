@@ -4,6 +4,7 @@
 #include "track_data.h"
 #include "uart.h"
 #include <climits>
+#include <cstdint>
 
 static constexpr int INF = INT_MAX / 2;
 
@@ -33,9 +34,9 @@ Path &Path::operator+(const Path &other) {
     return *this;
   }
 
-  this->dist_mm                            += other.dist_mm;
-  (*(this->end() - 1)).dx_next              = first_opt->dx_next;
-  (*(this->end() - 1)).should_br_be_curved  = first_opt->should_br_be_curved;
+  this->dist_mm                  += other.dist_mm;
+  (*(this->end() - 1)).dx_next    = first_opt->dx_next;
+  (*(this->end() - 1)).br_curved  = first_opt->br_curved;
 
   for (size_t i = 1; i < other.size(); ++i) {
     auto node = other[i];
@@ -91,20 +92,28 @@ Track::Track(Track::Layout layout) {
   }
 }
 
-void Track::reserve(int node_idx, int dir, int id) {
+void Track::reserve(int node_idx, int dir, uint32_t id) {
   auto &edge                = track[node_idx].edge[dir];
-  edge.reservation          = id;
-  edge.reverse->reservation = id;
+  edge.res_loco_id          = id;
+  edge.reverse->res_loco_id = id;
 }
 
 void Track::release(int node_idx, int dir, uint32_t id) {
   auto &edge = track[node_idx].edge[dir];
-  if (edge.reservation == UNRESERVED ||
-      static_cast<uint32_t>(edge.reservation) != id) {
+  if (edge.res_loco_id == UNRESERVED ||
+      static_cast<uint32_t>(edge.res_loco_id) != id) {
     return;
   }
-  edge.reservation          = UNRESERVED;
-  edge.reverse->reservation = UNRESERVED;
+  edge.res_loco_id          = UNRESERVED;
+  edge.reverse->res_loco_id = UNRESERVED;
+}
+
+bool Track::has_reservation(const PathNode &node, uint32_t loco_id) {
+  return track[node.node_idx].edge[node.br_curved].res_loco_id == loco_id;
+}
+
+uint32_t Track::get_reservation(int node_idx, int dir) {
+  return track[node_idx].edge[dir].res_loco_id;
 }
 
 std::optional<int> Track::get_idx(const StaticString<4> &name) const {
@@ -185,13 +194,13 @@ std::optional<Path> Track::build_path(int goal_idx,
       }
     }
 
-    result.push({.node_idx            = node_idx,
-                 .type                = node.type,
-                 .num                 = node.num,
-                 .dx_prev             = dist_to_prev,
-                 .dx_next             = dist_to_next,
-                 .edge_v_pct          = edge_v_pct,
-                 .should_br_be_curved = curved});
+    result.push({.node_idx   = node_idx,
+                 .type       = node.type,
+                 .num        = node.num,
+                 .dx_prev    = dist_to_prev,
+                 .dx_next    = dist_to_next,
+                 .edge_v_pct = edge_v_pct,
+                 .br_curved  = curved});
   }
 
   return result;
@@ -437,8 +446,7 @@ static void print_path(const Track &pathfind, const char *label,
                  "curved=%d\n\r",
                  static_cast<int>(step), node->node_idx,
                  pathfind.node_name(node->node_idx), node_type_name(node->type),
-                 node->dx_prev, node->dx_next,
-                 node->should_br_be_curved ? 1 : 0);
+                 node->dx_prev, node->dx_next, node->br_curved ? 1 : 0);
   }
 }
 

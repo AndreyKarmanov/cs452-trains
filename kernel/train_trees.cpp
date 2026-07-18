@@ -8,6 +8,7 @@
 #include "rng.h"
 #include "time.h"
 #include "track_data.h"
+#include "track_node.h"
 #include "train_control.h"
 #include <algorithm>
 #include <cstdint>
@@ -45,9 +46,8 @@ namespace {
       path_str.append("Path: ", bb.path.size(), " ");
       for (const auto &node : bb.path) {
         path_str.append(bb.track[node.node_idx].name,
-                        node.type == NODE_BRANCH
-                            ? node.should_br_be_curved ? "C " : "S "
-                            : " ",
+                        node.type == NODE_BRANCH ? node.br_curved ? "C " : "S "
+                                                 : " ",
                         node.dx_next, " >");
       }
       Debug_Puts(bb.txs_tid, path_str);
@@ -404,14 +404,17 @@ namespace {
 
       bb.dx_um += delta;
 
-      // #if !defined(DATA_COLLECTION) || !DATA_COLLECTION
-      if (bb.curr_tick - last_print > TICKS_PER_S) {
+      auto ve_um      = bb.loco->ve_nm / (1'000);
+      bb.stop_dist_um = 26000 + 582 * ve_um + 3.4 * ve_um * ve_um;
+
+      if (bb.curr_tick - last_print > TICKS_PER_S / 10) {
         last_print = bb.curr_tick;
+
         Offset_Puts(bb.txs_tid, -2, "Spd: ", bb.loco->ve_nm / 1000,
                     "um/ms d_t ", d_t, " v_i ", v_i_nm / 1000, " v_max ",
-                    v_m_nm / 1000, "nm/t^2 dx_mm", bb.dx_um / 1000, "\033[K");
+                    v_m_nm / 1000, "nm/t^2 dx_mm", bb.dx_um / 1000, " sd_mm ",
+                    bb.stop_dist_um / 1000, "\033[K");
       }
-      // #endif
 
       return NodeResult::Success;
     }
@@ -542,6 +545,75 @@ namespace {
     }
   };
 
+  struct PathReservationNode : public LeafNode {
+    static constexpr int STOP_DIST_BUF_PCT = 20;
+
+    SetSpeed stop{0};
+    bool reservation_stop{false};
+    SetSpeed go{0};
+
+    PathReservationNode(uint16_t go_speed = 8) : go(go_speed) {}
+
+    NodeResult tick(Blackboard &bb) override {
+      int dist_um = 0;
+      bool fully_reserved{true};
+
+      // lookahead is how much we've travelled + stop dist buf pct + 2 second
+      // buffer of our travel time.
+      int lookahead_um = bb.dx_um +
+                         (bb.stop_dist_um * (100 + STOP_DIST_BUF_PCT) / 100) +
+                         (bb.loco->ve_nm / 1000 * TICKS_PER_S * 2);
+
+      for (auto &node : bb.path) {
+        dist_um += node.dx_prev * 1000;
+        if (dist_um > lookahead_um) {
+          fully_reserved = false;
+          break;
+        }
+        if (!bb.track.has_reservation(node, bb.loco_id)) {
+          auto res = send<TC::Ack>(bb.tcs_tid, TC::Cmd::Reserve{
+                                                   .id       = bb.loco_id,
+                                                   .node_idx = node.node_idx,
+                                                   .edge_dir = node.br_curved,
+                                               });
+          if (res.has_value()) {
+            bb.error_msg = "Could not reserve";
+            return NodeResult::Failure;
+          }
+
+          if (!res->success) {
+            fully_reserved = false;
+            break;
+          }
+
+          bb.track.reserve(node.node_idx, node.br_curved, bb.loco_id);
+        }
+      }
+
+      if (fully_reserved) {
+        if (reservation_stop) {
+          reservation_stop = false;
+          stop             = SetSpeed{0};
+          return go.tick(bb);
+        }
+        return NodeResult::Success;
+      } else if (dist_um <=
+                 (bb.stop_dist_um * (100 + STOP_DIST_BUF_PCT)) / 100) {
+        // if we don't have space, stop and wait for reservation
+        go               = SetSpeed{go.req_speed};
+        reservation_stop = true;
+        stop.tick(bb);
+        return NodeResult::Running;
+      } else if (reservation_stop) {
+        // if we stopped previously, and have the distance, continue
+        reservation_stop = false;
+        stop             = SetSpeed{0};
+        return go.tick(bb);
+      }
+      return NodeResult::Success;
+    }
+  };
+
   struct PathLookaheadNode : public LeafNode {
     NodeResult tick(Blackboard &bb) override {
 
@@ -549,41 +621,18 @@ namespace {
         return NodeResult::Success;
       }
 
-      auto lookahead_um =
-          bb.dx_um +
-          static_cast<uint32_t>(bb.loco->ve_nm / 1000) * TICKS_PER_S * 3;
-      lookahead_um =
-          lookahead_um > 1500u * 1000u ? lookahead_um : 1500u * 1000u;
-
-      // calculate distance travelled given current velocity
-      // safe estimate is max velocity for speed
-      // then, calculate distance based on velocity. suppose distance is 500
-      uint32_t total_dist = 0;
       for (auto &node : bb.path) {
-        total_dist += node.dx_prev;
-        if (total_dist * 1000 > (lookahead_um)) {
+        if (!bb.track.has_reservation(node, bb.loco_id)) {
           break;
         }
 
-        if (node.type == NODE_BRANCH) {
-          if (node.should_br_be_curved &&
-              bb.state.is_switch_straight(node.num)) {
-            auto res =
-                send<TC::Ack>(bb.tcs_tid, TC::Cmd::Switch(node.num, false));
-            if (!res.has_value()) {
-              bb.error_msg = "Switch cmd failed";
-              return NodeResult::Failure;
-            }
-          } else if (!node.should_br_be_curved &&
-                     !bb.state.is_switch_straight(node.num)) {
-            // Debug_Puts(bb.txs_tid, "Setting switch ", node.num, " to
-            // straight");
-            auto res =
-                send<TC::Ack>(bb.tcs_tid, TC::Cmd::Switch(node.num, true));
-            if (!res.has_value()) {
-              bb.error_msg = "Switch cmd failed";
-              return NodeResult::Failure;
-            }
+        if (node.type == NODE_BRANCH &&
+            node.br_curved != bb.state.is_switch_curved(node.num)) {
+          auto res = send<TC::Ack>(bb.tcs_tid,
+                                   TC::Cmd::Switch(node.num, !node.br_curved));
+          if (!res.has_value()) {
+            bb.error_msg = "Switch cmd failed";
+            return NodeResult::Failure;
           }
         }
       }
@@ -630,21 +679,10 @@ namespace {
 
       auto remaining_um = remaining_mm * 1000 - bb.dx_um + offset_mm * 1000;
 
-      // auto x               = bb.loco->ve_nm / (1'000);
-      // int stopping_dist_um = 26000 + 582 * x + 3.4 * x * x;
-
-      // stopping distance is a linear interpolation between our measured
-      // stopping distances
-
-      // auto stopping_dist_um = bb.loco->stop_dist_um[bb.loco->req_speed];
-      auto u_v_m            = bb.loco->v_max_umpt[bb.loco->req_speed];
-      auto u_sd_um          = bb.loco->stop_dist_um[bb.loco->req_speed];
-      auto stopping_dist_um = (u_sd_um * bb.loco->ve_nm) / (u_v_m * 1000);
-
       Offset_Puts(bb.txs_tid, -3, "D: ", remaining_um / 1000,
-                  "mm sd: ", stopping_dist_um / 1000, "mm");
+                  "mm sd: ", bb.stop_dist_um / 1000, "mm");
 
-      if (remaining_um < stopping_dist_um) {
+      if (remaining_um < bb.stop_dist_um) {
         stopping = true;
         return stop.tick(bb);
       }
@@ -1128,52 +1166,47 @@ void run_tree() {
     }
 
     auto msg_result = std::visit(
-        Overloaded{[&](const TC::Tree::Init &msg) {
-                     bb.state   = msg.state;
-                     bb.loco_id = msg.loco_id;
-                     bb.loco    = bb.state.get_loco(bb.loco_id);
+        Overloaded{
+            [&](const TC::Tree::Init &msg) {
+              bb.state   = msg.state;
+              bb.loco_id = msg.loco_id;
+              bb.loco    = bb.state.get_loco(bb.loco_id);
 
-                     switch (msg.tree_type) {
-                     case TC::Tree::Type::CALIBRATE:
-                       tree.emplace<CalibrateTrain>(msg.value1);
-                       break;
-                     case TC::Tree::Type::PRINT_TRAIN_STATS:
-                       tree.emplace<PrintTrainStats>();
-                       break;
-                     case TC::Tree::Type::STOP_MEASURE:
-                       tree.emplace<StopMeasureTree>(msg.value1);
-                       break;
-                     case TC::Tree::Type::REVERSE:
-                       tree.emplace<ReverseTree>();
-                       break;
-                     case TC::Tree::Type::NAVIGATE: {
-                       tree.emplace<NavigateTree>(msg.value1, msg.value2,
-                                                  msg.value3);
-                       break;
-                     }
-                     case TC::Tree::Type::FOREVER_NAVIGATE: {
-                       tree.emplace<ForeverNavigateTree>();
-                       break;
-                     }
-                     default: {
-                       bb.error_msg = "Unknown tree type";
-                       return false;
-                     }
-                     }
-                     return true;
-                   },
-                   [&](const TC::Tree::Update &msg) {
-                     bb.state.update_from_mrk(msg.mrk, msg.time);
-                     bb.new_event = msg.mrk;
-                     bb.curr_tick = msg.time;
-                     return true;
-                   },
-                   [&](const TC::Tree::TrackReserved &msg) {
-                     for (auto &node : msg.path) {
-                       bb.track.reserve(node.node_idx, node.dir, msg.loco_id);
-                     }
-                     return true;
-                   }},
+              switch (msg.tree_type) {
+              case TC::Tree::Type::CALIBRATE:
+                tree.emplace<CalibrateTrain>(msg.value1);
+                break;
+              case TC::Tree::Type::PRINT_TRAIN_STATS:
+                tree.emplace<PrintTrainStats>();
+                break;
+              case TC::Tree::Type::STOP_MEASURE:
+                tree.emplace<StopMeasureTree>(msg.value1);
+                break;
+              case TC::Tree::Type::REVERSE:
+                tree.emplace<ReverseTree>();
+                break;
+              case TC::Tree::Type::NAVIGATE: {
+                tree.emplace<NavigateTree>(msg.value1, msg.value2, msg.value3);
+                break;
+              }
+              case TC::Tree::Type::FOREVER_NAVIGATE: {
+                tree.emplace<ForeverNavigateTree>();
+                break;
+              }
+              default: {
+                bb.error_msg = "Unknown tree type";
+                return false;
+              }
+              }
+              return true;
+            },
+            [&](const TC::Tree::Update &msg) {
+              bb.state.update_from_mrk(msg.mrk, msg.time);
+              bb.new_event = msg.mrk;
+              bb.curr_tick = msg.time;
+              return true;
+            },
+        },
         next_msg.value());
     if (!msg_result) {
       Debug_Puts(bb.txs_tid, "Error: ", bb.error_msg);

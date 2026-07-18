@@ -109,6 +109,10 @@ struct State {
     return (switches & switch_bit(sw_id)) != 0;
   }
 
+  bool is_switch_curved(uint16_t sw_id) const {
+    return (switches & switch_bit(sw_id)) == 0;
+  }
+
   void set_switch(uint16_t sw_id, bool straight) {
     if (straight) {
       switches |= switch_bit(sw_id);
