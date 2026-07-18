@@ -4,7 +4,7 @@
 #include <stdint.h>
 
 #define TIME_1S_US 1'000'000
-#define TICK_TIME_US 7'000
+#define TICK_TIME_US 10'000
 #define TICKS_PER_S (TIME_1S_US / TICK_TIME_US)
 #define TICKS_PER_MS (uint32_t)(TICK_TIME_US / 1000)
 

@@ -375,17 +375,15 @@ namespace {
         return NodeResult::Success;
       }
 
-      uint64_t v_m_nm = bb.loco->v_max_umpt[bb.loco->req_speed] * 1000 *
-                        (TICK_TIME_US / 1'000);
+      uint64_t v_m_nm = bb.loco->v_max_umpt[bb.loco->req_speed] * 1000;
       uint64_t v_i_nm = bb.loco->ve_nm;
-      uint64_t d_t    = bb.curr_tick - last_tick;
+      uint64_t d_t    = (bb.curr_tick - last_tick) * (TICK_TIME_US / 1'000);
       last_tick       = bb.curr_tick;
 
       uint64_t delta = 0;
       if (v_m_nm >= v_i_nm) {
         // accelerating (or cruising): constant a until v_max, then cruise
-        uint64_t a =
-            bb.loco->a_nmpt2[bb.loco->req_speed] * (TICK_TIME_US / 1'000);
+        uint64_t a     = bb.loco->a_nmpt2[bb.loco->req_speed];
         uint64_t t_a   = std::min((v_m_nm - v_i_nm) / a, d_t);
         bb.loco->ve_nm = v_i_nm + a * t_a;
 
@@ -396,8 +394,7 @@ namespace {
         // so a later slow-down uses the right decel constant
         decel_from_speed = bb.loco->req_speed;
       } else {
-        uint64_t d =
-            bb.loco->d_nmpt2[decel_from_speed] * (TICK_TIME_US / 1'000);
+        uint64_t d     = bb.loco->d_nmpt2[decel_from_speed];
         uint64_t t_d   = std::min((v_i_nm - v_m_nm) / d, d_t);
         bb.loco->ve_nm = v_i_nm - d * t_d;
 
@@ -407,14 +404,14 @@ namespace {
 
       bb.dx_um += delta;
 
-#if !defined(DATA_COLLECTION) || !DATA_COLLECTION
-      if (bb.curr_tick - last_print > 100) {
+      // #if !defined(DATA_COLLECTION) || !DATA_COLLECTION
+      if (bb.curr_tick - last_print > TICKS_PER_S) {
         last_print = bb.curr_tick;
         Offset_Puts(bb.txs_tid, -2, "Spd: ", bb.loco->ve_nm / 1000,
                     "um/ms d_t ", d_t, " v_i ", v_i_nm / 1000, " v_max ",
                     v_m_nm / 1000, "nm/t^2 dx_mm", bb.dx_um / 1000, "\033[K");
       }
-#endif
+      // #endif
 
       return NodeResult::Success;
     }
@@ -558,8 +555,6 @@ namespace {
       lookahead_um =
           lookahead_um > 1500u * 1000u ? lookahead_um : 1500u * 1000u;
 
-      auto stopping_dist = bb.loco->stop_dist_um[bb.loco->req_speed];
-
       // calculate distance travelled given current velocity
       // safe estimate is max velocity for speed
       // then, calculate distance based on velocity. suppose distance is 500
@@ -635,16 +630,16 @@ namespace {
 
       auto remaining_um = remaining_mm * 1000 - bb.dx_um + offset_mm * 1000;
 
-      auto x               = bb.loco->ve_nm / 1000;
-      int stopping_dist_um = 26000 + 582 * x + 3.4 * x * x;
+      // auto x               = bb.loco->ve_nm / (1'000);
+      // int stopping_dist_um = 26000 + 582 * x + 3.4 * x * x;
 
       // stopping distance is a linear interpolation between our measured
       // stopping distances
 
-      // auto u_v_m   = bb.loco->v_max_umpt[bb.loco->req_speed];
-      // auto u_sd_um = bb.loco->stop_dist_um[bb.loco->req_speed];
-      // auto stopping_dist_um = (u_sd_um * bb.loco->ve_nm) / (u_v_m * 1000);
       // auto stopping_dist_um = bb.loco->stop_dist_um[bb.loco->req_speed];
+      auto u_v_m            = bb.loco->v_max_umpt[bb.loco->req_speed];
+      auto u_sd_um          = bb.loco->stop_dist_um[bb.loco->req_speed];
+      auto stopping_dist_um = (u_sd_um * bb.loco->ve_nm) / (u_v_m * 1000);
 
       Offset_Puts(bb.txs_tid, -3, "D: ", remaining_um / 1000,
                   "mm sd: ", stopping_dist_um / 1000, "mm");
