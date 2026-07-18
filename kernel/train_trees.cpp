@@ -518,6 +518,23 @@ namespace {
           return NodeResult::Failure;
         }
 
+        for (auto it = bb.path.begin(); it != idx + 1; ++it) {
+          // release the reservations
+          auto &node = *it;
+          if (bb.track.has_reservation(node, bb.loco_id)) {
+            auto res = send<TC::Ack>(bb.tcs_tid, TC::Cmd::ReleaseReserve{
+                                                     .id       = bb.loco_id,
+                                                     .node_idx = node.node_idx,
+                                                     .edge_dir = node.br_curved,
+                                                 });
+            if (!res.has_value()) {
+              bb.error_msg = "Could not release";
+              return NodeResult::Failure;
+            }
+            bb.track.release(node.node_idx, node.br_curved, bb.loco_id);
+          }
+        }
+
         auto dx_mm = std::accumulate(
             bb.path.begin(), idx + 1, 0,
             [](int acc, const PathNode &node) { return acc + node.dx_prev; });
