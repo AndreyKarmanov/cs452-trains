@@ -19,7 +19,7 @@
 
 namespace {
   auto sid = [](char b, int n) -> uint16_t { return (b - 'A') * 16 + n; };
-  constexpr auto TRACK_LAYOUT       = Track::Layout::B;
+  constexpr auto TRACK_LAYOUT       = Track::Layout::A;
   constexpr auto LOOP_START_NODE    = "C12";
   constexpr int LOOP_START_SID      = sid('C', 12);
   constexpr int LOOP_START_NODE_IDX = LOOP_START_SID - 1;
@@ -620,12 +620,12 @@ namespace {
           return go.tick(bb);
         }
         Offset_Puts(bb.txs_tid, -4, "Reservation complete, dist_um: ", dist_um,
-                   " min_dist: ", stop_buf_um);
+                   " min_dist(mm): ", stop_buf_um / 1000);
         return NodeResult::Success;
       } else if (dist_um <= stop_buf_um) {
         // if we don't have space, stop and wait for reservation
         Offset_Puts(bb.txs_tid, -4, "Reservation stop, dist_um: ", dist_um,
-                   " min_dist: ", stop_buf_um);
+                   " min_dist(mm): ", stop_buf_um / 1000);
         go               = SetSpeed{go.req_speed};
         reservation_stop = true;
         stop.tick(bb);
@@ -638,7 +638,7 @@ namespace {
         return go.tick(bb);
       }
       Offset_Puts(bb.txs_tid, -4, "Reservation incomplete, dist_um: ", dist_um,
-                 " min_dist: ", stop_buf_um);
+                 " min_dist(mm): ", stop_buf_um / 1000);
       return NodeResult::Success;
     }
   };
