@@ -77,13 +77,15 @@ uint32_t print_state(int tx_tid, const State &state) {
 
   return draws;
 }
-
 void ui_update_worker() {
   auto tcs_tid = WhoIs(TrainControlServer<>::NAME);
   _assert(tcs_tid >= 0, "TC SERVER NOT FOUND");
 
   auto tx_tid = WhoIs(UART_TX_Server::NAME);
   _assert(tx_tid >= 0, "TX SERVER WHOIS FAILED");
+
+  auto cs_tid = WhoIs(ClockServer<>::NAME);
+  _assert(cs_tid >= 0, "CLOCK SERVER WHOIS FAILED");
 
   while (true) {
     auto cans_reply = send<TC::UIUpdate>(tcs_tid, TC::UIReady{});
@@ -93,6 +95,7 @@ void ui_update_worker() {
 #if !defined(DATA_COLLECTION) || !DATA_COLLECTION
     print_state(tx_tid, cans_reply->state);
 #endif
+    Delay(cs_tid, TICKS_PER_S / 10);
   }
 
   Offset_Puts(tx_tid, 1, "UI EXITING\n\r");

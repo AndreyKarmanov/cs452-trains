@@ -179,15 +179,15 @@ TC::Cmd::Any parse_command(StaticString<CLI_BUFFER_SIZE> &buf) {
     return out;
   }
 
-    if (cmd_len == 3 && strncmp(cmd, "res", 3) == 0) {
-    uint32_t loco_id         = 0;
-    int node_idx             = 0;
-    int edge_dir             = 0;
+  if (cmd_len == 3 && strncmp(cmd, "res", 3) == 0) {
+    uint32_t loco_id = 0;
+    int node_idx     = 0;
+    int edge_dir     = 0;
 
     const char *parse_cursor = cur;
     if (parse_uint(parse_cursor, end, loco_id) &&
-    parse_int(parse_cursor, end, node_idx) &&
-    parse_int(parse_cursor, end, edge_dir) &&
+        parse_int(parse_cursor, end, node_idx) &&
+        parse_int(parse_cursor, end, edge_dir) &&
         done_parse(parse_cursor, end)) {
       out = TC::Cmd::Reserve{loco_id, node_idx, edge_dir};
       buf.set("Success: res ", loco_id, " ", node_idx, " ", edge_dir);
@@ -198,6 +198,24 @@ TC::Cmd::Any parse_command(StaticString<CLI_BUFFER_SIZE> &buf) {
     return out;
   }
 
+  if (cmd_len == 3 && strncmp(cmd, "rel", 3) == 0) {
+    uint32_t loco_id = 0;
+    int node_idx     = 0;
+    int edge_dir     = 0;
+
+    const char *parse_cursor = cur;
+    if (parse_uint(parse_cursor, end, loco_id) &&
+        parse_int(parse_cursor, end, node_idx) &&
+        parse_int(parse_cursor, end, edge_dir) &&
+        done_parse(parse_cursor, end)) {
+      out = TC::Cmd::ReleaseReserve{loco_id, node_idx, edge_dir};
+      buf.set("Success: rel ", loco_id, " ", node_idx, " ", edge_dir);
+    } else {
+      out = TC::Cmd::Invalid{};
+      buf.set("Error: Format is rel <train number> <node number> <direction>");
+    }
+    return out;
+  }
 
   if (cmd_len == 4 && strncmp(cmd, "stop", 4) == 0 && done_parse(cur, end)) {
     out = TC::Cmd::Stop{};

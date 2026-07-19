@@ -564,6 +564,7 @@ namespace {
 
   struct PathReservationNode : public LeafNode {
     static constexpr int STOP_DIST_BUF_PCT = 20;
+    int last_print_tick{0};
 
     SetSpeed stop{0};
     bool reservation_stop{false};
@@ -578,9 +579,10 @@ namespace {
       // lookahead is how much we've travelled + stop dist buf pct + 2 second
       // buffer of our travel time.
 
-      auto stop_buf_um = (bb.stop_dist_um * (100 + STOP_DIST_BUF_PCT)) / 100;
+      auto stop_buf_um =
+          bb.dx_um + (bb.stop_dist_um * (100 + STOP_DIST_BUF_PCT)) / 100;
       int lookahead_um =
-          bb.dx_um + stop_buf_um + (bb.loco->ve_nm / 1000 * TICKS_PER_S * 2);
+          stop_buf_um + (bb.loco->ve_nm / 1000 * TICKS_PER_S * 2);
 
       for (auto &node : bb.path) {
         dist_um += node.dx_prev * 1000;
@@ -613,26 +615,26 @@ namespace {
           stop             = SetSpeed{0};
           return go.tick(bb);
         }
-        Offset_Puts(bb.txs_tid, -4, "Reservation complete, dist_um: ", dist_um,
-                   " min_dist(mm): ", stop_buf_um / 1000);
         return NodeResult::Success;
       } else if (dist_um <= stop_buf_um) {
-        // if we don't have space, stop and wait for reservation
-        Offset_Puts(bb.txs_tid, -4, "Reservation stop, dist_um: ", dist_um,
-                   " min_dist(mm): ", stop_buf_um / 1000);
         go               = SetSpeed{go.req_speed};
         reservation_stop = true;
         stop.tick(bb);
         return NodeResult::Running;
       } else if (reservation_stop) {
-        Offset_Puts(bb.txs_tid, -4, "Reservation stop cleared, continuing");
-        // if we stopped previously, and have the distance, continue
         reservation_stop = false;
         stop             = SetSpeed{0};
         return go.tick(bb);
       }
-      Offset_Puts(bb.txs_tid, -4, "Reservation incomplete, dist_um: ", dist_um,
-                 " min_dist(mm): ", stop_buf_um / 1000);
+
+      if (bb.curr_tick - last_print_tick > TICKS_PER_S / 2) {
+        last_print_tick = bb.curr_tick;
+        Offset_Puts(bb.txs_tid, -4, "Res inc, dist(mm): ", dist_um / 1000,
+                    " min_dist(mm): ", stop_buf_um / 1000,
+                    " res stop: ", reservation_stop,
+                    " ful res: ", fully_reserved);
+      }
+
       return NodeResult::Success;
     }
   };

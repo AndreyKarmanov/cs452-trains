@@ -212,11 +212,12 @@ template <size_t TX_BUFFER_SIZE = 64> class TrainControlServer {
 
               // already reserved by another train
               auto res = track.get_reservation(cmd.node_idx, cmd.edge_dir);
-              if (                  res != UNRESERVED && res != cmd.id) {
+              if (res != UNRESERVED && res != cmd.id) {
                 return false;
               }
               Debug_Puts(tx_tid, "Res: ", track[cmd.node_idx].name,
-                         cmd.edge_dir == 0 ? "S" : "C", "(this train: ", cmd.id, ") prev ", res);
+                         cmd.edge_dir == 0 ? "S" : "C", "(this train: ", cmd.id,
+                         ") prev ", res);
               track.reserve(cmd.node_idx, cmd.edge_dir, cmd.id);
               return true;
             },
