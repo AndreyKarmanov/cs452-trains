@@ -578,7 +578,7 @@ namespace {
       // lookahead is how much we've travelled + stop dist buf pct + 2 second
       // buffer of our travel time.
 
-      auto stop_buf_um = bb.stop_dist_um * (100 + STOP_DIST_BUF_PCT) / 100;
+      auto stop_buf_um = (bb.stop_dist_um * (100 + STOP_DIST_BUF_PCT)) / 100;
       int lookahead_um =
           bb.dx_um + stop_buf_um + (bb.loco->ve_nm / 1000 * TICKS_PER_S * 2);
 
@@ -619,6 +619,8 @@ namespace {
           stop             = SetSpeed{0};
           return go.tick(bb);
         }
+        Debug_Puts(bb.txs_tid, "Reservation complete, dist_um: ", dist_um,
+                   " min_dist: ", stop_buf_um);
         return NodeResult::Success;
       } else if (dist_um <= stop_buf_um) {
         // if we don't have space, stop and wait for reservation
@@ -635,6 +637,8 @@ namespace {
         stop             = SetSpeed{0};
         return go.tick(bb);
       }
+      Debug_Puts(bb.txs_tid, "Reservation incomplete, dist_um: ", dist_um,
+                 " min_dist: ", stop_buf_um);
       return NodeResult::Success;
     }
   };
