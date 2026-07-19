@@ -33,6 +33,7 @@ struct Blackboard {
     uint32_t tick;
   };
   Buffer<SensorSighting, TRACK_MAX> seen_sensors{};
+  bool reversed_since_last_sensor{false};
 
   // distance logs for calibraiton
   struct DistLog {
@@ -47,6 +48,7 @@ struct Blackboard {
   uint16_t last_sensor_sid{0};
 
   int dx_um{0};
+  int stop_dist_um{0};
 };
 
 enum class NodeResult {

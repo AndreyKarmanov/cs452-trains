@@ -32,7 +32,6 @@ enum class Event {
   CAN_RX_IRQ,
   CAN_TX_IRQ,
   TASK_EXIT,
-  SENSOR_B6,
   EVENT_COUNT
 };
 constexpr auto TOTAL_EVENT_TYPES = static_cast<size_t>(Event::EVENT_COUNT);

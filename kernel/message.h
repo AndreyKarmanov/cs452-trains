@@ -181,17 +181,12 @@ namespace TC {
       State state;
     };
 
-    struct TrackReserved {
-      uint32_t loco_id;
-      Buffer<TrackEdge, 16> path;
-    };
-
     struct Update {
       MRKCmd mrk;
       uint32_t time;
     };
 
-    using Msg = std::variant<Tree::Init, Tree::Update, Tree::TrackReserved>;
+    using Msg = std::variant<Tree::Init, Tree::Update>;
 
   } // namespace Tree
 
@@ -248,12 +243,14 @@ namespace TC {
 
     struct Reserve {
       uint32_t id;
-      Buffer<TrackEdge, 16> path;
+      int node_idx;
+      int edge_dir;
     };
 
     struct ReleaseReserve {
       uint32_t id;
-      Buffer<TrackEdge, 16> path;
+      int node_idx;
+      int edge_dir;
     };
 
     using Any = std::variant<Invalid, Quit, Light, Function, Speed, Switch,
@@ -262,7 +259,9 @@ namespace TC {
 
   } // namespace Cmd
 
-  struct Ack {};
+  struct Ack {
+    bool success{true};
+  };
   struct Quit {};
 } // namespace TC
 

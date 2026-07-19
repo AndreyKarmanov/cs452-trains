@@ -1,8 +1,6 @@
 #include "mcp2515.h"
-#include "buffer.h"
 #include "spi.h"
 #include "time.h"
-#include "uart.h"
 #include <cstring>
 
 // configuration registers
@@ -176,13 +174,6 @@ void *memset(void *s, int c, size_t n) {
   return s;
 }
 
-struct TXBnPending {
-  TXBnFrame frame;
-  uint32_t time;
-};
-
-static Buffer<TXBnPending, 32> pending_frames;
-
 bool mcp2515_send(const TXBnFrame frame) {
   int txb        = -1;
   uint8_t status = mcp2515_read_status();
@@ -204,22 +195,6 @@ bool mcp2515_send(const TXBnFrame frame) {
   mcp2515_rts(txb == 0, txb == 1, txb == 2);
 
   return true;
-}
-
-void mcp2515_send(const TXBnFrame frame, uint32_t delay) {
-  pending_frames.push({.frame = frame, .time = time_get() + delay});
-}
-
-void mcp2515_send_pending() {
-  while (!pending_frames.empty()) {
-    const auto &pending = pending_frames.peek();
-    if (time_get() >= pending->time) {
-      mcp2515_send(pending->frame);
-      pending_frames.pop();
-    } else {
-      break;
-    }
-  }
 }
 
 bool mcp2515_recieve(CANFRAME &frame) {
@@ -247,7 +222,6 @@ bool mcp2515_recieve_RXn(bool rx0, CANFRAME &frame) {
 
   RXBnFRAME mcp_frame;
 
-  // note this also clears the respective interrupt flag
   mcp2515_read_RXn(rx0, reinterpret_cast<uint8_t *>(&mcp_frame),
                    sizeof(RXBnFRAME));
 
@@ -255,8 +229,8 @@ bool mcp2515_recieve_RXn(bool rx0, CANFRAME &frame) {
   frame.cmdid = ((mcp_frame.SIDH & 0x0F) << 4) |
                 (mcp_frame.SIDL.bits.SID_2_0 << 1) |
                 ((mcp_frame.SIDL.bits.EID_17_16 & 0b10) >> 1);
-  frame.resp  = mcp_frame.SIDL.bits.EID_17_16 & 0b1;
-  frame.hash  = (mcp_frame.EID8 << 8) | mcp_frame.EID0;
+  frame.resp = mcp_frame.SIDL.bits.EID_17_16 & 0b1;
+  frame.hash = (mcp_frame.EID8 << 8) | mcp_frame.EID0;
 
   frame.dlc = mcp_frame.DLC.bits.DLC;
 
@@ -283,30 +257,10 @@ void disable_mcp2515_interrupt(const CANINT &interrupts) {
   mcp2515_modify_reg(CANINTE, static_cast<uint8_t>(interrupts), 0);
 }
 
-void clear_mcp2515_interrupt(const CANINT &interrupts) {
-  mcp2515_modify_reg(CANINTE, static_cast<uint8_t>(interrupts), 0);
-}
-
 CANINT mcp2515_get_enabled_interrupt() {
   return CANINT::from_byte(mcp2515_read_reg(CANINTE));
 }
 
 CANINT mcp2515_get_active_irq() {
   return CANINT::from_byte(mcp2515_read_reg(CANINTF));
-}
-
-CANINT mcp2515_get_irq_source() {
-  auto canstat = (mcp2515_read_reg(CANSTAT) >> 1) & 0b111;
-  if (!canstat) {
-    return CANINT{};
-  }
-  return CANINT{
-      .wakie  = canstat == 0b010,
-      .errie  = canstat == 0b001,
-      .tx2ie  = canstat == 0b101,
-      .tx1ie  = canstat == 0b100,
-      .tx0ie  = canstat == 0b011,
-      .rxi1e  = canstat == 0b111,
-      .rxi0ie = canstat == 0b110,
-  };
 }

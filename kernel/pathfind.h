@@ -12,16 +12,17 @@ struct PathNode {
   int node_idx;
   node_type type;
   int num;
-  int dx_prev = 0;
-  int dx_next;
-  int edge_v_pct = 100; // how much higher / lower the velocity can get on this
-                        // edge relative to max
-  bool should_br_be_curved;
+  int dx_prev{0};
+  int dx_next{0};
+  int edge_v_pct{100}; // how much higher / lower the velocity can get on this
+                       // edge relative to max
+  bool br_curved{false};
+  bool reserved{false};
 
   bool operator==(const PathNode &other) const {
     return node_idx == other.node_idx && type == other.type &&
            dx_prev == other.dx_prev && dx_next == other.dx_next &&
-           should_br_be_curved == other.should_br_be_curved;
+           br_curved == other.br_curved;
   }
 };
 
@@ -68,8 +69,10 @@ public:
 
   explicit Track(Layout layout);
 
-  void reserve(int node_idx, int dir, int id);
+  void reserve(int node_idx, int dir, uint32_t id);
   void release(int node_idx, int dir, uint32_t id);
+  bool has_reservation(const PathNode &node, uint32_t loco_id);
+  uint32_t get_reservation(int node_idx, int dir);
 
   std::optional<int> get_idx(const StaticString<4> &name) const;
   int node_idx(const track_node *node) const {
@@ -89,7 +92,7 @@ public:
 
   const char *node_name(int node_idx) const;
 
-  track_node operator[](int idx) const { return track[idx]; }
+  const track_node operator[](int idx) const { return track[idx]; }
 };
 
 void test_pathfind();
