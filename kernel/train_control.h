@@ -203,6 +203,8 @@ template <size_t TX_BUFFER_SIZE = 64> class TrainControlServer {
               return true;
             },
             [&](const TC::Cmd::Reserve &cmd) {
+              Debug_Puts(tx_tid, "Reserve request: ", cmd.node_idx,
+                         " dir: ", cmd.edge_dir, " train: ", cmd.id);
               if (cmd.node_idx < 0 || cmd.node_idx >= TRACK_MAX ||
                   (cmd.edge_dir != 0 && cmd.edge_dir != 1)) {
                 Debug_Puts(tx_tid,
@@ -213,6 +215,9 @@ template <size_t TX_BUFFER_SIZE = 64> class TrainControlServer {
               // already reserved by another train
               if (auto res = track.get_reservation(cmd.node_idx, cmd.edge_dir);
                   res != UNRESERVED && res != cmd.id) {
+                Debug_Puts(tx_tid, "Already Reserved by ", res,
+                           " (this train: ", cmd.id, ")");
+
                 return false;
               }
 
@@ -230,6 +235,8 @@ template <size_t TX_BUFFER_SIZE = 64> class TrainControlServer {
               // can't release if not reserved by this train
               if (auto res = track.get_reservation(cmd.node_idx, cmd.edge_dir);
                   res != UNRESERVED && res != cmd.id) {
+                Debug_Puts(tx_tid, "Can't release reservation, reserved by ",
+                           res, " (this train: ", cmd.id, ")");
                 return false;
               }
 
