@@ -218,6 +218,8 @@ template <size_t TX_BUFFER_SIZE = 64> class TrainControlServer {
 
                 return false;
               }
+              Debug_Puts(tx_tid, "Reserved: ", track[cmd.node_idx].name,
+                         cmd.edge_dir == 0 ? "S" : "C", "(this train: ", cmd.id, ")");
               track.reserve(cmd.node_idx, cmd.edge_dir, cmd.id);
               return true;
             },

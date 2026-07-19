@@ -600,15 +600,9 @@ namespace {
           }
 
           if (!res->success) {
-            Debug_Puts(bb.txs_tid,
-                       "Failed to reserve: ", bb.track[node.node_idx].name);
             fully_reserved = false;
             break;
           }
-
-          Debug_Puts(bb.txs_tid, "Reserved: ", bb.track[node.node_idx].name,
-                     node.type == NODE_BRANCH ? (node.br_curved ? "C" : "S")
-                                              : "");
           bb.track.reserve(node.node_idx, node.br_curved, bb.loco_id);
         }
       }
