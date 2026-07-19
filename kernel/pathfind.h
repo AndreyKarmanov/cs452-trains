@@ -6,16 +6,13 @@
 #include "track_data.h"
 #include <optional>
 
-// todo: change this so that it's pointers to nodes, not sure we need type /
-// node
 struct PathNode {
   int node_idx;
   node_type type;
   int num;
   int dx_prev{0};
   int dx_next{0};
-  int edge_v_pct{100}; // how much higher / lower the velocity can get on this
-                       // edge relative to max
+  int edge_v_pct{100};
   bool br_curved{false};
   bool reserved{false};
 
@@ -48,9 +45,6 @@ public:
       dist_mm -= elem->dx_next;
     return elem;
   }
-
-  int lookahead(int distance, PathNode *result, int length,
-                int start_offset = 0, node_type node_type = NODE_NONE);
 };
 
 class Track {
