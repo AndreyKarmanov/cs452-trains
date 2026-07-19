@@ -327,7 +327,7 @@ void cli_worker() {
       }
 
       auto cans_reply = send<TC::Ack>(tcs_tid, result);
-      if (cans_reply.error()) {
+      if (!cans_reply.has_value()) {
         break;
       }
 
