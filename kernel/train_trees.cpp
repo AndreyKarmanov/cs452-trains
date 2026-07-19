@@ -18,7 +18,7 @@
 
 namespace {
   auto sid = [](char b, int n) -> uint16_t { return (b - 'A') * 16 + n; };
-  constexpr auto TRACK_LAYOUT       = Track::Layout::A;
+  constexpr auto TRACK_LAYOUT       = Track::Layout::B;
   constexpr auto LOOP_START_NODE    = "C12";
   constexpr int LOOP_START_SID      = sid('C', 12);
   constexpr int LOOP_START_NODE_IDX = LOOP_START_SID - 1;
@@ -542,6 +542,83 @@ namespace {
     }
   };
 
+  struct PathReservationNode : public LeafNode {
+    static constexpr int STOP_DIST_BUF_PCT = 20;
+
+    SetSpeed stop{0};
+    bool reservation_stop{false};
+    SetSpeed go{8};
+
+    PathReservationNode(uint16_t go_speed = 8) : go(go_speed) {}
+
+    NodeResult tick(Blackboard &bb) override {
+      int dist_um = 0;
+      bool fully_reserved{true};
+
+      // lookahead is how much we've travelled + stop dist buf pct + 2 second
+      // buffer of our travel time.
+
+      auto stop_buf_um = bb.stop_dist_um * (100 + STOP_DIST_BUF_PCT) / 100;
+      int lookahead_um =
+          bb.dx_um + stop_buf_um + (bb.loco->ve_nm / 1000 * TICKS_PER_S * 2);
+
+      for (auto &node : bb.path) {
+        dist_um += node.dx_prev * 1000;
+        if (dist_um > lookahead_um) {
+          fully_reserved = false;
+          break;
+        }
+        if (!bb.track.has_reservation(node, bb.loco_id)) {
+          auto res = send<TC::Ack>(bb.tcs_tid, TC::Cmd::Reserve{
+                                                   .id       = bb.loco_id,
+                                                   .node_idx = node.node_idx,
+                                                   .edge_dir = node.br_curved,
+                                               });
+          if (res.has_value()) {
+            bb.error_msg = "Could not reserve";
+            return NodeResult::Failure;
+          }
+
+          if (!res->success) {
+            Debug_Puts(bb.txs_tid,
+                       "Failed to reserve: ", bb.track[node.node_idx].name);
+            fully_reserved = false;
+            break;
+          }
+
+          Debug_Puts(bb.txs_tid, "Reserved: ", bb.track[node.node_idx].name,
+                     node.type == NODE_BRANCH ? (node.br_curved ? "C" : "S")
+                                              : "");
+          bb.track.reserve(node.node_idx, node.br_curved, bb.loco_id);
+        }
+      }
+
+      if (fully_reserved) {
+        if (reservation_stop) {
+          reservation_stop = false;
+          stop             = SetSpeed{0};
+          return go.tick(bb);
+        }
+        return NodeResult::Success;
+      } else if (dist_um <= stop_buf_um) {
+        // if we don't have space, stop and wait for reservation
+        Debug_Puts(bb.txs_tid, "Reservation stop, dist_um: ", dist_um,
+                   " min_dist: ", stop_buf_um);
+        go               = SetSpeed{go.req_speed};
+        reservation_stop = true;
+        stop.tick(bb);
+        return NodeResult::Running;
+      } else if (reservation_stop) {
+        Debug_Puts(bb.txs_tid, "Reservation stop cleared, continuing");
+        // if we stopped previously, and have the distance, continue
+        reservation_stop = false;
+        stop             = SetSpeed{0};
+        return go.tick(bb);
+      }
+      return NodeResult::Success;
+    }
+  };
+
   struct PathLookaheadNode : public LeafNode {
     NodeResult tick(Blackboard &bb) override {
 
@@ -699,6 +776,7 @@ namespace {
 
     std::optional<ReverseTree> rev_tree{std::in_place};
 
+    DebugPrintPath print_path{};
     PathToNode(int goal_idx) : goal_idx(goal_idx) {}
 
     NodeResult tick(Blackboard &bb) override {
@@ -759,6 +837,7 @@ namespace {
 
       bb.path                  = bb.path + path_opt.value();
       bb.loco->target_node_idx = goal_idx;
+      print_path.tick(bb);
       return NodeResult::Success;
     }
   };
@@ -768,10 +847,11 @@ namespace {
     SetSpeed set_speed{CRAWL_SPEED};
     AttributeSensorNode attribute_sensor{};
     LocalizerNode localize{};
+    PathReservationNode reserve{};
     PathLookaheadNode lookahead{};
 
     Sequence loop{
-        &model, &set_speed, &attribute_sensor, &localize, &lookahead,
+        &model, &set_speed, &attribute_sensor, &localize, &reserve, &lookahead,
     };
 
     NodeResult tick(Blackboard &bb) override {

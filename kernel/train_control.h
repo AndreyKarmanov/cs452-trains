@@ -198,7 +198,13 @@ template <size_t TX_BUFFER_SIZE = 64> class TrainControlServer {
                   break;
                 }
 
-                auto edge = pathfind[node.node_idx].edge[node.dir];
+                // already reserved by another train
+                if (auto res =
+                        track.get_reservation(cmd.node_idx, cmd.edge_dir);
+                    res != UNRESERVED && res != cmd.id) {
+                  Debug_Puts(tx_tid, "Node already reserved by ", res);
+                  return false;
+                }
 
                 if (edge.reservation != UNRESERVED &&
                     static_cast<uint32_t>(edge.reservation) != cmd.id) {
