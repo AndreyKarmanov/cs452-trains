@@ -46,7 +46,7 @@ namespace {
         path_str.append(bb.track[node.node_idx].name,
                         node.type == NODE_BRANCH ? node.br_curved ? "C " : "S "
                                                  : " ",
-                        node.dx_next, " >");
+                        node.reserved ? "R " : "NR", " >");
       }
       Debug_Puts(bb.txs_tid, path_str);
       return NodeResult::Success;
@@ -402,8 +402,12 @@ namespace {
 
       bb.dx_um += delta;
 
-      auto ve_um      = bb.loco->ve_nm / (1'000);
-      bb.stop_dist_um = 26000 + 582 * ve_um + 3.4 * ve_um * ve_um;
+      auto ve_um = bb.loco->ve_nm / (1'000);
+      if (ve_um == 0) {
+        bb.stop_dist_um = 0;
+      } else {
+        bb.stop_dist_um = 26000 + 582 * ve_um + 3.4 * ve_um * ve_um;
+      }
 
       if (bb.curr_tick - last_print > TICKS_PER_S / 10) {
         last_print = bb.curr_tick;
@@ -419,7 +423,7 @@ namespace {
   };
 
   struct AttributeSensorNode : public LeafNode {
-    static constexpr int PCT_TOLERANCE = 50;
+    static constexpr int PCT_TOLERANCE = 30;
 
     void push_to_seen_sensors(Blackboard &bb, SensorData *data) {
       if (bb.seen_sensors.size() == bb.seen_sensors.capacity()) {
@@ -767,10 +771,15 @@ namespace {
         return NodeResult::Failure;
       }
 
-      auto start_idx =
-          bb.seen_sensors.peek_last().has_value()
-              ? bb.seen_sensors.peek_last()->sid - 1 // sid -1 is it's node_idx
-              : bb.path.peek_last().value().node_idx;
+      // start is last node in path, last seen sensor, or inital node.
+      auto start_idx = !bb.path.empty() ? bb.path.peek_last()->node_idx
+                       : bb.seen_sensors.empty()
+                           ? bb.loco->inital_node_idx
+                           : bb.seen_sensors.peek_last()->sid - 1;
+      if (start_idx == -1) {
+        bb.error_msg = "Failed to find start";
+        return NodeResult::Failure;
+      }
 
       auto startr_idx = bb.track.node_idx(bb.track[start_idx].reverse);
       auto goalr_idx  = bb.track.node_idx(bb.track[goal_idx].reverse);
@@ -1138,6 +1147,7 @@ namespace {
 
   struct ForeverNavigateTree : public TreeNode {
     Unif prng{time_get(), 0, TRACK_MAX - 1};
+    bool random{true};
 
     Sequence seq{};
     LocalizerTree localizer_tree{};
@@ -1145,19 +1155,28 @@ namespace {
                                            static_cast<int>(prng.nextNum())};
     SetSpeed max_speed{14};
     StopAtDonePath stop_at_done{};
+    WaitNode wait{TICKS_PER_S * 60 * 5};
 
-    ForeverNavigateTree() {
+    ForeverNavigateTree(uint16_t speed) : random{true}, max_speed{speed} {
       seq.children.push(&localizer_tree);
       seq.children.push(&(*path_to_goal));
       seq.children.push(&max_speed);
       seq.children.push(&stop_at_done);
     }
 
+    ForeverNavigateTree(int goal_idx, uint16_t speed)
+        : random{false}, path_to_goal{goal_idx}, max_speed{speed} {
+      seq.children.push(&localizer_tree);
+      seq.children.push(&(*path_to_goal));
+      seq.children.push(&max_speed);
+      seq.children.push(&wait);
+    }
+
     NodeResult tick(Blackboard &bb) override {
       auto res = seq.tick(bb);
-      if (res == NodeResult::Success) {
+      if (res == NodeResult::Success && random) {
         path_to_goal.emplace(static_cast<int>(prng.nextNum()));
-        max_speed    = SetSpeed{7};
+        max_speed    = SetSpeed{max_speed.req_speed};
         stop_at_done = StopAtDonePath{};
         Debug_Puts(bb.txs_tid, "Going to new node ",
                    bb.track[path_to_goal->goal_idx].name);
@@ -1216,9 +1235,12 @@ void run_tree() {
                 break;
               }
               case TC::Tree::Type::FOREVER_NAVIGATE: {
-                tree.emplace<ForeverNavigateTree>();
+                tree.emplace<ForeverNavigateTree>(msg.value1);
                 break;
               }
+              case TC::Tree::Type::LOOP_NODE:
+                tree.emplace<ForeverNavigateTree>(msg.value1, msg.value2);
+                break;
               default: {
                 bb.error_msg = "Unknown tree type";
                 return false;

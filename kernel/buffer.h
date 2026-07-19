@@ -65,6 +65,11 @@ public:
     return elem;
   }
 
+  constexpr void clear() {
+    head  = 0;
+    _size = 0;
+  }
+
   constexpr std::optional<T> peek() const {
     if (empty())
       return std::nullopt;
