@@ -76,8 +76,6 @@ int Path::lookahead(int distance, PathNode *result, int length,
   return count;
 }
 
-track_node Track::track[TRACK_MAX];
-
 Track::Track(Track::Layout layout) {
 
   if (layout == Track::Layout::A) {
