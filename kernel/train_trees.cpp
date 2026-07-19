@@ -594,7 +594,7 @@ namespace {
                                                    .node_idx = node.node_idx,
                                                    .edge_dir = node.br_curved,
                                                });
-          if (res.has_value()) {
+          if (!res.has_value()) {
             bb.error_msg = "Could not reserve";
             return NodeResult::Failure;
           }
