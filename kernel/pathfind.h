@@ -61,7 +61,7 @@ class Track {
   std::optional<Path> build_path(int goal_idx, const int best_dist[TRACK_MAX],
                                  const int predecessor[TRACK_MAX]) const;
 
-  static track_node track[TRACK_MAX];
+  track_node track[TRACK_MAX];
 
 public:
   enum class Layout { A, B };
