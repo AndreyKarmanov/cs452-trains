@@ -19,8 +19,6 @@
 
 namespace {
   auto sid = [](char b, int n) -> uint16_t { return (b - 'A') * 16 + n; };
-  constexpr auto TRACK_LAYOUT       = Track::Layout::A;
-  constexpr auto LOOP_START_NODE    = "C12";
   constexpr int LOOP_START_SID      = sid('C', 12);
   constexpr int LOOP_START_NODE_IDX = LOOP_START_SID - 1;
   constexpr int E3_SID              = sid('E', 3);
@@ -1181,7 +1179,7 @@ void run_tree() {
   Blackboard bb{
       .tcs_tid = tcs_tid,
       .txs_tid = tx_tid,
-      .track{TRACK_LAYOUT},
+      .track{TrainControlServer<>::TRACK},
   };
 
   TrainState tmp{};

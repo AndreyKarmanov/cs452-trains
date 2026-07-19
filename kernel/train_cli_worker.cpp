@@ -1,6 +1,7 @@
 #include "train_cli_worker.h"
 #include "io_helpers.h"
 #include "mrk.h"
+#include "pathfind.h"
 #include "time.h"
 #include "train_control.h"
 #include "uart_rx_server.h"
@@ -56,8 +57,9 @@ namespace {
     return skip_ws(cursor, end) == end;
   }
 
+  template <size_t SIZE>
   bool parse_token(const char *&cursor, const char *end,
-                   StaticString<8> &token) {
+                   StaticString<SIZE> &token) {
     cursor = skip_ws(cursor, end);
     if (cursor >= end)
       return false;
@@ -71,10 +73,33 @@ namespace {
     return !token.empty();
   }
 
+  bool parse_edge_dir(const char *&cursor, const char *end, int &edge_dir,
+                      char &dir_label) {
+    StaticString<2> token{};
+    if (!parse_token(cursor, end, token) || token.len != 1)
+      return false;
+
+    const char dir = token.data[0];
+    if (dir == 'S' || dir == 's') {
+      edge_dir  = 0;
+      dir_label = 'S';
+      return true;
+    }
+
+    if (dir == 'C' || dir == 'c') {
+      edge_dir  = 1;
+      dir_label = 'C';
+      return true;
+    }
+
+    return false;
+  }
+
 } // namespace
 
 TC::Cmd::Any parse_command(StaticString<CLI_BUFFER_SIZE> &buf) {
   TC::Cmd::Any out{};
+  static Track track{TrainControlServer<>::TRACK};
 
   const char *begin = buf.data;
   const char *end   = buf.data + buf.len;
@@ -146,21 +171,17 @@ TC::Cmd::Any parse_command(StaticString<CLI_BUFFER_SIZE> &buf) {
 
   if (cmd_len == 2 && strncmp(cmd, "sw", 2) == 0) {
     uint32_t sw_id           = 0;
-    char dir                 = '\0';
+    int edge_dir             = 0;
+    char dir_label           = '\0';
     const char *parse_cursor = cur;
-    if (parse_uint(parse_cursor, end, sw_id)) {
-      parse_cursor = skip_ws(parse_cursor, end);
-      if (parse_cursor < end) {
-        dir = *parse_cursor++;
-      }
-    }
-    if (sw_id != 0 && (dir == 'S' || dir == 's' || dir == 'C' || dir == 'c') &&
+    if (parse_uint(parse_cursor, end, sw_id) &&
+        parse_edge_dir(parse_cursor, end, edge_dir, dir_label) &&
         done_parse(parse_cursor, end)) {
-      out = TC::Cmd::Switch{sw_id, dir == 'S' || dir == 's'};
-      buf.set("Success: sw ", sw_id, ' ', dir);
+      out = TC::Cmd::Switch{sw_id, edge_dir == 0};
+      buf.set("Success: sw ", sw_id, ' ', dir_label);
     } else {
       out = TC::Cmd::Invalid{};
-      buf.set("Error: Format is sw <switch number> <switch direction>");
+      buf.set("Error: Format is sw <switch number> <S/C>");
     }
     return out;
   }
@@ -181,38 +202,52 @@ TC::Cmd::Any parse_command(StaticString<CLI_BUFFER_SIZE> &buf) {
 
   if (cmd_len == 3 && strncmp(cmd, "res", 3) == 0) {
     uint32_t loco_id = 0;
-    int node_idx     = 0;
-    int edge_dir     = 0;
+    Track::NodeName node_name{};
+    int edge_dir   = 0;
+    char dir_label = '\0';
 
     const char *parse_cursor = cur;
     if (parse_uint(parse_cursor, end, loco_id) &&
-        parse_int(parse_cursor, end, node_idx) &&
-        parse_int(parse_cursor, end, edge_dir) &&
+        parse_token(parse_cursor, end, node_name) &&
+        parse_edge_dir(parse_cursor, end, edge_dir, dir_label) &&
         done_parse(parse_cursor, end)) {
-      out = TC::Cmd::Reserve{loco_id, node_idx, edge_dir};
-      buf.set("Success: res ", loco_id, " ", node_idx, " ", edge_dir);
+      auto node_idx = track.get_idx(node_name);
+      if (!node_idx.has_value()) {
+        out = TC::Cmd::Invalid{};
+        buf.set("Error: Unknown node name in res command");
+        return out;
+      }
+      out = TC::Cmd::Reserve{loco_id, node_idx.value(), edge_dir};
+      buf.set("Success: res ", loco_id, " ", node_name, " ", dir_label);
     } else {
       out = TC::Cmd::Invalid{};
-      buf.set("Error: Format is res <train number> <node number> <direction>");
+      buf.set("Error: Format is res <train number> <node name> <S/C>");
     }
     return out;
   }
 
   if (cmd_len == 3 && strncmp(cmd, "rel", 3) == 0) {
     uint32_t loco_id = 0;
-    int node_idx     = 0;
-    int edge_dir     = 0;
+    Track::NodeName node_name{};
+    int edge_dir   = 0;
+    char dir_label = '\0';
 
     const char *parse_cursor = cur;
     if (parse_uint(parse_cursor, end, loco_id) &&
-        parse_int(parse_cursor, end, node_idx) &&
-        parse_int(parse_cursor, end, edge_dir) &&
+        parse_token(parse_cursor, end, node_name) &&
+        parse_edge_dir(parse_cursor, end, edge_dir, dir_label) &&
         done_parse(parse_cursor, end)) {
-      out = TC::Cmd::ReleaseReserve{loco_id, node_idx, edge_dir};
-      buf.set("Success: rel ", loco_id, " ", node_idx, " ", edge_dir);
+      auto node_idx = track.get_idx(node_name);
+      if (!node_idx.has_value()) {
+        out = TC::Cmd::Invalid{};
+        buf.set("Error: Unknown node name in rel command");
+        return out;
+      }
+      out = TC::Cmd::ReleaseReserve{loco_id, node_idx.value(), edge_dir};
+      buf.set("Success: rel ", loco_id, " ", node_name, " ", dir_label);
     } else {
       out = TC::Cmd::Invalid{};
-      buf.set("Error: Format is rel <train number> <node number> <direction>");
+      buf.set("Error: Format is rel <train number> <node name> <S/C>");
     }
     return out;
   }
@@ -289,11 +324,17 @@ TC::Cmd::Any parse_command(StaticString<CLI_BUFFER_SIZE> &buf) {
     const char *parse_cur = cur;
     if (parse_uint(parse_cur, end, loco_id) &&
         parse_token(parse_cur, end, sensor) && done_parse(parse_cur, end)) {
-      out = TC::Cmd::Reg{loco_id, sensor};
+      auto node_idx = track.get_idx(sensor);
+      if (!node_idx.has_value()) {
+        out = TC::Cmd::Invalid{};
+        buf.set("Error: Unknown node name in reg command");
+        return out;
+      }
+      out = TC::Cmd::Reg{loco_id, node_idx.value()};
       buf.set("Success: reg ", loco_id, ' ', sensor);
     } else {
       out = TC::Cmd::Invalid{};
-      buf.set("Error: Format is reg <train number> <sensor>");
+      buf.set("Error: Format is reg <train number> <node name>");
     }
     return out;
   }
@@ -316,8 +357,16 @@ TC::Cmd::Any parse_command(StaticString<CLI_BUFFER_SIZE> &buf) {
                 MAX_USER_SPEED, "> [<offset>]");
         return out;
       }
-      out = TC::Cmd::Nav{
-          .id = loco_id, .to = to, .speed = speed, .offset = offset};
+      auto node_idx = track.get_idx(to);
+      if (!node_idx.has_value()) {
+        out = TC::Cmd::Invalid{};
+        buf.set("Error: Unknown node name in nav command");
+        return out;
+      }
+      out = TC::Cmd::Nav{.id       = loco_id,
+                         .node_idx = node_idx.value(),
+                         .speed    = speed,
+                         .offset   = offset};
       buf.set("Success: nav ", loco_id, ' ', to, ' ', speed, ' ', offset);
     } else {
       out = TC::Cmd::Invalid{};

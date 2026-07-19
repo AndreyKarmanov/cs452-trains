@@ -231,14 +231,14 @@ namespace TC {
 
     struct Nav {
       uint32_t id;
-      StaticString<8> to;
+      int node_idx;
       uint32_t speed;
       int offset;
     };
 
     struct Reg {
       uint32_t id;
-      StaticString<8> sensor;
+      int node_idx;
     };
 
     struct Reserve {

@@ -24,7 +24,6 @@ template <size_t TX_BUFFER_SIZE = 64> class TrainControlServer {
   int waiting_can_tx_worker_tid    = -1;
   bool simple_pacing_can_send      = true;
 
-  static constexpr auto TRACK = Track::Layout::A;
   Track track;
 
   struct TreeMailbox {
@@ -175,29 +174,27 @@ template <size_t TX_BUFFER_SIZE = 64> class TrainControlServer {
               return true;
             },
             [&](const TC::Cmd::Nav &cmd) {
-              auto node_idx = track.get_idx(cmd.to.c_str());
-              if (!node_idx.has_value()) {
-                Debug_Puts(tx_tid, "Invalid name in nav command");
+              if (cmd.node_idx < 0 || cmd.node_idx >= TRACK_MAX) {
+                Debug_Puts(tx_tid, "Invalid node index in nav command");
                 return false;
               }
               spawn_tree_task(
                   run_tree,
                   TC::Tree::Init{.loco_id   = cmd.id,
                                  .tree_type = TC::Tree::Type::NAVIGATE,
-                                 .value1    = node_idx.value(),
+                                 .value1    = cmd.node_idx,
                                  .value2    = static_cast<int>(cmd.speed),
                                  .value3    = cmd.offset,
                                  .state     = state});
               return true;
             },
             [&](const TC::Cmd::Reg &cmd) {
+              if (cmd.node_idx < 0 || cmd.node_idx >= TRACK_MAX) {
+                Debug_Puts(tx_tid, "Invalid node index in reg command");
+                return false;
+              }
               if (TrainState *train = state.get_loco(cmd.id)) {
-                auto node_idx = track.get_idx(cmd.sensor.c_str());
-                if (!node_idx.has_value()) {
-                  Debug_Puts(tx_tid, "Invalid sensor name in reg command");
-                  return false;
-                }
-                train->inital_node_idx = node_idx.value();
+                train->inital_node_idx = cmd.node_idx;
                 state.trains_dirty     = true;
               }
               return true;
@@ -325,6 +322,7 @@ template <size_t TX_BUFFER_SIZE = 64> class TrainControlServer {
 
 public:
   static constexpr auto NAME                      = "TCSERVER";
+  static constexpr auto TRACK                     = Track::Layout::A;
   static constexpr auto TICKS_BETWEEN_TRAIN_TICKS = 10;
   TrainControlServer() : track(TRACK) {
     auto response = RegisterAs(NAME);

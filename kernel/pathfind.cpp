@@ -88,7 +88,7 @@ uint32_t Track::get_reservation(int node_idx, int dir) {
   return track[node_idx].edge[dir].res_loco_id;
 }
 
-std::optional<int> Track::get_idx(const StaticString<4> &name) const {
+std::optional<int> Track::get_idx(const Track::NodeName &name) const {
   return node_to_idx.get(name);
 }
 
@@ -285,8 +285,8 @@ std::optional<Path> Track::find_path(int start_idx, int goal_idx,
   return build_path(goal_idx, best_dist, predecessor);
 }
 
-std::optional<Path> Track::find_path(const StaticString<4> &from,
-                                     const StaticString<4> &to,
+std::optional<Path> Track::find_path(const Track::NodeName &from,
+                                     const Track::NodeName &to,
                                      bool allow_reverse) const {
   auto start_idx = get_idx(from);
   auto goal_idx  = get_idx(to);
@@ -294,73 +294,6 @@ std::optional<Path> Track::find_path(const StaticString<4> &from,
     return std::nullopt;
 
   return find_path(start_idx.value(), goal_idx.value(), allow_reverse);
-}
-
-// returns number of nodes found
-int Track::search_within_distance(int start_idx, int distance, int *result,
-                                  int length, bool allow_reverse) {
-  int best_dist[TRACK_MAX];
-  int predecessor[TRACK_MAX];
-
-  for (int i = 0; i < TRACK_MAX; ++i) {
-    best_dist[i]   = INF;
-    predecessor[i] = -1;
-  }
-
-  best_dist[start_idx] = 0;
-  Heap<std::pair<int, int>, TRACK_MAX> frontier;
-  frontier.push({0, start_idx});
-
-  auto relax = [&](int from_idx, int from_dist, int to_idx, int edge_dist) {
-    int new_dist = from_dist + edge_dist;
-    if (new_dist < best_dist[to_idx]) {
-      best_dist[to_idx]   = new_dist;
-      predecessor[to_idx] = from_idx;
-      frontier.push({new_dist, to_idx});
-    }
-  };
-
-  int result_count = 0;
-  while (!frontier.empty() && result_count < length) {
-    auto [pop_dist, curr_idx] = frontier.pop().value();
-    if (pop_dist > best_dist[curr_idx])
-      continue;
-    if (pop_dist > distance)
-      break;
-
-    result[result_count++] = curr_idx;
-
-    const track_node &curr_node = track[curr_idx];
-    int curr_dist               = best_dist[curr_idx];
-
-    switch (curr_node.type) {
-    case NODE_SENSOR:
-    case NODE_MERGE:
-    case NODE_ENTER:
-      relax(curr_idx, curr_dist, node_idx(curr_node.edge[DIR_AHEAD].dest),
-            curr_node.edge[DIR_AHEAD].dist);
-      break;
-
-    case NODE_BRANCH:
-      relax(curr_idx, curr_dist, node_idx(curr_node.edge[DIR_STRAIGHT].dest),
-            curr_node.edge[DIR_STRAIGHT].dist);
-      relax(curr_idx, curr_dist, node_idx(curr_node.edge[DIR_CURVED].dest),
-            curr_node.edge[DIR_CURVED].dist);
-      break;
-
-    case NODE_EXIT:
-      break;
-
-    default:
-      break;
-    }
-
-    if (allow_reverse) {
-      relax(curr_idx, curr_dist, node_idx(curr_node.reverse), REVERSE_COST);
-    }
-  }
-
-  return result_count;
 }
 
 const char *Track::node_name(int node_idx) const {

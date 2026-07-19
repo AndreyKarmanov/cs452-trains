@@ -48,7 +48,11 @@ public:
 };
 
 class Track {
-  Map<StaticString<4>, int, TRACK_MAX> node_to_idx;
+public:
+  typedef StaticString<8> NodeName;
+
+private:
+  Map<NodeName, int, TRACK_MAX> node_to_idx;
 
   std::optional<track_edge> get_edge(int from_idx, int to_idx) const;
 
@@ -68,7 +72,7 @@ public:
   bool has_reservation(const PathNode &node, uint32_t loco_id);
   uint32_t get_reservation(int node_idx, int dir);
 
-  std::optional<int> get_idx(const StaticString<4> &name) const;
+  std::optional<int> get_idx(const NodeName &name) const;
   int node_idx(const track_node *node) const {
     return static_cast<int>(node - track);
   }
@@ -76,17 +80,18 @@ public:
   std::optional<Path> find_loop(int start_idx) const;
   std::optional<Path> find_path(int start_idx, int goal_idx,
                                 bool allow_reverse = false) const;
-  std::optional<Path> find_path(const StaticString<4> &start,
-                                const StaticString<4> &goal,
+  std::optional<Path> find_path(const NodeName &start, const NodeName &goal,
                                 bool allow_reverse = false) const;
-
-  // search all nodes within distance.
-  int search_within_distance(int node_idx, int distance, int *result,
-                             int length, bool allow_reverse = false);
 
   const char *node_name(int node_idx) const;
 
   const track_node operator[](int idx) const { return track[idx]; }
+  const track_node operator[](const NodeName &name) const {
+    auto idx = get_idx(name);
+    if (!idx.has_value())
+      return track[0];
+    return track[idx.value()];
+  }
 };
 
 void test_pathfind();
