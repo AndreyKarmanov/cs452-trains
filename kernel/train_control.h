@@ -212,11 +212,7 @@ template <size_t TX_BUFFER_SIZE = 64> class TrainControlServer {
 
               // already reserved by another train
               auto res = track.get_reservation(cmd.node_idx, cmd.edge_dir);
-              if (
-                  res != UNRESERVED && res != cmd.id) {
-                Debug_Puts(tx_tid, "Already Reserved by ", res,
-                           " (this train: ", cmd.id, ")");
-
+              if (                  res != UNRESERVED && res != cmd.id) {
                 return false;
               }
               Debug_Puts(tx_tid, "Res: ", track[cmd.node_idx].name,
