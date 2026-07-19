@@ -95,11 +95,12 @@ void uart_config_and_enable(size_t line) {
   UART_REG(line, UART_ICR) = UART_IMSC_ALL;
 
   // re-enable the UART; enable both transmit and receive regardless of previous
-  // state. Also enable flow control with ctsen (but not rtsen)
+  // state.
   UART_REG(line, UART_CR) =
-      cr_state | UART_CR_UARTEN | UART_CR_TXE | UART_CR_RXE | UART_CR_CTSEN;
+      cr_state | UART_CR_UARTEN | UART_CR_TXE | UART_CR_RXE;
 
   // config init interrupt states
+  set_interrupt_group0(GIC_UART_IRQ, true);
   set_interrupt_core_routing(0, GIC_UART_IRQ, true);
   set_interrupt(GIC_UART_IRQ, true);
 }
@@ -188,9 +189,6 @@ bool can_receive_io() { return !(UART_REG(CONSOLE, UART_FR) & UART_FR_RXFE); }
 bool can_transmit_io() {
   uint32_t fr = UART_REG(CONSOLE, UART_FR);
   if (fr & UART_FR_TXFF) {
-    return false;
-  }
-  if (!(fr & UART_FR_CTS)) {
     return false;
   }
   return true;

@@ -48,6 +48,7 @@ struct Blackboard {
   uint16_t last_sensor_sid{0};
 
   int dx_um{0};
+  int stop_dist_um{0};
 };
 
 enum class NodeResult {
