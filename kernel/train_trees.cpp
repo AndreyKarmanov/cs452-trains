@@ -619,25 +619,25 @@ namespace {
           stop             = SetSpeed{0};
           return go.tick(bb);
         }
-        Debug_Puts(bb.txs_tid, "Reservation complete, dist_um: ", dist_um,
+        Offset_Puts(bb.txs_tid, -4, "Reservation complete, dist_um: ", dist_um,
                    " min_dist: ", stop_buf_um);
         return NodeResult::Success;
       } else if (dist_um <= stop_buf_um) {
         // if we don't have space, stop and wait for reservation
-        Debug_Puts(bb.txs_tid, "Reservation stop, dist_um: ", dist_um,
+        Offset_Puts(bb.txs_tid, -4, "Reservation stop, dist_um: ", dist_um,
                    " min_dist: ", stop_buf_um);
         go               = SetSpeed{go.req_speed};
         reservation_stop = true;
         stop.tick(bb);
         return NodeResult::Running;
       } else if (reservation_stop) {
-        Debug_Puts(bb.txs_tid, "Reservation stop cleared, continuing");
+        Offset_Puts(bb.txs_tid, -4, "Reservation stop cleared, continuing");
         // if we stopped previously, and have the distance, continue
         reservation_stop = false;
         stop             = SetSpeed{0};
         return go.tick(bb);
       }
-      Debug_Puts(bb.txs_tid, "Reservation incomplete, dist_um: ", dist_um,
+      Offset_Puts(bb.txs_tid, -4, "Reservation incomplete, dist_um: ", dist_um,
                  " min_dist: ", stop_buf_um);
       return NodeResult::Success;
     }
