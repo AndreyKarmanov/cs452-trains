@@ -2,8 +2,7 @@
 
 #include "buffer.h"
 #include "mrk.h"
-#include "static_string.h"
-#include "track_data.h"
+#include "pathfind.h"
 #include <stdint.h>
 
 #define MAX_TRAINS 6
@@ -60,6 +59,8 @@ struct TrainState {
   };
   std::optional<SeenSensor> last_sensor{};
   bool reversed_since_last_sensor{false};
+
+  EncodedPath e_path{};
 
   // units of um/tick (micrometer per tick)
   std::array<int, 15> v_max_umpt{

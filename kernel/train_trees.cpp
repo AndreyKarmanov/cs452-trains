@@ -413,8 +413,8 @@ namespace {
           auto skipped_nodes = std::distance(bb.path.begin(), idx) + 1;
           bb.path.pop(skipped_nodes - 1);
         }
-
-        bb.loco->d_um = 0;
+        bb.loco->e_path = bb.path;
+        bb.loco->d_um   = 0;
       }
       return NodeResult::Success;
     }
@@ -678,6 +678,7 @@ namespace {
       }
 
       bb.path                  = bb.path + path_opt.value();
+      bb.loco->e_path          = bb.path;
       bb.loco->target_node_idx = goal_idx;
       print_path.tick(bb);
       return NodeResult::Success;
@@ -1065,6 +1066,7 @@ void run_tree() {
             [&](const TC::Tree::Init &msg) {
               bb.state = msg.state;
               bb.loco  = bb.state.get_loco(msg.loco_id);
+              bb.path  = bb.loco->e_path.decode(bb.track);
               switch (msg.tree_type) {
               case TC::Tree::Type::CALIBRATE:
                 tree.emplace<CalibrateTrain>(msg.value1);

@@ -19,6 +19,8 @@ struct PathNode {
   }
 };
 
+class Track;
+
 class Path : public Buffer<PathNode, TRACK_MAX> {
 public:
   int dist_mm = 0;
@@ -41,6 +43,8 @@ public:
       dist_mm -= elem->dx_next;
     return elem;
   }
+
+  StaticString<128> to_string(const Track *track) const;
 };
 
 class Track {
@@ -90,6 +94,7 @@ public:
 };
 
 struct EncodedPath : private Buffer<uint8_t, TRACK_MAX> {
+  EncodedPath() = default;
   EncodedPath(const Path &path) {
     for (const auto &node : path) {
       if (node.node_idx < 0 || node.node_idx >= TRACK_MAX) {

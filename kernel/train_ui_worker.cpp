@@ -7,12 +7,13 @@
 static constexpr int STATE_ROW_INT = 8;
 static constexpr int STATUS_ROW    = STATE_ROW_INT + 1;
 static constexpr int TRAIN_ROW     = STATE_ROW_INT + 3;
-static constexpr int SENSOR_ROW    = TRAIN_ROW + MAX_TRAINS + 2;
+static constexpr int SENSOR_ROW    = TRAIN_ROW + MAX_TRAINS * 2 + 2;
 static constexpr int SWITCH_ROW    = SENSOR_ROW + 3;
 
 uint32_t print_state(int tx_tid, const State &state) {
   uint32_t draws = 0;
   StaticString<TX::MAX_DATA_LENGTH> line;
+  static Track track(TrainControlServer<>::TRACK);
 
   if (state.status_dirty) {
     line.set("\033[", STATUS_ROW, ";2HTrack ",
@@ -40,7 +41,8 @@ uint32_t print_state(int tx_tid, const State &state) {
                       : "---");
       line.append(" | ");
       AppendPadded(line, train.d_um / 1000, 3);
-      line.append("\n\r");
+      line.append("\n\r", train.e_path.decode(track).to_string(&track),
+                  "\033[K\n\r");
     }
     Puts(tx_tid, line);
     ++draws;

@@ -310,6 +310,17 @@ static const char *node_type_name(node_type type) {
   }
 }
 
+StaticString<128> Path::to_string(const Track *track) const {
+  StaticString<128> result{};
+  result.append("mm:", dist_mm, " ");
+  for (const auto &node : *this) {
+    result.append((*track)[node.node_idx].name,
+                  node.type == NODE_BRANCH ? node.br_curved ? "C" : "S" : "",
+                  " >");
+  }
+  return result;
+}
+
 static void print_path(const Track &pathfind, const char *label,
                        const std::optional<Path> &path_opt) {
   if (!path_opt.has_value()) {
