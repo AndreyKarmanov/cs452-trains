@@ -25,9 +25,8 @@ uint32_t print_state(int tx_tid, const State &state) {
     line.set("\033[", TRAIN_ROW,
              ";2HTrain | Dir | Lamp | spd | Est | Top | Target\n\r");
     for (const TrainState &train : state.trains) {
-      line.append("\033[K   ", train.loco_id, "  | ",
-                  train.backward ? "Rev" : "Fwd", " | ",
-                  train.light_on ? " On " : " Off", " | ");
+      line.append("\033[K   ", train.id, "  | ", train.backward ? "Rev" : "Fwd",
+                  " | ", train.light_on ? " On " : " Off", " | ");
       AppendPadded(line, train.req_speed, 3);
       line.append(" | ");
       AppendPadded(line, train.ve_nm / 1000, 3);

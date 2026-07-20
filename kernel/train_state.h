@@ -43,7 +43,7 @@
 // 14,607,86,94
 
 struct TrainState {
-  uint32_t loco_id;
+  uint32_t id;
 
   uint16_t req_speed{0};
 
@@ -77,13 +77,19 @@ struct TrainState {
   };
 
   // manually determined
-  std::array<uint32_t, 15> stop_dist_um{
-      0,      40000,  55000,  80000,  90000,  100000,  154000,  249000,
-      336000, 391000, 501000, 683000, 833000, 1055000, 1307000,
-  };
+  // std::array<uint32_t, 15> stop_dist_um{
+  //     0,      40000,  55000,  80000,  90000,  100000,  154000,  249000,
+  //     336000, 391000, 501000, 683000, 833000, 1055000, 1307000,
+  // };
 
   // units of nm / tick
   uint64_t ve_nm{0};
+
+  // delta x
+  int dx_um{0};
+
+  // stop dist
+  int sd_um{0};
 };
 
 struct State {
@@ -161,7 +167,7 @@ struct State {
   void update_from_mrk(const MRKCmd &cmd, uint32_t tick);
   TrainState *get_loco(uint32_t loco_id) {
     for (auto &train : trains) {
-      if (train.loco_id == loco_id) {
+      if (train.id == loco_id) {
         return &train;
       }
     }

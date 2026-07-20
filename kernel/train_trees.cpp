@@ -63,7 +63,7 @@ namespace {
   struct PrintTrainStats : public LeafNode {
     NodeResult tick(Blackboard &bb) override {
       // print all the acceleration values and top speed values for the train
-      Debug_Puts(bb.txs_tid, "Train ", bb.loco_id, " Stats: ");
+      Debug_Puts(bb.txs_tid, "Train ", bb.loco->id, " Stats: ");
       Debug_Puts(bb.txs_tid, "Speed,Top,Accel,Decel,Stop Dist");
       for (int i = 0; i < 15; ++i) {
         StaticString<128> stats_str{};
@@ -74,7 +74,6 @@ namespace {
         AppendPadded(stats_str, bb.loco->a_nmpt2[i], 5);
         stats_str.append(" , ");
         AppendPadded(stats_str, bb.loco->d_nmpt2[i], 5);
-        stats_str.append(" , ", bb.loco->stop_dist_um[i] / 1000);
         Debug_Puts(bb.txs_tid, stats_str);
       }
 
@@ -134,7 +133,7 @@ namespace {
 
       if (!sent_cmd) {
         auto resp = send<TC::Ack>(
-            bb.tcs_tid, TC::Cmd::Speed{.id = bb.loco_id, .value = req_speed});
+            bb.tcs_tid, TC::Cmd::Speed{.id = bb.loco->id, .value = req_speed});
         if (!resp.has_value()) {
           bb.error_msg = "Failed to set speed";
           return NodeResult::Failure;
@@ -194,7 +193,7 @@ namespace {
       }
 
       auto resp =
-          send<TC::Ack>(bb.tcs_tid, TC::Cmd::Direction{.id       = bb.loco_id,
+          send<TC::Ack>(bb.tcs_tid, TC::Cmd::Direction{.id       = bb.loco->id,
                                                        .backward = backward});
       sent_cmd = true;
       if (!resp.has_value()) {
@@ -256,13 +255,13 @@ namespace {
         delta = (v_i_nm * t_d - (d * t_d * t_d) / 2 + v_m_nm * t_c) / 1000;
       }
 
-      bb.dx_um += delta;
+      bb.loco->dx_um += delta;
 
       auto ve_um = bb.loco->ve_nm / (1'000);
       if (ve_um == 0) {
-        bb.stop_dist_um = 0;
+        bb.loco->sd_um = 0;
       } else {
-        bb.stop_dist_um = 26000 + 582 * ve_um + 3.4 * ve_um * ve_um;
+        bb.loco->sd_um = 26000 + 582 * ve_um + 3.4 * ve_um * ve_um;
       }
 
       if (bb.curr_tick - last_print > TICKS_PER_S / 10) {
@@ -270,8 +269,8 @@ namespace {
 
         Offset_Puts(bb.txs_tid, -2, "Spd: ", bb.loco->ve_nm / 1000,
                     "um/ms d_t ", d_t, " v_i ", v_i_nm / 1000, " v_max ",
-                    v_m_nm / 1000, "nm/t^2 dx_mm", bb.dx_um / 1000, " sd_mm ",
-                    bb.stop_dist_um / 1000, "\033[K");
+                    v_m_nm / 1000, "nm/t^2 dx_mm", bb.loco->dx_um / 1000,
+                    " sd_mm ", bb.loco->sd_um / 1000, "\033[K");
       }
 
       return NodeResult::Success;
@@ -319,18 +318,18 @@ namespace {
         }
 
         auto sens_dist_um = path->dist_mm * 1000;
-        if (sens_dist_um > (bb.dx_um * (100 + PCT_TOLERANCE)) / 100 ||
-            sens_dist_um < (bb.dx_um * (100 - PCT_TOLERANCE)) / 100) {
+        if (sens_dist_um > (bb.loco->dx_um * (100 + PCT_TOLERANCE)) / 100 ||
+            sens_dist_um < (bb.loco->dx_um * (100 - PCT_TOLERANCE)) / 100) {
           Debug_Puts(bb.txs_tid, "Ignored sensor (out of range): ",
                      (char)('A' + sens->bank), sens->number, " pos ",
-                     bb.dx_um * 100 / sens_dist_um, "% ",
-                     (bb.dx_um - sens_dist_um) / 1000, " mm");
+                     bb.loco->dx_um * 100 / sens_dist_um, "% ",
+                     (bb.loco->dx_um - sens_dist_um) / 1000, " mm");
           return NodeResult::Running;
         }
         Debug_Puts(bb.txs_tid, "Attributed: ", sens->sid, " ",
                    (char)('A' + sens->bank), sens->number, " pos ",
-                   bb.dx_um * 100 / sens_dist_um, "% ",
-                   (bb.dx_um - sens_dist_um) / 1000, " mm");
+                   bb.loco->dx_um * 100 / sens_dist_um, "% ",
+                   (bb.loco->dx_um - sens_dist_um) / 1000, " mm");
         bb.loco->last_sensor.emplace(
             TrainState::SeenSensor{*sens, bb.curr_tick});
       }
@@ -346,7 +345,7 @@ namespace {
           sens && sens->new_state == 1) {
 
         if (bb.path.empty()) {
-          bb.dx_um = 0;
+          bb.loco->dx_um = 0;
           return NodeResult::Success;
         }
 
@@ -369,9 +368,9 @@ namespace {
         for (auto it = bb.path.begin(); it != idx + 1; ++it) {
           // release the reservations
           auto &node = *it;
-          if (bb.track.has_reservation(node, bb.loco_id)) {
+          if (bb.track.has_reservation(node, bb.loco->id)) {
             auto res = send<TC::Ack>(bb.tcs_tid, TC::Cmd::ReleaseReserve{
-                                                     .id       = bb.loco_id,
+                                                     .id       = bb.loco->id,
                                                      .node_idx = node.node_idx,
                                                      .edge_dir = node.br_curved,
                                                  });
@@ -379,7 +378,7 @@ namespace {
               bb.error_msg = "Could not release";
               return NodeResult::Failure;
             }
-            bb.track.release(node.node_idx, node.br_curved, bb.loco_id);
+            bb.track.release(node.node_idx, node.br_curved, bb.loco->id);
           }
         }
 
@@ -401,7 +400,7 @@ namespace {
 
         auto skipped_nodes = std::distance(bb.path.begin(), idx) + 1;
         bb.path.pop(skipped_nodes);
-        bb.dx_um = 0;
+        bb.loco->dx_um = 0;
       }
       return NodeResult::Success;
     }
@@ -425,7 +424,7 @@ namespace {
       // buffer of our travel time.
 
       auto stop_buf_um =
-          bb.dx_um + (bb.stop_dist_um * (100 + STOP_DIST_BUF_PCT)) / 100;
+          bb.loco->dx_um + (bb.loco->sd_um * (100 + STOP_DIST_BUF_PCT)) / 100;
       int lookahead_um =
           stop_buf_um + (bb.loco->ve_nm / 1000 * TICKS_PER_S * 2);
 
@@ -435,9 +434,9 @@ namespace {
           fully_reserved = false;
           break;
         }
-        if (!bb.track.has_reservation(node, bb.loco_id)) {
+        if (!bb.track.has_reservation(node, bb.loco->id)) {
           auto res = send<TC::Ack>(bb.tcs_tid, TC::Cmd::Reserve{
-                                                   .id       = bb.loco_id,
+                                                   .id       = bb.loco->id,
                                                    .node_idx = node.node_idx,
                                                    .edge_dir = node.br_curved,
                                                });
@@ -450,7 +449,7 @@ namespace {
             fully_reserved = false;
             break;
           }
-          bb.track.reserve(node.node_idx, node.br_curved, bb.loco_id);
+          bb.track.reserve(node.node_idx, node.br_curved, bb.loco->id);
         }
       }
 
@@ -492,7 +491,7 @@ namespace {
       }
 
       for (auto &node : bb.path) {
-        if (!bb.track.has_reservation(node, bb.loco_id)) {
+        if (!bb.track.has_reservation(node, bb.loco->id)) {
           break;
         }
 
@@ -547,12 +546,13 @@ namespace {
             return acc + node.dx_prev;
           });
 
-      auto remaining_um = remaining_mm * 1000 - bb.dx_um + offset_mm * 1000;
+      auto remaining_um =
+          remaining_mm * 1000 - bb.loco->dx_um + offset_mm * 1000;
 
       Offset_Puts(bb.txs_tid, -3, "D: ", remaining_um / 1000,
-                  "mm sd: ", bb.stop_dist_um / 1000, "mm");
+                  "mm sd: ", bb.loco->sd_um / 1000, "mm");
 
-      if (remaining_um < bb.stop_dist_um) {
+      if (remaining_um < bb.loco->sd_um) {
         stopping = true;
         return stop.tick(bb);
       }
@@ -1049,9 +1049,8 @@ void run_tree() {
     auto msg_result = std::visit(
         Overloaded{
             [&](const TC::Tree::Init &msg) {
-              bb.state   = msg.state;
-              bb.loco_id = msg.loco_id;
-              bb.loco    = bb.state.get_loco(bb.loco_id);
+              bb.state = msg.state;
+              bb.loco  = bb.state.get_loco(bb.loco->id);
 
               switch (msg.tree_type) {
               case TC::Tree::Type::CALIBRATE:

@@ -35,9 +35,6 @@ struct Blackboard {
     uint32_t d_ticks;
   };
   Buffer<DistLog, TRACK_MAX> dists{};
-
-  int dx_um{0};
-  int stop_dist_um{0};
 };
 
 enum class NodeResult {

@@ -130,13 +130,12 @@ template <size_t TX_BUFFER_SIZE = 64> class TrainControlServer {
               tx_buf.push(TC::TX{.mrk = ControlCmd(ControlCmd::CMD_GO)});
 
               for (const TrainState &train : default_state.trains) {
-                tx_buf.push(
-                    TC::TX{.mrk = LightCmd(train.loco_id, train.light_on)});
+                tx_buf.push(TC::TX{.mrk = LightCmd(train.id, train.light_on)});
                 tx_buf.push(TC::TX{
-                    .mrk = SpeedCmd(train.loco_id,
+                    .mrk = SpeedCmd(train.id,
                                     user_speed_to_mrk_level(train.req_speed))});
                 tx_buf.push(
-                    TC::TX{.mrk = DirectionCmd(train.loco_id, train.backward)});
+                    TC::TX{.mrk = DirectionCmd(train.id, train.backward)});
               }
 
               for (uint32_t sw_id = 0; sw_id < 22; ++sw_id) {
@@ -285,7 +284,7 @@ template <size_t TX_BUFFER_SIZE = 64> class TrainControlServer {
       reply_with_error(tid);
       return;
     }
-    auto loco = state.get_loco(msg.train.loco_id);
+    auto loco = state.get_loco(msg.train.id);
     if (loco) {
       loco->ve_nm = msg.train.ve_nm;
       loco->v_max_umpt[msg.train.req_speed] =

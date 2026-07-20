@@ -15,7 +15,7 @@ void State::update_from_mrk(const MRKCmd &cmd, uint32_t tick) {
                  [&](const LightCmd &cmd) {
                    trains_dirty = true;
                    for (TrainState &train : trains) {
-                     if (train.loco_id == cmd.loco_id) {
+                     if (train.id == cmd.loco_id) {
                        train.light_on = cmd.value;
                        return;
                      }
@@ -25,7 +25,7 @@ void State::update_from_mrk(const MRKCmd &cmd, uint32_t tick) {
                  [&](const SpeedCmd &cmd) {
                    trains_dirty = true;
                    for (TrainState &train : trains) {
-                     if (train.loco_id == cmd.loco_id) {
+                     if (train.id == cmd.loco_id) {
                        train.req_speed = mrk_level_to_user_speed(cmd.speed);
                        return;
                      }
@@ -34,7 +34,7 @@ void State::update_from_mrk(const MRKCmd &cmd, uint32_t tick) {
                  [&](const DirectionCmd &cmd) {
                    trains_dirty = true;
                    for (TrainState &train : trains) {
-                     if (train.loco_id == cmd.loco_id) {
+                     if (train.id == cmd.loco_id) {
                        train.backward = cmd.backward;
                        return;
                      }
