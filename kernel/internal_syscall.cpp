@@ -131,6 +131,10 @@ static void initalize_event(Event event) {
     enable_uart_interrupt(UARTInterruptType::TXIM);
     break;
   }
+  case Event::UART3_TX_IRQ: {
+    enable_uart_interrupt(UARTInterruptType::TXIM, WEBSERIAL);
+    break;
+  }
   case Event::CAN_RX_IRQ: {
     auto active = mcp2515_get_active_irq();
     if (active.rxi0ie || active.rxi1e) {
@@ -197,6 +201,11 @@ static void handle_event(Event event, int arg0) {
     uninitialize_event(event);
     break;
   }
+  case Event::UART3_TX_IRQ: {
+    disable_uart_interrupt(UARTInterruptType::TXIM, WEBSERIAL);
+    uninitialize_event(event);
+    break;
+  }
   case Event::CAN_RX_IRQ: {
     uninitialize_event(event);
     break;
@@ -259,28 +268,33 @@ static void handle_event(Event event, int arg0) {
   }
 }
 
-// Wake the TX notifier only when FR says we can send (!TXFF and CTS up).
-// If not ready, mask/clear the firing source without waking; the other
-// interrupt (still armed from await_event) covers the remaining condition.
+// Wake the TX notifier only when FR says we can send (!TXFF).
+// If not ready, mask the firing source without waking.
+// GIC 153 is shared across PL011s; demux with PACTL_CS then per-UART MIS.
+static void handle_uart_tx(size_t line, Event event, uint32_t pactl_bit,
+                           uint32_t pactl) {
+  if (!(pactl & pactl_bit)) {
+    return;
+  }
+  if (!is_uart_mis_tx_pending(line)) {
+    return;
+  }
+  if (can_transmit_io(line)) {
+    handle_event(event);
+    return;
+  }
+  disable_uart_interrupt(UARTInterruptType::TXIM, line);
+}
+
 static void handle_uart_irq() {
-  // if rx is a cause of interrupt
-  if (is_uart_mis_rx_pending()) {
+  const uint32_t pactl = read_pactl_cs();
+
+  if ((pactl & PACTL_UART0_IRQ) && is_uart_mis_rx_pending(CONSOLE)) {
     handle_event(Event::UART_RX_IRQ);
   }
 
-  // handling tx interrupts
-  if (!is_uart_mis_tx_pending()) {
-    return;
-  }
-
-  if (can_transmit_io()) {
-    handle_event(Event::UART_TX_IRQ);
-    return;
-  }
-
-  if (is_uart_mis_tx_pending()) {
-    disable_uart_interrupt(UARTInterruptType::TXIM);
-  }
+  handle_uart_tx(CONSOLE, Event::UART_TX_IRQ, PACTL_UART0_IRQ, pactl);
+  handle_uart_tx(WEBSERIAL, Event::UART3_TX_IRQ, PACTL_UART3_IRQ, pactl);
 }
 
 static void handle_mcp2515_irq() {

@@ -143,3 +143,78 @@ int Printf(int tid, const char *fmt, ...) {
   buffer[buffer_index] = '\0';
   return Puts(tid, buffer);
 }
+
+// tid should be the UART3 / WebSerial TX server tid. Plain text, no ANSI.
+int WebSerial_Puts(int tid, const char *str) { return Puts(tid, str); }
+
+int WebSerial_Printf(int tid, const char *fmt, ...) {
+  char buffer[TX::MAX_DATA_LENGTH];
+  size_t buffer_index = 0;
+  va_list va;
+
+  char ch, temp_buffer[32];
+  const char *str;
+  va_start(va, fmt);
+
+  while ((ch = *(fmt++))) {
+    if (ch != '%') {
+      if (buffer_index >= TX::MAX_DATA_LENGTH - 1) {
+        printf_flush(tid, buffer, buffer_index);
+      }
+      buffer[buffer_index++] = ch;
+    } else {
+      ch  = *(fmt++);
+      str = nullptr;
+      switch (ch) {
+      case 'u':
+        ui2a(va_arg(va, unsigned int), 10, temp_buffer);
+        str = temp_buffer;
+        break;
+      case 'd':
+        i2a(va_arg(va, int), temp_buffer);
+        str = temp_buffer;
+        break;
+      case 'x':
+        ui2a(va_arg(va, unsigned int), 16, temp_buffer);
+        str = temp_buffer;
+        break;
+      case 's':
+        str = va_arg(va, const char *);
+        break;
+      case 'c':
+        temp_buffer[0] = static_cast<char>(va_arg(va, int));
+        temp_buffer[1] = '\0';
+        str            = temp_buffer;
+        break;
+      case 'b':
+        ui2a(va_arg(va, unsigned int), 2, temp_buffer);
+        str = temp_buffer;
+        break;
+      case '%':
+        temp_buffer[0] = '%';
+        temp_buffer[1] = '\0';
+        str            = temp_buffer;
+        break;
+      case '\0':
+        break;
+      }
+
+      if (str) {
+        size_t str_len = strlen(str);
+        if (buffer_index + str_len >= TX::MAX_DATA_LENGTH - 1) {
+          printf_flush(tid, buffer, buffer_index);
+        }
+        std::memcpy(buffer + buffer_index, str, str_len);
+        buffer_index += str_len;
+      }
+
+      if (ch == '\0') {
+        break;
+      }
+    }
+  }
+
+  va_end(va);
+  buffer[buffer_index] = '\0';
+  return WebSerial_Puts(tid, buffer);
+}

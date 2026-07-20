@@ -30,6 +30,7 @@ enum class Event {
   DELAY_5S,
   UART_RX_IRQ,
   UART_TX_IRQ,
+  UART3_TX_IRQ,
   CAN_RX_IRQ,
   CAN_TX_IRQ,
   TASK_EXIT,

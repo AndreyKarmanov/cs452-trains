@@ -32,6 +32,7 @@ extern "C" int kmain() {
   gic_init();
   mcp2515_init();
   uart_config_and_enable(CONSOLE);
+  uart_config_and_enable(WEBSERIAL);
   data_cache_set(DATA_CACHE);
   instruction_cache_set(INSTRUCTION_CACHE);
 
