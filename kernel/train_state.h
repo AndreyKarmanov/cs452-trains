@@ -86,10 +86,10 @@ struct TrainState {
   uint64_t ve_nm{0};
 
   // delta x
-  int dx_um{0};
+  int d_um{0};
 
   // stop dist
-  int sd_um{0};
+  int stop_dist_um{0};
 };
 
 struct State {

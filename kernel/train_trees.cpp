@@ -30,11 +30,10 @@ namespace {
     Debug_Puts(txs_tid, "from, to, dist (mm), ticks, spd, tticks");
     auto ticks = 0;
     for (auto &dist : dists) {
-      Debug_Puts(txs_tid, (char)('A' + dist.from.bank), dist.from.number, ", ",
-                 (char)('A' + dist.to.bank), dist.to.number, ", ",
-                 dist.dx_um / 1000, ", ", dist.d_ticks, ", ",
-                 dist.dx_um / dist.d_ticks, ", ", ticks);
-      ticks += dist.d_ticks;
+      Debug_Puts(txs_tid, dist.from.to_string(), ", ", dist.to.to_string(),
+                 ", ", dist.d_um / 1000, ", ", dist.d_t, ", ",
+                 dist.d_um / dist.d_t, ", ", ticks);
+      ticks += dist.d_t;
     }
   }
 
@@ -106,11 +105,11 @@ namespace {
           }
         }
         if (found_start && loops_to_use > 0) {
-          dist_um += (*it).dx_um;
-          ticks   += (*it).d_ticks;
+          dist_um += (*it).d_um;
+          ticks   += (*it).d_t;
           sensors++;
           Debug_Puts(bb.txs_tid, (*it).from.sid, ", ", (*it).to.sid, ", ",
-                     (*it).dx_um / 1000, ", ", (*it).d_ticks);
+                     (*it).d_um / 1000, ", ", (*it).d_t);
         }
       }
 
@@ -133,7 +132,7 @@ namespace {
 
       if (!sent_cmd) {
         auto resp = send<TC::Ack>(
-            bb.tcs_tid, TC::Cmd::Speed{.id = bb.loco->id, .value = req_speed});
+            bb.tcs_tid, TC::Cmd::Speed{.id = bb.loco->id, .speed = req_speed});
         if (!resp.has_value()) {
           bb.error_msg = "Failed to set speed";
           return NodeResult::Failure;
@@ -255,13 +254,13 @@ namespace {
         delta = (v_i_nm * t_d - (d * t_d * t_d) / 2 + v_m_nm * t_c) / 1000;
       }
 
-      bb.loco->dx_um += delta;
+      bb.loco->d_um += delta;
 
       auto ve_um = bb.loco->ve_nm / (1'000);
       if (ve_um == 0) {
-        bb.loco->sd_um = 0;
+        bb.loco->stop_dist_um = 0;
       } else {
-        bb.loco->sd_um = 26000 + 582 * ve_um + 3.4 * ve_um * ve_um;
+        bb.loco->stop_dist_um = 26000 + 582 * ve_um + 3.4 * ve_um * ve_um;
       }
 
       if (bb.curr_tick - last_print > TICKS_PER_S / 10) {
@@ -269,8 +268,8 @@ namespace {
 
         Offset_Puts(bb.txs_tid, -2, "Spd: ", bb.loco->ve_nm / 1000,
                     "um/ms d_t ", d_t, " v_i ", v_i_nm / 1000, " v_max ",
-                    v_m_nm / 1000, "nm/t^2 dx_mm", bb.loco->dx_um / 1000,
-                    " sd_mm ", bb.loco->sd_um / 1000, "\033[K");
+                    v_m_nm / 1000, "nm/t^2 dx_mm", bb.loco->d_um / 1000,
+                    " sd_mm ", bb.loco->stop_dist_um / 1000, "\033[K");
       }
 
       return NodeResult::Success;
@@ -318,18 +317,18 @@ namespace {
         }
 
         auto sens_dist_um = path->dist_mm * 1000;
-        if (sens_dist_um > (bb.loco->dx_um * (100 + PCT_TOLERANCE)) / 100 ||
-            sens_dist_um < (bb.loco->dx_um * (100 - PCT_TOLERANCE)) / 100) {
+        if (sens_dist_um > (bb.loco->d_um * (100 + PCT_TOLERANCE)) / 100 ||
+            sens_dist_um < (bb.loco->d_um * (100 - PCT_TOLERANCE)) / 100) {
           Debug_Puts(bb.txs_tid, "Ignored sensor (out of range): ",
                      (char)('A' + sens->bank), sens->number, " pos ",
-                     bb.loco->dx_um * 100 / sens_dist_um, "% ",
-                     (bb.loco->dx_um - sens_dist_um) / 1000, " mm");
+                     bb.loco->d_um * 100 / sens_dist_um, "% ",
+                     (bb.loco->d_um - sens_dist_um) / 1000, " mm");
           return NodeResult::Running;
         }
         Debug_Puts(bb.txs_tid, "Attributed: ", sens->sid, " ",
                    (char)('A' + sens->bank), sens->number, " pos ",
-                   bb.loco->dx_um * 100 / sens_dist_um, "% ",
-                   (bb.loco->dx_um - sens_dist_um) / 1000, " mm");
+                   bb.loco->d_um * 100 / sens_dist_um, "% ",
+                   (bb.loco->d_um - sens_dist_um) / 1000, " mm");
         bb.loco->last_sensor.emplace(
             TrainState::SeenSensor{*sens, bb.curr_tick});
       }
@@ -345,7 +344,7 @@ namespace {
           sens && sens->new_state == 1) {
 
         if (bb.path.empty()) {
-          bb.loco->dx_um = 0;
+          bb.loco->d_um = 0;
           return NodeResult::Success;
         }
 
@@ -382,25 +381,25 @@ namespace {
           }
         }
 
-        auto dx_mm = std::accumulate(
+        auto d_mm = std::accumulate(
             bb.path.begin(), idx + 1, 0,
             [](int acc, const PathNode &node) { return acc + node.dx_prev; });
 
-        if (bb.loco->last_sensor.has_value() && dx_mm > 0) {
+        if (bb.loco->last_sensor.has_value() && d_mm > 0) {
           if (bb.dists.size() == bb.dists.capacity()) {
             bb.dists.pop();
           }
           bb.dists.push({
-              .from    = bb.loco->last_sensor->data,
-              .to      = *sens,
-              .dx_um   = dx_mm * 1000,
-              .d_ticks = bb.curr_tick - bb.loco->last_sensor->tick,
+              .from = bb.loco->last_sensor->data,
+              .to   = *sens,
+              .d_um = d_mm * 1000,
+              .d_t  = bb.curr_tick - bb.loco->last_sensor->tick,
           });
         }
 
         auto skipped_nodes = std::distance(bb.path.begin(), idx) + 1;
         bb.path.pop(skipped_nodes);
-        bb.loco->dx_um = 0;
+        bb.loco->d_um = 0;
       }
       return NodeResult::Success;
     }
@@ -424,7 +423,8 @@ namespace {
       // buffer of our travel time.
 
       auto stop_buf_um =
-          bb.loco->dx_um + (bb.loco->sd_um * (100 + STOP_DIST_BUF_PCT)) / 100;
+          bb.loco->d_um +
+          (bb.loco->stop_dist_um * (100 + STOP_DIST_BUF_PCT)) / 100;
       int lookahead_um =
           stop_buf_um + (bb.loco->ve_nm / 1000 * TICKS_PER_S * 2);
 
@@ -547,12 +547,12 @@ namespace {
           });
 
       auto remaining_um =
-          remaining_mm * 1000 - bb.loco->dx_um + offset_mm * 1000;
+          remaining_mm * 1000 - bb.loco->d_um + offset_mm * 1000;
 
       Offset_Puts(bb.txs_tid, -3, "D: ", remaining_um / 1000,
-                  "mm sd: ", bb.loco->sd_um / 1000, "mm");
+                  "mm sd: ", bb.loco->stop_dist_um / 1000, "mm");
 
-      if (remaining_um < bb.loco->sd_um) {
+      if (remaining_um < bb.loco->stop_dist_um) {
         stopping = true;
         return stop.tick(bb);
       }
@@ -800,10 +800,10 @@ namespace {
         if (log.from.sid == loop_start_sid && count++ == TOP_SPEED_LOOPS) {
           break;
         }
-        speed_d_um += log.dx_um;
-        speed_t    += log.d_ticks;
+        speed_d_um += log.d_um;
+        speed_t    += log.d_t;
         Debug_Puts(bb.txs_tid, log.from.sid, ",", log.to.sid, ",",
-                   log.dx_um / 1000, ",", log.d_ticks, ",speed,", cal_speed);
+                   log.d_um / 1000, ",", log.d_t, ",speed,", cal_speed);
       }
 
       // --- decel: loop starts with a drop v_f -> v_c at the loop sensor,
@@ -817,10 +817,10 @@ namespace {
         if (log.from.sid == loop_start_sid && count++ == DECEL_LOOPS) {
           break;
         }
-        decel_d_um += log.dx_um;
-        decel_t    += log.d_ticks;
+        decel_d_um += log.d_um;
+        decel_t    += log.d_t;
         Debug_Puts(bb.txs_tid, log.from.sid, ",", log.to.sid, ",",
-                   log.dx_um / 1000, ",", log.d_ticks, ",decel,", cal_speed);
+                   log.d_um / 1000, ",", log.d_t, ",decel,", cal_speed);
       }
 
       // --- accel: only the first loop after the v_c -> v_f speed-up carries
@@ -834,10 +834,10 @@ namespace {
         if (log.from.sid == loop_start_sid && count++ == ACCEL_LOOPS) {
           break;
         }
-        accel_d_um += log.dx_um;
-        accel_t    += log.d_ticks;
+        accel_d_um += log.d_um;
+        accel_t    += log.d_t;
         Debug_Puts(bb.txs_tid, log.from.sid, ",", log.to.sid, ",",
-                   log.dx_um / 1000, ",", log.d_ticks, ",accel,", cal_speed);
+                   log.d_um / 1000, ",", log.d_t, ",accel,", cal_speed);
       }
 
       // --- solve the constant-accel model

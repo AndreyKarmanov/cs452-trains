@@ -9,7 +9,7 @@
 struct Blackboard {
 
   // tree tick data
-  MRKCmd new_event{};
+  MRKCmd new_event{UnknownCmd{}};
   uint32_t curr_tick{0};
 
   // tree state
@@ -20,9 +20,8 @@ struct Blackboard {
   int txs_tid{0};
 
   // track & train data
-  Track track;
+  Track track{Track::Layout::A};
   State state{};
-  uint32_t loco_id{};
   TrainState *loco{nullptr};
 
   Path path{};
@@ -31,8 +30,8 @@ struct Blackboard {
   struct DistLog {
     SensorData from;
     SensorData to;
-    int dx_um;
-    uint32_t d_ticks;
+    int d_um;
+    uint32_t d_t;
   };
   Buffer<DistLog, TRACK_MAX> dists{};
 };

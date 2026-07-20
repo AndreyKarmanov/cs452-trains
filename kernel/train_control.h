@@ -90,7 +90,7 @@ template <size_t TX_BUFFER_SIZE = 64> class TrainControlServer {
             },
             [&](const TC::Cmd::Speed &cmd) {
               tx_buf.push(TC::TX{
-                  .mrk = SpeedCmd(cmd.id, user_speed_to_mrk_level(cmd.value))});
+                  .mrk = SpeedCmd(cmd.id, user_speed_to_mrk_level(cmd.speed))});
               return true;
             },
             [&](const TC::Cmd::Switch &cmd) {

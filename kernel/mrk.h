@@ -1,5 +1,6 @@
 #pragma once
 
+#include "static_string.h"
 #include <cstddef>
 #include <stdint.h>
 #include <variant>
@@ -198,6 +199,11 @@ struct SensorData {
     number = ((sid - 1) % 16) + 1;
   }
   CANFRAME to_frame() const { return {}; }
+  StaticString<4> to_string() const {
+    StaticString<4> str{};
+    str.append((char)('A' + bank), number);
+    return str;
+  }
 };
 
 struct ControlCmd {

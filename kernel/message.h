@@ -205,7 +205,7 @@ namespace TC {
     };
     struct Speed {
       uint32_t id;
-      uint32_t value;
+      uint32_t speed;
     };
     struct Switch {
       uint32_t id;
