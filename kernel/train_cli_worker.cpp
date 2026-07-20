@@ -289,9 +289,22 @@ TC::Cmd::Any parse_command(StaticString<CLI_BUFFER_SIZE> &buf) {
     return out;
   }
 
+  if (cmd_len == 11 && strncmp(cmd, "calibratev2", 11) == 0) {
+    uint32_t loco_id      = 0;
+    const char *parse_cur = cur;
+    if (parse_uint(parse_cur, end, loco_id) && done_parse(parse_cur, end)) {
+      out = TC::Cmd::CalibrateV2{.id = loco_id};
+      buf.set("Success: calibratev2 ", loco_id);
+    } else {
+      out = TC::Cmd::Invalid{};
+      buf.set("Error: Format is calibratev2 <train number>");
+    }
+    return out;
+  }
+
   out = TC::Cmd::Invalid{};
   buf.set("Error: cmds: q, tr, sw, rv, lr, stop, go, reset, quirk, rt, "
-          "reg, nav");
+          "reg, nav, calibratev2");
   return out;
 }
 

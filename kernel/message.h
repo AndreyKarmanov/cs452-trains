@@ -160,7 +160,8 @@ namespace TC {
       NAVIGATE          = 4,
       FOREVER_NAVIGATE  = 5,
       TEST              = 6,
-      RESET             = 7
+      RESET             = 7,
+      CALIBRATE_V2      = 8
     };
 
     struct Ready {
@@ -243,6 +244,10 @@ namespace TC {
       int offset;
     };
 
+    struct CalibrateV2 {
+      uint32_t id;
+    };
+
     struct Reg {
       uint32_t id;
       StaticString<8> sensor;
@@ -260,7 +265,8 @@ namespace TC {
 
     using Any = std::variant<Invalid, Quit, Light, Function, Speed, Switch,
                              Reverse, Stop, Go, Reset, RemoveTrains, RunTree,
-                             Direction, Nav, Reg, Reserve, ReleaseReserve>;
+                             Direction, Nav, CalibrateV2, Reg, Reserve,
+                             ReleaseReserve>;
 
   } // namespace Cmd
 

@@ -176,6 +176,16 @@ template <size_t TX_BUFFER_SIZE = 64> class TrainControlServer {
                                  .value3    = cmd.offset,
                                  .state     = state});
             },
+            [&](const TC::Cmd::CalibrateV2 &cmd) {
+              spawn_tree_task(run_tree,
+                              TC::Tree::Init{.loco_id   = cmd.id,
+                                             .tree_type =
+                                                 TC::Tree::Type::CALIBRATE_V2,
+                                             .value1    = 0,
+                                             .value2    = 0,
+                                             .value3    = 0,
+                                             .state     = state});
+            },
             [&](const TC::Cmd::Reg &cmd) {
               if (TrainState *train = state.get_loco(cmd.id)) {
                 auto node_idx = pathfind.get_idx(cmd.sensor.c_str());

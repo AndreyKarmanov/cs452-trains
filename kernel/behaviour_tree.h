@@ -141,8 +141,14 @@ struct RepeatForeverNode : public DecoratorNode {
 
 struct Repeat : public DecoratorNode {
   int times              = 0;
+  int initial_times      = 0;
   NodeResult last_result = NodeResult::Success;
-  Repeat(TreeNode *child, int times) : DecoratorNode(child), times(times) {}
+  Repeat(TreeNode *child, int times)
+      : DecoratorNode(child), times(times), initial_times(times) {}
+  void reset() {
+    times       = initial_times;
+    last_result = NodeResult::Success;
+  }
   NodeResult tick(Blackboard &bb) override {
     if (times == 0) {
       return last_result;
@@ -187,6 +193,8 @@ struct WaitNode : public LeafNode {
   uint32_t start_tick{0};
 
   WaitNode(uint32_t wait_ticks) : wait_ticks(wait_ticks), start_tick(0) {}
+
+  void reset() { start_tick = 0; }
 
   NodeResult tick(Blackboard &bb) override {
     if (start_tick == 0) {

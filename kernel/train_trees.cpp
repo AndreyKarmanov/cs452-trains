@@ -18,14 +18,17 @@
 
 namespace {
   auto sid = [](char b, int n) -> uint16_t { return (b - 'A') * 16 + n; };
-  constexpr auto TRACK_LAYOUT        = Track::Layout::B;
-  constexpr auto LOOP_START_NODE     = "C12";
-  constexpr int LOOP_START_SID       = sid('C', 12);
-  constexpr int LOOP_START_NODE_IDX  = LOOP_START_SID - 1;
-  constexpr int E3_SID               = sid('E', 3);
-  constexpr int E6_SID               = sid('E', 6);
-  constexpr size_t CRAWL_SPEED       = 4;
-  constexpr size_t RESET_CRAWL_SPEED = 4; // 65.7 um/tick
+  constexpr auto TRACK_LAYOUT             = Track::Layout::B;
+  constexpr auto LOOP_START_NODE          = "C12";
+  constexpr int LOOP_START_SID            = sid('C', 12);
+  constexpr int LOOP_START_NODE_IDX       = LOOP_START_SID - 1;
+  constexpr int E3_SID                    = sid('E', 3);
+  constexpr int E6_SID                    = sid('E', 6);
+  constexpr int D5_SID                    = sid('D', 5);
+  constexpr int BR16_SW                   = 16;
+  constexpr uint32_t RECORD_TIMEOUT_TICKS = 5 * TICKS_PER_S;
+  constexpr size_t CRAWL_SPEED            = 4;
+  constexpr size_t RESET_CRAWL_SPEED      = 4; // 65.7 um/tick
   constexpr int RESET_CRAWL_UM_PER_TICK =
       64685; // 65.7 um/tick (fixed point x10)
 
@@ -274,6 +277,12 @@ namespace {
     bool reached_speed = false;
     bool sent_cmd      = false;
     SetSpeed(uint16_t speed) : req_speed(speed) {}
+
+    void reset() {
+      reached_speed = false;
+      sent_cmd      = false;
+    }
+
     NodeResult tick(Blackboard &bb) override {
       if (reached_speed || (sent_cmd && bb.loco->req_speed == req_speed)) {
         reached_speed = true;
@@ -301,6 +310,8 @@ namespace {
 
     SetFunction(uint8_t function, uint8_t value)
         : function(function), value(value) {}
+
+    void reset() { sent = false; }
 
     NodeResult tick(Blackboard &bb) override {
       if (sent) {
@@ -730,6 +741,8 @@ namespace {
 
     PathToNode(int goal_idx) : goal_idx(goal_idx) {}
 
+    void reset() { rev_tree.emplace(); }
+
     NodeResult tick(Blackboard &bb) override {
       if (bb.seen_sensors.empty() && bb.path.empty()) {
         bb.error_msg = "Failed to find start";
@@ -1148,6 +1161,13 @@ namespace {
     bool done{false};
     SetSpeed crawl{RESET_CRAWL_SPEED};
 
+    void reset() {
+      start_tick = 0;
+      started    = false;
+      done       = false;
+      crawl.reset();
+    }
+
     NodeResult tick(Blackboard &bb) override {
       if (done) {
         return NodeResult::Success;
@@ -1160,17 +1180,46 @@ namespace {
 
       if (!started) {
         start_tick = bb.curr_tick;
-        Debug_Puts(bb.txs_tid, "Start tick: ", start_tick);
+        // Debug_Puts(bb.txs_tid, "Start tick: ", start_tick);
         started = true;
       }
 
       if (auto data = std::get_if<SensorData>(&bb.new_event);
           data && data->new_state == 1) {
-        const auto ticks = bb.curr_tick - start_tick;
-        Debug_Puts(bb.txs_tid, "Cur tick: ", bb.curr_tick,
-                   "Start tick: ", start_tick);
-        Debug_Puts(bb.txs_tid, "Ruler dist (mm): ",
-                   ticks * RESET_CRAWL_UM_PER_TICK / 1000000);
+        const auto ticks         = bb.curr_tick - start_tick;
+        const auto ruler_dist_mm = ticks * RESET_CRAWL_UM_PER_TICK / 1000000;
+
+        int track_dist_mm    = 0;
+        int stopping_dist_mm = 0;
+
+        if (auto path_c10 =
+                bb.track.find_path(sid('C', 10) - 1, data->sensor_id - 1)) {
+          stopping_dist_mm = path_c10->dist_mm - ruler_dist_mm;
+        }
+
+        if (!bb.seen_sensors.empty()) {
+          std::optional<Blackboard::SensorSighting> prev;
+          if (auto last = bb.seen_sensors.peek_last(); last.has_value()) {
+            if (last->sid == data->sensor_id && bb.seen_sensors.size() >= 2) {
+              prev = bb.seen_sensors[bb.seen_sensors.size() - 2];
+            } else if (last->sid != data->sensor_id) {
+              prev = last;
+            }
+          }
+
+          if (prev.has_value()) {
+            if (auto path =
+                    bb.track.find_path(prev->sid - 1, data->sensor_id - 1)) {
+              track_dist_mm = path->dist_mm - ruler_dist_mm;
+            }
+          }
+        }
+
+        // Debug_Puts(bb.txs_tid, "Cur tick: ", bb.curr_tick,
+        //  "Start tick: ", start_tick);
+        Debug_Puts(bb.txs_tid, "Ruler dist (mm): ", ruler_dist_mm,
+                   ", track dist (mm): ", track_dist_mm,
+                   ", stopping dist (mm): ", stopping_dist_mm);
         done = true;
         return NodeResult::Success;
       }
@@ -1183,13 +1232,14 @@ namespace {
     Sequence tree{};
 
     SetFunction enable_f4{4, 1};
+    AttributeSensorNode attribute_sensor{};
     RulerNode ruler{};
-    PathToNode path_to_e6{E6_SID - 1};
-    Repeat path_to_e6_once{&path_to_e6, 1};
-    SetSpeed crawl_to_e6{RESET_CRAWL_SPEED};
+    // PathToNode path_to_d5{D5_SID - 1};
+    // Repeat path_to_d5_once{&path_to_d5, 1};
+    SetSpeed crawl_to_d5{RESET_CRAWL_SPEED};
 
     Sequence stop_on_sens{};
-    AwaitSensorNode stop_sens{};
+    AwaitSensorNode stop_sens{D5_SID};
     Repeat stop_sens_once{&stop_sens, 1};
     SetSpeed stop_speed{0};
 
@@ -1201,15 +1251,257 @@ namespace {
       stop_on_sens.children.push(&stop_speed);
 
       tree.children.push(&enable_f4);
+      tree.children.push(&attribute_sensor);
       tree.children.push(&ruler);
-      tree.children.push(&path_to_e6_once);
-      tree.children.push(&crawl_to_e6);
-      tree.children.push(&wait_after_stop);
+      // tree.children.push(&path_to_d5_once);
+      // tree.children.push(&crawl_to_d5);
       tree.children.push(&stop_on_sens);
+      tree.children.push(&wait_after_stop);
       tree.children.push(&disable_f4);
     }
 
+    void reset() {
+      enable_f4.reset();
+      ruler.reset();
+      // path_to_d5.reset();
+      // path_to_d5_once.reset();
+      crawl_to_d5.reset();
+      stop_sens_once.reset();
+      stop_speed.reset();
+      wait_after_stop.reset();
+      disable_f4.reset();
+    }
+
     NodeResult tick(Blackboard &bb) override { return tree.tick(bb); }
+  };
+
+  struct RecordNode : public LeafNode {
+    SetSpeed set_speed;
+    SetSpeed stop{0};
+    AttributeSensorNode attribute_sensor{};
+
+    uint32_t start_tick{0};
+    uint32_t last_sensor_tick{0};
+    bool started{false};
+    bool done{false};
+    bool stopping{false};
+
+    RecordNode(uint16_t target_speed) : set_speed{target_speed} {}
+
+    void reset(uint16_t target_speed) {
+      set_speed = SetSpeed{target_speed};
+      stop.reset();
+      start_tick       = 0;
+      last_sensor_tick = 0;
+      started          = false;
+      done             = false;
+      stopping         = false;
+    }
+
+    NodeResult on_sensor(Blackboard &bb, bool allow_enter_stop) {
+      if (auto data = std::get_if<SensorData>(&bb.new_event);
+          data && data->new_state == 1) {
+        last_sensor_tick = bb.curr_tick;
+
+        int dist_mm = 0;
+        if (bb.seen_sensors.size() >= 2) {
+          if (auto prev = bb.seen_sensors[bb.seen_sensors.size() - 2];
+              prev.has_value()) {
+            if (auto path =
+                    bb.track.find_path(prev->sid - 1, data->sensor_id - 1);
+                path.has_value()) {
+              dist_mm = path->dist_mm;
+            }
+          }
+        }
+
+        Debug_Puts(bb.txs_tid, (char)('a' + data->bank), data->number, ", ",
+                   dist_mm, ", ", set_speed.req_speed, ", ",
+                   bb.curr_tick - start_tick);
+
+        StaticString<8> sensor{bb.track.node_name(data->sensor_id - 1)};
+
+        if (!allow_enter_stop) {
+          return NodeResult::Running;
+        }
+
+        if (sensor == StaticString<8>{"B6"}) {
+          auto resp =
+              send<TC::Ack>(bb.tcs_tid, TC::Cmd::Switch{BR16_SW, false});
+          if (!resp.has_value()) {
+            bb.error_msg = "Switch cmd failed";
+            return NodeResult::Failure;
+          }
+          bb.state.set_switch(BR16_SW, false);
+        } else if (sensor == StaticString<8>{"E15"}) {
+          auto resp = send<TC::Ack>(bb.tcs_tid, TC::Cmd::Switch{BR16_SW, true});
+          if (!resp.has_value()) {
+            bb.error_msg = "Switch cmd failed";
+            return NodeResult::Failure;
+          }
+          bb.state.set_switch(BR16_SW, true);
+        } else if (sensor == StaticString<8>{"C10"}) {
+          if (bb.state.is_switch_straight(BR16_SW)) {
+            stopping = true;
+            return stop.tick(bb);
+          }
+        }
+      }
+
+      return NodeResult::Running;
+    }
+
+    NodeResult tick(Blackboard &bb) override {
+      auto attr_res = attribute_sensor.tick(bb);
+      if (attr_res == NodeResult::Failure) {
+        return attr_res;
+      }
+
+      // exit on done
+      if (done) {
+        return NodeResult::Success;
+      }
+
+      // start if not started
+      if (!stopping && !started) {
+        start_tick       = bb.curr_tick;
+        last_sensor_tick = start_tick;
+        started          = true;
+        Debug_Puts(bb.txs_tid, "sensor, dist_mm, speed, rel_tick");
+        auto speed_res = set_speed.tick(bb);
+        if (speed_res != NodeResult::Success) {
+          return speed_res;
+        }
+      }
+
+      // track sensor events
+      auto sensor_res = on_sensor(bb, !stopping);
+      if (sensor_res == NodeResult::Failure) {
+        return sensor_res;
+      }
+
+      // stopping phase
+      if (stopping) {
+        auto res = stop.tick(bb);
+        if (res == NodeResult::Failure) {
+          return NodeResult::Failure;
+        }
+
+        if (bb.curr_tick - last_sensor_tick >= RECORD_TIMEOUT_TICKS) {
+          done = true;
+          return NodeResult::Success;
+        }
+      }
+      return NodeResult::Running;
+    }
+  };
+
+  struct CalibrateV2Tree : public LeafNode {
+    static constexpr uint16_t MIN_SPEED = 7;
+    static constexpr uint16_t MAX_SPEED = 11;
+    static constexpr uint16_t REPS      = 3;
+
+    enum class Step { Reset, SetSpeed, Record };
+
+    bool initialized{false};
+    uint16_t curr_speed{MIN_SPEED};
+    uint16_t rep{0};
+    Step step{Step::Reset};
+
+    ResetTree reset{};
+    SetSpeed set_speed{MIN_SPEED};
+    RecordNode record{MIN_SPEED};
+
+    bool init_switches(Blackboard &bb) {
+      Puts(bb.txs_tid, "\033[2J\033[1;1H");
+
+      const struct {
+        uint16_t id;
+        bool straight;
+      } switches[] = {
+          {156, false}, {6, true},  {16, false},
+          {9, false},   {10, true}, {15, false},
+      };
+
+      for (auto &sw : switches) {
+        auto resp =
+            send<TC::Ack>(bb.tcs_tid, TC::Cmd::Switch{sw.id, sw.straight});
+        if (!resp.has_value()) {
+          bb.error_msg = "Switch cmd failed";
+          return false;
+        }
+      }
+      return true;
+    }
+
+    void begin_reset() {
+      step = Step::Reset;
+      reset.reset();
+    }
+
+    void begin_record() {
+      step = Step::Record;
+      record.reset(curr_speed);
+    }
+
+    NodeResult tick(Blackboard &bb) override {
+      if (!initialized) {
+        if (!init_switches(bb)) {
+          return NodeResult::Failure;
+        }
+        initialized = true;
+        begin_reset();
+      }
+
+      switch (step) {
+      case Step::Reset: {
+        auto res = reset.tick(bb);
+        if (res == NodeResult::Failure) {
+          return res;
+        }
+        if (res == NodeResult::Success) {
+          step      = Step::SetSpeed;
+          set_speed = SetSpeed{curr_speed};
+        }
+        return NodeResult::Running;
+      }
+      case Step::SetSpeed: {
+        auto res = set_speed.tick(bb);
+        if (res == NodeResult::Failure) {
+          return res;
+        }
+        if (res == NodeResult::Success) {
+          begin_record();
+        }
+        return NodeResult::Running;
+      }
+      case Step::Record: {
+        auto res = record.tick(bb);
+        if (res == NodeResult::Failure) {
+          return res;
+        }
+        if (res == NodeResult::Success) {
+          rep++;
+          Debug_Puts(bb.txs_tid, "CalibrateV2 speed ", curr_speed, " rep ",
+                     rep);
+          if (rep < REPS) {
+            begin_reset();
+          } else {
+            rep = 0;
+            curr_speed++;
+            if (curr_speed > MAX_SPEED) {
+              return NodeResult::Success;
+            }
+            Debug_Puts(bb.txs_tid, "CalibrateV2 next speed ", curr_speed);
+            begin_reset();
+          }
+        }
+        return NodeResult::Running;
+      }
+      }
+
+      return NodeResult::Running;
+    }
   };
 
   struct TestTree : public TreeNode {
@@ -1272,9 +1564,9 @@ namespace {
   };
 } // namespace
 
-using Tree =
-    std::variant<CalibrateTrain, PrintTrainStats, StopMeasureTree, NavigateTree,
-                 ForeverNavigateTree, ReverseTree, TestTree, ResetTree>;
+using Tree = std::variant<CalibrateTrain, PrintTrainStats, StopMeasureTree,
+                          NavigateTree, ForeverNavigateTree, ReverseTree,
+                          TestTree, ResetTree, CalibrateV2Tree>;
 
 void run_tree() {
   auto tcs_tid = WhoIs(TrainControlServer<>::NAME);
@@ -1331,6 +1623,10 @@ void run_tree() {
                      }
                      case TC::Tree::Type::RESET: {
                        tree.emplace<ResetTree>();
+                       break;
+                     }
+                     case TC::Tree::Type::CALIBRATE_V2: {
+                       tree.emplace<CalibrateV2Tree>();
                        break;
                      }
                      default: {

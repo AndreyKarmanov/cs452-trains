@@ -1948,7 +1948,7 @@ void init_trackb(track_node *track) {
   track[44].edge[DIR_AHEAD].reverse         = &track[71].edge[DIR_AHEAD];
   track[44].edge[DIR_AHEAD].src             = &track[44];
   track[44].edge[DIR_AHEAD].dest            = &track[70];
-  track[44].edge[DIR_AHEAD].dist            = 780;
+  track[44].edge[DIR_AHEAD].dist            = 875;
   track[44].edge[DIR_AHEAD].edge_v_pct      = 100;
   track[44].edge[DIR_AHEAD].reservation     = UNRESERVED;
   track[45].name                            = "C14";
@@ -1958,7 +1958,7 @@ void init_trackb(track_node *track) {
   track[45].edge[DIR_AHEAD].reverse         = &track[101].edge[DIR_AHEAD];
   track[45].edge[DIR_AHEAD].src             = &track[45];
   track[45].edge[DIR_AHEAD].dest            = &track[100];
-  track[45].edge[DIR_AHEAD].dist            = 50;
+  track[45].edge[DIR_AHEAD].dist            = 43;
   track[45].edge[DIR_AHEAD].edge_v_pct      = 100;
   track[45].edge[DIR_AHEAD].reservation     = UNRESERVED;
   track[46].name                            = "C15";
@@ -2028,7 +2028,7 @@ void init_trackb(track_node *track) {
   track[52].edge[DIR_AHEAD].reverse         = &track[68].edge[DIR_AHEAD];
   track[52].edge[DIR_AHEAD].src             = &track[52];
   track[52].edge[DIR_AHEAD].dest            = &track[69];
-  track[52].edge[DIR_AHEAD].dist            = 282;
+  track[52].edge[DIR_AHEAD].dist            = 376;
   track[52].edge[DIR_AHEAD].edge_v_pct      = 100;
   track[52].edge[DIR_AHEAD].reservation     = UNRESERVED;
   track[53].name                            = "D6";
@@ -2038,7 +2038,7 @@ void init_trackb(track_node *track) {
   track[53].edge[DIR_AHEAD].reverse         = &track[96].edge[DIR_CURVED];
   track[53].edge[DIR_AHEAD].src             = &track[53];
   track[53].edge[DIR_AHEAD].dest            = &track[97];
-  track[53].edge[DIR_AHEAD].dist            = 229;
+  track[53].edge[DIR_AHEAD].dist            = 239;
   track[53].edge[DIR_AHEAD].edge_v_pct      = 100;
   track[53].edge[DIR_AHEAD].reservation     = UNRESERVED;
   track[54].name                            = "D7";
@@ -2058,7 +2058,7 @@ void init_trackb(track_node *track) {
   track[55].edge[DIR_AHEAD].reverse         = &track[70].edge[DIR_AHEAD];
   track[55].edge[DIR_AHEAD].src             = &track[55];
   track[55].edge[DIR_AHEAD].dest            = &track[71];
-  track[55].edge[DIR_AHEAD].dist            = 376;
+  track[55].edge[DIR_AHEAD].dist            = 384;
   track[55].edge[DIR_AHEAD].edge_v_pct      = 100;
   track[55].edge[DIR_AHEAD].reservation     = UNRESERVED;
   track[56].name                            = "D9";
@@ -2068,7 +2068,7 @@ void init_trackb(track_node *track) {
   track[56].edge[DIR_AHEAD].reverse         = &track[74].edge[DIR_AHEAD];
   track[56].edge[DIR_AHEAD].src             = &track[56];
   track[56].edge[DIR_AHEAD].dest            = &track[75];
-  track[56].edge[DIR_AHEAD].dist            = 282;
+  track[56].edge[DIR_AHEAD].dist            = 369;
   track[56].edge[DIR_AHEAD].edge_v_pct      = 100;
   track[56].edge[DIR_AHEAD].reservation     = UNRESERVED;
   track[57].name                            = "D10";
@@ -2188,7 +2188,7 @@ void init_trackb(track_node *track) {
   track[68].edge[DIR_AHEAD].reverse         = &track[52].edge[DIR_AHEAD];
   track[68].edge[DIR_AHEAD].src             = &track[68];
   track[68].edge[DIR_AHEAD].dest            = &track[53];
-  track[68].edge[DIR_AHEAD].dist            = 282;
+  track[68].edge[DIR_AHEAD].dist            = 376;
   track[68].edge[DIR_AHEAD].edge_v_pct      = 100;
   track[68].edge[DIR_AHEAD].reservation     = UNRESERVED;
   track[69].name                            = "E6";
@@ -2208,7 +2208,7 @@ void init_trackb(track_node *track) {
   track[70].edge[DIR_AHEAD].reverse         = &track[55].edge[DIR_AHEAD];
   track[70].edge[DIR_AHEAD].src             = &track[70];
   track[70].edge[DIR_AHEAD].dest            = &track[54];
-  track[70].edge[DIR_AHEAD].dist            = 376;
+  track[70].edge[DIR_AHEAD].dist            = 384;
   track[70].edge[DIR_AHEAD].edge_v_pct      = 100;
   track[70].edge[DIR_AHEAD].reservation     = UNRESERVED;
   track[71].name                            = "E8";
@@ -2218,7 +2218,7 @@ void init_trackb(track_node *track) {
   track[71].edge[DIR_AHEAD].reverse         = &track[44].edge[DIR_AHEAD];
   track[71].edge[DIR_AHEAD].src             = &track[71];
   track[71].edge[DIR_AHEAD].dest            = &track[45];
-  track[71].edge[DIR_AHEAD].dist            = 780;
+  track[71].edge[DIR_AHEAD].dist            = 875;
   track[71].edge[DIR_AHEAD].edge_v_pct      = 100;
   track[71].edge[DIR_AHEAD].reservation     = UNRESERVED;
   track[72].name                            = "E9";
@@ -2238,7 +2238,7 @@ void init_trackb(track_node *track) {
   track[73].edge[DIR_AHEAD].reverse         = &track[77].edge[DIR_AHEAD];
   track[73].edge[DIR_AHEAD].src             = &track[73];
   track[73].edge[DIR_AHEAD].dest            = &track[76];
-  track[73].edge[DIR_AHEAD].dist            = 282;
+  track[73].edge[DIR_AHEAD].dist            = 376;
   track[73].edge[DIR_AHEAD].edge_v_pct      = 100;
   track[73].edge[DIR_AHEAD].reservation     = UNRESERVED;
   track[74].name                            = "E11";
@@ -2248,7 +2248,7 @@ void init_trackb(track_node *track) {
   track[74].edge[DIR_AHEAD].reverse         = &track[56].edge[DIR_AHEAD];
   track[74].edge[DIR_AHEAD].src             = &track[74];
   track[74].edge[DIR_AHEAD].dest            = &track[57];
-  track[74].edge[DIR_AHEAD].dist            = 282;
+  track[74].edge[DIR_AHEAD].dist            = 369;
   track[74].edge[DIR_AHEAD].edge_v_pct      = 100;
   track[74].edge[DIR_AHEAD].reservation     = UNRESERVED;
   track[75].name                            = "E12";
@@ -2258,7 +2258,7 @@ void init_trackb(track_node *track) {
   track[75].edge[DIR_AHEAD].reverse         = &track[93].edge[DIR_AHEAD];
   track[75].edge[DIR_AHEAD].src             = &track[75];
   track[75].edge[DIR_AHEAD].dest            = &track[92];
-  track[75].edge[DIR_AHEAD].dist            = 43;
+  track[75].edge[DIR_AHEAD].dist            = 50;
   track[75].edge[DIR_AHEAD].edge_v_pct      = 100;
   track[75].edge[DIR_AHEAD].reservation     = UNRESERVED;
   track[76].name                            = "E13";
@@ -2278,7 +2278,7 @@ void init_trackb(track_node *track) {
   track[77].edge[DIR_AHEAD].reverse         = &track[73].edge[DIR_AHEAD];
   track[77].edge[DIR_AHEAD].src             = &track[77];
   track[77].edge[DIR_AHEAD].dest            = &track[72];
-  track[77].edge[DIR_AHEAD].dist            = 282;
+  track[77].edge[DIR_AHEAD].dist            = 376;
   track[77].edge[DIR_AHEAD].edge_v_pct      = 100;
   track[77].edge[DIR_AHEAD].reservation     = UNRESERVED;
   track[78].name                            = "E15";
@@ -2480,7 +2480,7 @@ void init_trackb(track_node *track) {
   track[93].edge[DIR_AHEAD].reverse         = &track[75].edge[DIR_AHEAD];
   track[93].edge[DIR_AHEAD].src             = &track[93];
   track[93].edge[DIR_AHEAD].dest            = &track[74];
-  track[93].edge[DIR_AHEAD].dist            = 43;
+  track[93].edge[DIR_AHEAD].dist            = 50;
   track[93].edge[DIR_AHEAD].edge_v_pct      = 100;
   track[93].edge[DIR_AHEAD].reservation     = UNRESERVED;
   track[94].name                            = "BR8";
@@ -2522,7 +2522,7 @@ void init_trackb(track_node *track) {
   track[96].edge[DIR_CURVED].reverse        = &track[53].edge[DIR_AHEAD];
   track[96].edge[DIR_CURVED].src            = &track[96];
   track[96].edge[DIR_CURVED].dest           = &track[52];
-  track[96].edge[DIR_CURVED].dist           = 229;
+  track[96].edge[DIR_CURVED].dist           = 239;
   track[96].edge[DIR_CURVED].edge_v_pct     = 100;
   track[96].edge[DIR_CURVED].reservation    = UNRESERVED;
   track[97].name                            = "MR9";
@@ -2584,7 +2584,7 @@ void init_trackb(track_node *track) {
   track[101].edge[DIR_AHEAD].reverse        = &track[45].edge[DIR_AHEAD];
   track[101].edge[DIR_AHEAD].src            = &track[101];
   track[101].edge[DIR_AHEAD].dest           = &track[44];
-  track[101].edge[DIR_AHEAD].dist           = 50;
+  track[101].edge[DIR_AHEAD].dist           = 43;
   track[101].edge[DIR_AHEAD].edge_v_pct     = 100;
   track[101].edge[DIR_AHEAD].reservation    = UNRESERVED;
   track[102].name                           = "BR12";
