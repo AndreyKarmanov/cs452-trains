@@ -359,6 +359,59 @@ void test_pathfind() {
   debug_puts(CONSOLE, "pathfind tests\n\r");
 
   Track track_a(Track::Layout::A);
+  Track track_b(Track::Layout::B);
+
+  for (int i = 0; i < 143; ++i) {
+    auto node = track_a[i];
+    if (node.type == NODE_BRANCH) {
+      if (node.edge[DIR_STRAIGHT].dist != node.edge[DIR_STRAIGHT].reverse->dist) {
+        debug_printf(CONSOLE,
+                     "track_a branch %s straight dist mismatch: %d vs %d\n\r",
+                     node.name, node.edge[DIR_STRAIGHT].dist,
+                     node.edge[DIR_STRAIGHT].reverse->dist);
+      }
+      if (node.edge[DIR_CURVED].dist != node.edge[DIR_CURVED].reverse->dist) {
+        debug_printf(CONSOLE,
+                     "track_a branch %s curved dist mismatch: %d vs %d\n\r",
+                     node.name, node.edge[DIR_CURVED].dist,
+                     node.edge[DIR_CURVED].reverse->dist);
+      }
+    } else if (node.type != NODE_EXIT) {
+      if (node.edge[DIR_AHEAD].dist != node.edge[DIR_AHEAD].reverse->dist) {
+        debug_printf(CONSOLE,
+                     "track_a node %s ahead dist mismatch: %d vs %d\n\r",
+                     node.name, node.edge[DIR_AHEAD].dist,
+                     node.edge[DIR_AHEAD].reverse->dist);
+      }
+    }
+  }
+
+  for (int i = 0; i < 139; ++i) {
+    auto node = track_b[i];
+    if (node.type == NODE_BRANCH) {
+      if (node.edge[DIR_STRAIGHT].dist != node.edge[DIR_STRAIGHT].reverse->dist) {
+        debug_printf(CONSOLE,
+                     "track_b branch %s straight dist mismatch: %d vs %d\n\r",
+                     node.name, node.edge[DIR_STRAIGHT].dist,
+                     node.edge[DIR_STRAIGHT].reverse->dist);
+      }
+      if (node.edge[DIR_CURVED].dist != node.edge[DIR_CURVED].reverse->dist) {
+        debug_printf(CONSOLE,
+                     "track_b branch %s curved dist mismatch: %d vs %d\n\r",
+                     node.name, node.edge[DIR_CURVED].dist,
+                     node.edge[DIR_CURVED].reverse->dist);
+      }
+    } else if (node.type != NODE_EXIT) {
+      if (node.edge[DIR_AHEAD].dist != node.edge[DIR_AHEAD].reverse->dist) {
+        debug_printf(CONSOLE,
+                     "track_b node %s ahead dist mismatch: %d vs %d\n\r",
+                     node.name, node.edge[DIR_AHEAD].dist,
+                     node.edge[DIR_AHEAD].reverse->dist);
+      }
+    }
+  }
+
+
   print_path(track_a, "A1->A13", track_a.find_path("A1", "A13", true));
   print_path(track_a, "A13->A1", track_a.find_path("A13", "A1"));
   print_path(track_a, "A1->E16", track_a.find_path("A1", "E16"));
@@ -366,10 +419,20 @@ void test_pathfind() {
   print_path(track_a, "A1->ZZZ", track_a.find_path("A1", "ZZZ"));
   print_path(track_a, "A13->B6", track_a.find_path("A13", "B6"));
 
-  Track track_b(Track::Layout::B);
+
+  print_path(track_a, "B6->B6", track_a.find_path("B6", "B6"));
+  print_path(track_a, "B5->B5", track_a.find_path("B5", "B5"));
+  print_path(track_a, "E7->E7", track_a.find_path("E7", "E7"));
+  print_path(track_a, "E8->E8", track_a.find_path("E8", "E8"));
+
   print_path(track_b, "C10->B16", track_b.find_path("C10", "B16"));
   print_path(track_b, "C10->C10", track_b.find_path("C10", "C10"));
   print_path(track_b, "C13->A11", track_b.find_path(44, 10));
+  print_path(track_b, "B6->B6", track_b.find_path("B6", "B6"));
+  print_path(track_b, "B5->B5", track_b.find_path("B5", "B5"));
+  print_path(track_b, "E7->E7", track_b.find_path("E7", "E7"));
+  print_path(track_b, "E8->E8", track_b.find_path("E8", "E8"));
+
 
   debug_puts(CONSOLE, "pathfind tests done\n\r");
 }

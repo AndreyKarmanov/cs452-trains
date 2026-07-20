@@ -54,7 +54,6 @@ public:
 private:
   Map<NodeName, int, TRACK_MAX> node_to_idx;
 
-  std::optional<track_edge> get_edge(int from_idx, int to_idx) const;
 
   std::optional<Path> build_path(int goal_idx, const int best_dist[TRACK_MAX],
                                  const int predecessor[TRACK_MAX]) const;
@@ -76,6 +75,8 @@ public:
   int node_idx(const track_node *node) const {
     return static_cast<int>(node - track);
   }
+    std::optional<track_edge> get_edge(int from_idx, int to_idx) const;
+
 
   std::optional<Path> find_loop(int start_idx) const;
   std::optional<Path> find_path(int start_idx, int goal_idx,

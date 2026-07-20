@@ -532,7 +532,7 @@ void init_tracka(track_node *track) {
   track[52].edge[DIR_AHEAD].reverse         = &track[68].edge[DIR_AHEAD];
   track[52].edge[DIR_AHEAD].src             = &track[52];
   track[52].edge[DIR_AHEAD].dest            = &track[69];
-  track[52].edge[DIR_AHEAD].dist            = 376;
+  track[52].edge[DIR_AHEAD].dist            = 377;
   track[52].edge[DIR_AHEAD].edge_v_pct      = 100;
   track[52].edge[DIR_AHEAD].res_loco_id     = UNRESERVED;
   track[53].name                            = "D6";
@@ -542,7 +542,7 @@ void init_tracka(track_node *track) {
   track[53].edge[DIR_AHEAD].reverse         = &track[96].edge[DIR_CURVED];
   track[53].edge[DIR_AHEAD].src             = &track[53];
   track[53].edge[DIR_AHEAD].dest            = &track[97];
-  track[53].edge[DIR_AHEAD].dist            = 239;
+  track[53].edge[DIR_AHEAD].dist            = 232;
   track[53].edge[DIR_AHEAD].edge_v_pct      = 100;
   track[53].edge[DIR_AHEAD].res_loco_id     = UNRESERVED;
   track[54].name                            = "D7";
@@ -562,7 +562,7 @@ void init_tracka(track_node *track) {
   track[55].edge[DIR_AHEAD].reverse         = &track[70].edge[DIR_AHEAD];
   track[55].edge[DIR_AHEAD].src             = &track[55];
   track[55].edge[DIR_AHEAD].dest            = &track[71];
-  track[55].edge[DIR_AHEAD].dist            = 384;
+  track[55].edge[DIR_AHEAD].dist            = 377;
   track[55].edge[DIR_AHEAD].edge_v_pct      = 100;
   track[55].edge[DIR_AHEAD].res_loco_id     = UNRESERVED;
   track[56].name                            = "D9";
@@ -572,7 +572,7 @@ void init_tracka(track_node *track) {
   track[56].edge[DIR_AHEAD].reverse         = &track[74].edge[DIR_AHEAD];
   track[56].edge[DIR_AHEAD].src             = &track[56];
   track[56].edge[DIR_AHEAD].dest            = &track[75];
-  track[56].edge[DIR_AHEAD].dist            = 369;
+  track[56].edge[DIR_AHEAD].dist            = 370;
   track[56].edge[DIR_AHEAD].edge_v_pct      = 100;
   track[56].edge[DIR_AHEAD].res_loco_id     = UNRESERVED;
   track[57].name                            = "D10";
@@ -692,7 +692,7 @@ void init_tracka(track_node *track) {
   track[68].edge[DIR_AHEAD].reverse         = &track[52].edge[DIR_AHEAD];
   track[68].edge[DIR_AHEAD].src             = &track[68];
   track[68].edge[DIR_AHEAD].dest            = &track[53];
-  track[68].edge[DIR_AHEAD].dist            = 376;
+  track[68].edge[DIR_AHEAD].dist            = 377;
   track[68].edge[DIR_AHEAD].edge_v_pct      = 100;
   track[68].edge[DIR_AHEAD].res_loco_id     = UNRESERVED;
   track[69].name                            = "E6";
@@ -712,7 +712,7 @@ void init_tracka(track_node *track) {
   track[70].edge[DIR_AHEAD].reverse         = &track[55].edge[DIR_AHEAD];
   track[70].edge[DIR_AHEAD].src             = &track[70];
   track[70].edge[DIR_AHEAD].dest            = &track[54];
-  track[70].edge[DIR_AHEAD].dist            = 384;
+  track[70].edge[DIR_AHEAD].dist            = 377;
   track[70].edge[DIR_AHEAD].edge_v_pct      = 100;
   track[70].edge[DIR_AHEAD].res_loco_id     = UNRESERVED;
   track[71].name                            = "E8";
@@ -742,7 +742,7 @@ void init_tracka(track_node *track) {
   track[73].edge[DIR_AHEAD].reverse         = &track[77].edge[DIR_AHEAD];
   track[73].edge[DIR_AHEAD].src             = &track[73];
   track[73].edge[DIR_AHEAD].dest            = &track[76];
-  track[73].edge[DIR_AHEAD].dist            = 376;
+  track[73].edge[DIR_AHEAD].dist            = 377;
   track[73].edge[DIR_AHEAD].edge_v_pct      = 100;
   track[73].edge[DIR_AHEAD].res_loco_id     = UNRESERVED;
   track[74].name                            = "E11";
@@ -752,7 +752,7 @@ void init_tracka(track_node *track) {
   track[74].edge[DIR_AHEAD].reverse         = &track[56].edge[DIR_AHEAD];
   track[74].edge[DIR_AHEAD].src             = &track[74];
   track[74].edge[DIR_AHEAD].dest            = &track[57];
-  track[74].edge[DIR_AHEAD].dist            = 369;
+  track[74].edge[DIR_AHEAD].dist            = 370;
   track[74].edge[DIR_AHEAD].edge_v_pct      = 100;
   track[74].edge[DIR_AHEAD].res_loco_id     = UNRESERVED;
   track[75].name                            = "E12";
@@ -782,7 +782,7 @@ void init_tracka(track_node *track) {
   track[77].edge[DIR_AHEAD].reverse         = &track[73].edge[DIR_AHEAD];
   track[77].edge[DIR_AHEAD].src             = &track[77];
   track[77].edge[DIR_AHEAD].dest            = &track[72];
-  track[77].edge[DIR_AHEAD].dist            = 376;
+  track[77].edge[DIR_AHEAD].dist            = 377;
   track[77].edge[DIR_AHEAD].edge_v_pct      = 100;
   track[77].edge[DIR_AHEAD].res_loco_id     = UNRESERVED;
   track[78].name                            = "E15";
@@ -1026,7 +1026,7 @@ void init_tracka(track_node *track) {
   track[96].edge[DIR_CURVED].reverse        = &track[53].edge[DIR_AHEAD];
   track[96].edge[DIR_CURVED].src            = &track[96];
   track[96].edge[DIR_CURVED].dest           = &track[52];
-  track[96].edge[DIR_CURVED].dist           = 239;
+  track[96].edge[DIR_CURVED].dist           = 232;
   track[96].edge[DIR_CURVED].edge_v_pct     = 100;
   track[96].edge[DIR_CURVED].res_loco_id    = UNRESERVED;
   track[97].name                            = "MR9";
@@ -1280,7 +1280,7 @@ void init_tracka(track_node *track) {
   track[116].edge[DIR_STRAIGHT].reverse     = &track[124].edge[DIR_AHEAD];
   track[116].edge[DIR_STRAIGHT].src         = &track[116];
   track[116].edge[DIR_STRAIGHT].dest        = &track[125];
-  track[116].edge[DIR_STRAIGHT].dist        = 253;
+  track[116].edge[DIR_STRAIGHT].dist        = 283;
   track[116].edge[DIR_STRAIGHT].edge_v_pct  = 100;
   track[116].edge[DIR_STRAIGHT].res_loco_id = UNRESERVED;
   track[116].edge[DIR_CURVED].reverse       = &track[33].edge[DIR_AHEAD];
@@ -1383,7 +1383,7 @@ void init_tracka(track_node *track) {
   track[124].edge[DIR_AHEAD].reverse        = &track[116].edge[DIR_STRAIGHT];
   track[124].edge[DIR_AHEAD].src            = &track[124];
   track[124].edge[DIR_AHEAD].dest           = &track[117];
-  track[124].edge[DIR_AHEAD].dist           = 253;
+  track[124].edge[DIR_AHEAD].dist           = 283;
   track[124].edge[DIR_AHEAD].edge_v_pct     = 100;
   track[124].edge[DIR_AHEAD].res_loco_id    = UNRESERVED;
   track[125].name                           = "EX1";
@@ -2028,7 +2028,7 @@ void init_trackb(track_node *track) {
   track[52].edge[DIR_AHEAD].reverse         = &track[68].edge[DIR_AHEAD];
   track[52].edge[DIR_AHEAD].src             = &track[52];
   track[52].edge[DIR_AHEAD].dest            = &track[69];
-  track[52].edge[DIR_AHEAD].dist            = 376;
+  track[52].edge[DIR_AHEAD].dist            = 377;
   track[52].edge[DIR_AHEAD].edge_v_pct      = 100;
   track[52].edge[DIR_AHEAD].res_loco_id     = UNRESERVED;
   track[53].name                            = "D6";
@@ -2038,7 +2038,7 @@ void init_trackb(track_node *track) {
   track[53].edge[DIR_AHEAD].reverse         = &track[96].edge[DIR_CURVED];
   track[53].edge[DIR_AHEAD].src             = &track[53];
   track[53].edge[DIR_AHEAD].dest            = &track[97];
-  track[53].edge[DIR_AHEAD].dist            = 239;
+  track[53].edge[DIR_AHEAD].dist            = 232;
   track[53].edge[DIR_AHEAD].edge_v_pct      = 100;
   track[53].edge[DIR_AHEAD].res_loco_id     = UNRESERVED;
   track[54].name                            = "D7";
@@ -2058,7 +2058,7 @@ void init_trackb(track_node *track) {
   track[55].edge[DIR_AHEAD].reverse         = &track[70].edge[DIR_AHEAD];
   track[55].edge[DIR_AHEAD].src             = &track[55];
   track[55].edge[DIR_AHEAD].dest            = &track[71];
-  track[55].edge[DIR_AHEAD].dist            = 384;
+  track[55].edge[DIR_AHEAD].dist            = 377;
   track[55].edge[DIR_AHEAD].edge_v_pct      = 100;
   track[55].edge[DIR_AHEAD].res_loco_id     = UNRESERVED;
   track[56].name                            = "D9";
@@ -2068,7 +2068,7 @@ void init_trackb(track_node *track) {
   track[56].edge[DIR_AHEAD].reverse         = &track[74].edge[DIR_AHEAD];
   track[56].edge[DIR_AHEAD].src             = &track[56];
   track[56].edge[DIR_AHEAD].dest            = &track[75];
-  track[56].edge[DIR_AHEAD].dist            = 369;
+  track[56].edge[DIR_AHEAD].dist            = 370;
   track[56].edge[DIR_AHEAD].edge_v_pct      = 100;
   track[56].edge[DIR_AHEAD].res_loco_id     = UNRESERVED;
   track[57].name                            = "D10";
@@ -2188,7 +2188,7 @@ void init_trackb(track_node *track) {
   track[68].edge[DIR_AHEAD].reverse         = &track[52].edge[DIR_AHEAD];
   track[68].edge[DIR_AHEAD].src             = &track[68];
   track[68].edge[DIR_AHEAD].dest            = &track[53];
-  track[68].edge[DIR_AHEAD].dist            = 376;
+  track[68].edge[DIR_AHEAD].dist            = 377;
   track[68].edge[DIR_AHEAD].edge_v_pct      = 100;
   track[68].edge[DIR_AHEAD].res_loco_id     = UNRESERVED;
   track[69].name                            = "E6";
@@ -2208,7 +2208,7 @@ void init_trackb(track_node *track) {
   track[70].edge[DIR_AHEAD].reverse         = &track[55].edge[DIR_AHEAD];
   track[70].edge[DIR_AHEAD].src             = &track[70];
   track[70].edge[DIR_AHEAD].dest            = &track[54];
-  track[70].edge[DIR_AHEAD].dist            = 384;
+  track[70].edge[DIR_AHEAD].dist            = 377;
   track[70].edge[DIR_AHEAD].edge_v_pct      = 100;
   track[70].edge[DIR_AHEAD].res_loco_id     = UNRESERVED;
   track[71].name                            = "E8";
@@ -2238,7 +2238,7 @@ void init_trackb(track_node *track) {
   track[73].edge[DIR_AHEAD].reverse         = &track[77].edge[DIR_AHEAD];
   track[73].edge[DIR_AHEAD].src             = &track[73];
   track[73].edge[DIR_AHEAD].dest            = &track[76];
-  track[73].edge[DIR_AHEAD].dist            = 376;
+  track[73].edge[DIR_AHEAD].dist            = 377;
   track[73].edge[DIR_AHEAD].edge_v_pct      = 100;
   track[73].edge[DIR_AHEAD].res_loco_id     = UNRESERVED;
   track[74].name                            = "E11";
@@ -2248,7 +2248,7 @@ void init_trackb(track_node *track) {
   track[74].edge[DIR_AHEAD].reverse         = &track[56].edge[DIR_AHEAD];
   track[74].edge[DIR_AHEAD].src             = &track[74];
   track[74].edge[DIR_AHEAD].dest            = &track[57];
-  track[74].edge[DIR_AHEAD].dist            = 369;
+  track[74].edge[DIR_AHEAD].dist            = 370;
   track[74].edge[DIR_AHEAD].edge_v_pct      = 100;
   track[74].edge[DIR_AHEAD].res_loco_id     = UNRESERVED;
   track[75].name                            = "E12";
@@ -2278,7 +2278,7 @@ void init_trackb(track_node *track) {
   track[77].edge[DIR_AHEAD].reverse         = &track[73].edge[DIR_AHEAD];
   track[77].edge[DIR_AHEAD].src             = &track[77];
   track[77].edge[DIR_AHEAD].dest            = &track[72];
-  track[77].edge[DIR_AHEAD].dist            = 376;
+  track[77].edge[DIR_AHEAD].dist            = 377;
   track[77].edge[DIR_AHEAD].edge_v_pct      = 100;
   track[77].edge[DIR_AHEAD].res_loco_id     = UNRESERVED;
   track[78].name                            = "E15";
@@ -2522,7 +2522,7 @@ void init_trackb(track_node *track) {
   track[96].edge[DIR_CURVED].reverse        = &track[53].edge[DIR_AHEAD];
   track[96].edge[DIR_CURVED].src            = &track[96];
   track[96].edge[DIR_CURVED].dest           = &track[52];
-  track[96].edge[DIR_CURVED].dist           = 239;
+  track[96].edge[DIR_CURVED].dist           = 232;
   track[96].edge[DIR_CURVED].edge_v_pct     = 100;
   track[96].edge[DIR_CURVED].res_loco_id    = UNRESERVED;
   track[97].name                            = "MR9";
@@ -2776,7 +2776,7 @@ void init_trackb(track_node *track) {
   track[116].edge[DIR_STRAIGHT].reverse     = &track[124].edge[DIR_AHEAD];
   track[116].edge[DIR_STRAIGHT].src         = &track[116];
   track[116].edge[DIR_STRAIGHT].dest        = &track[125];
-  track[116].edge[DIR_STRAIGHT].dist        = 253;
+  track[116].edge[DIR_STRAIGHT].dist        = 283;
   track[116].edge[DIR_STRAIGHT].edge_v_pct  = 100;
   track[116].edge[DIR_STRAIGHT].res_loco_id = UNRESERVED;
   track[116].edge[DIR_CURVED].reverse       = &track[33].edge[DIR_AHEAD];
@@ -2879,7 +2879,7 @@ void init_trackb(track_node *track) {
   track[124].edge[DIR_AHEAD].reverse        = &track[116].edge[DIR_STRAIGHT];
   track[124].edge[DIR_AHEAD].src            = &track[124];
   track[124].edge[DIR_AHEAD].dest           = &track[117];
-  track[124].edge[DIR_AHEAD].dist           = 253;
+  track[124].edge[DIR_AHEAD].dist           = 283;
   track[124].edge[DIR_AHEAD].edge_v_pct     = 100;
   track[124].edge[DIR_AHEAD].res_loco_id    = UNRESERVED;
   track[125].name                           = "EX1";
