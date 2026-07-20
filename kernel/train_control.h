@@ -284,15 +284,10 @@ template <size_t TX_BUFFER_SIZE = 64> class TrainControlServer {
       reply_with_error(tid);
       return;
     }
-    auto loco = state.get_loco(msg.train.id);
-    if (loco) {
-      loco->ve_nm = msg.train.ve_nm;
-      loco->v_max_umpt[msg.train.req_speed] =
-          msg.train.v_max_umpt[msg.train.req_speed];
-      loco->a_nmpt2[msg.train.req_speed] =
-          msg.train.a_nmpt2[msg.train.req_speed];
-      loco->target_node_idx = msg.train.target_node_idx;
-      state.trains_dirty    = true;
+
+    if (auto loco = state.get_loco(msg.train.id); loco) {
+      *loco              = msg.train;
+      state.trains_dirty = true;
     }
 
     auto next_msg = mailbox->msgs.pop();
@@ -300,7 +295,6 @@ template <size_t TX_BUFFER_SIZE = 64> class TrainControlServer {
       reply(tid, next_msg.value());
       return;
     }
-
     mailbox->waiting = true;
   }
 

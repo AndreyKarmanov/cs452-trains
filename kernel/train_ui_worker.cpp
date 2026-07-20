@@ -23,17 +23,21 @@ uint32_t print_state(int tx_tid, const State &state) {
 
   if (state.trains_dirty) {
     line.set("\033[", TRAIN_ROW,
-             ";2HTrain | Dir | Lamp | spd | Est | Top | Target\n\r");
+             ";2HTr | D | L | spd | est | tgt | stop | last\n\r");
     for (const TrainState &train : state.trains) {
-      line.append("\033[K   ", train.id, "  | ", train.backward ? "Rev" : "Fwd",
-                  " | ", train.light_on ? " On " : " Off", " | ");
+      line.append("\033[K", train.id, " | ", train.backward ? "R" : "F", " | ",
+                  train.light_on ? "1" : "0", " | ");
       AppendPadded(line, train.req_speed, 3);
       line.append(" | ");
       AppendPadded(line, train.ve_nm / 1000, 3);
       line.append(" | ");
-      AppendPadded(line, train.v_max_umpt[train.req_speed], 3);
-      line.append(" | ");
       AppendPadded(line, train.target_node_idx, 3);
+      line.append(" | ");
+      AppendPadded(line, train.stop_dist_um / 1000, 4);
+      line.append(" | ");
+      line.append(train.last_sensor.has_value()
+                      ? train.last_sensor->data.to_string()
+                      : "---");
       line.append("\n\r");
     }
     Puts(tx_tid, line);

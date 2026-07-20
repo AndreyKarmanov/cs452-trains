@@ -9,10 +9,9 @@
 struct Blackboard {
 
   // tree tick data
+  // tree state
   MRKCmd new_event{UnknownCmd{}};
   uint32_t curr_tick{0};
-
-  // tree state
   StaticString<32> error_msg{};
 
   // tids for servers
