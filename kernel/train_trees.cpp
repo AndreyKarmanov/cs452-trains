@@ -186,8 +186,8 @@ namespace {
     SetDirectionNode(bool backward) : backward(backward) {}
     NodeResult tick(Blackboard &bb) override {
 
-      if (auto data = std::get_if<DirectionCmd>(&bb.new_event);
-          sent_cmd && data && data->backward == backward) {
+      if (auto dir = std::get_if<DirectionCmd>(&bb.new_event);
+          sent_cmd && dir && dir->backward == backward) {
         return NodeResult::Success;
       } else if (sent_cmd) {
         return NodeResult::Running;
@@ -210,8 +210,8 @@ namespace {
     AwaitSensorNode() = default;
     AwaitSensorNode(int sid) : sid(sid) {}
     NodeResult tick(Blackboard &bb) override {
-      if (auto data = std::get_if<SensorData>(&bb.new_event);
-          data && data->new_state == 1 && (data->sid == sid || sid == -1)) {
+      if (auto sens = std::get_if<SensorData>(&bb.new_event);
+          sens && sens->new_state == 1 && (sens->sid == sid || sid == -1)) {
         return NodeResult::Success;
       }
       return NodeResult::Running;
@@ -282,39 +282,39 @@ namespace {
     static constexpr int PCT_TOLERANCE = 30;
 
     NodeResult tick(Blackboard &bb) override {
-      if (auto data = std::get_if<SensorData>(&bb.new_event);
-          data && data->new_state == 1) {
+      if (auto sens = std::get_if<SensorData>(&bb.new_event);
+          sens && sens->new_state == 1) {
 
         // not registered? only one train
         if (bb.loco->inital_node_idx == -1) {
           bb.loco->last_sensor.emplace(
-              TrainState::SeenSensor{*data, bb.curr_tick});
+              TrainState::SeenSensor{*sens, bb.curr_tick});
           return NodeResult::Success;
         }
 
         // if it's our first sensor, wait for the given inital sensor
         if (!bb.loco->last_sensor.has_value()) {
-          if (bb.loco->inital_node_idx + 1 != data->sid) {
-            Debug_Puts(bb.txs_tid, "Ignored Inital: ", data->sid, " ",
-                       (char)('A' + data->bank), data->number, " expected ",
+          if (bb.loco->inital_node_idx + 1 != sens->sid) {
+            Debug_Puts(bb.txs_tid, "Ignored Inital: ", sens->sid, " ",
+                       (char)('A' + sens->bank), sens->number, " expected ",
                        bb.loco->inital_node_idx + 1);
 
             return NodeResult::Running;
           }
-          Debug_Puts(bb.txs_tid, "First sensor: ", data->sid, " ",
-                     (char)('A' + data->bank), data->number);
+          Debug_Puts(bb.txs_tid, "First sensor: ", sens->sid, " ",
+                     (char)('A' + sens->bank), sens->number);
           return NodeResult::Success;
         }
 
         // otherwise, check how far we are from the sensor
         // we always use shortest path for travel, so can safely use this dist.
         auto path = bb.track.find_path(bb.loco->last_sensor->data.sid - 1,
-                                       data->sid - 1);
+                                       sens->sid - 1);
 
         // if there's no path, or 20% off our estimate, we ignore
         if (!path.has_value()) {
-          Debug_Puts(bb.txs_tid, "Ignored sensor (no path): ", data->sid, " ",
-                     (char)('A' + data->bank), data->number);
+          Debug_Puts(bb.txs_tid, "Ignored sensor (no path): ", sens->sid, " ",
+                     (char)('A' + sens->bank), sens->number);
           return NodeResult::Running;
         }
 
@@ -322,17 +322,17 @@ namespace {
         if (sens_dist_um > (bb.dx_um * (100 + PCT_TOLERANCE)) / 100 ||
             sens_dist_um < (bb.dx_um * (100 - PCT_TOLERANCE)) / 100) {
           Debug_Puts(bb.txs_tid, "Ignored sensor (out of range): ",
-                     (char)('A' + data->bank), data->number, " pos ",
+                     (char)('A' + sens->bank), sens->number, " pos ",
                      bb.dx_um * 100 / sens_dist_um, "% ",
                      (bb.dx_um - sens_dist_um) / 1000, " mm");
           return NodeResult::Running;
         }
-        Debug_Puts(bb.txs_tid, "Attributed: ", data->sid, " ",
-                   (char)('A' + data->bank), data->number, " pos ",
+        Debug_Puts(bb.txs_tid, "Attributed: ", sens->sid, " ",
+                   (char)('A' + sens->bank), sens->number, " pos ",
                    bb.dx_um * 100 / sens_dist_um, "% ",
                    (bb.dx_um - sens_dist_um) / 1000, " mm");
         bb.loco->last_sensor.emplace(
-            TrainState::SeenSensor{*data, bb.curr_tick});
+            TrainState::SeenSensor{*sens, bb.curr_tick});
       }
       return NodeResult::Success;
     }
@@ -342,8 +342,8 @@ namespace {
 
     DebugPrintPath print_path{};
     NodeResult tick(Blackboard &bb) override {
-      if (auto data = std::get_if<SensorData>(&bb.new_event);
-          data && data->new_state == 1) {
+      if (auto sens = std::get_if<SensorData>(&bb.new_event);
+          sens && sens->new_state == 1) {
 
         if (bb.path.empty()) {
           bb.dx_um = 0;
@@ -357,10 +357,10 @@ namespace {
           return -1;
         };
 
-        auto idx = std::ranges::find(bb.path, data->sid, sid_cmp);
+        auto idx = std::ranges::find(bb.path, sens->sid, sid_cmp);
         if (idx == bb.path.end()) {
-          Debug_Puts(bb.txs_tid, "Couldn't find ", data->sid,
-                     (char)('A' + data->bank), data->number, " in path");
+          Debug_Puts(bb.txs_tid, "Couldn't find ", sens->sid,
+                     (char)('A' + sens->bank), sens->number, " in path");
           print_path.tick(bb);
           bb.error_msg = "Sensor not in path";
           return NodeResult::Failure;
@@ -393,7 +393,7 @@ namespace {
           }
           bb.dists.push({
               .from    = bb.loco->last_sensor->data,
-              .to      = *data,
+              .to      = *sens,
               .dx_um   = dx_mm * 1000,
               .d_ticks = bb.curr_tick - bb.loco->last_sensor->tick,
           });
