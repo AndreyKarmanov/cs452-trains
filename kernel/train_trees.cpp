@@ -232,7 +232,7 @@ namespace {
       uint64_t d_t    = (bb.curr_tick - last_tick) * (TICK_TIME_US / 1'000);
       last_tick       = bb.curr_tick;
 
-      uint64_t delta = 0;
+      uint64_t delta_um = 0;
       if (v_m_nm >= v_i_nm) {
         // accelerating (or cruising): constant a until v_max, then cruise
         uint64_t a     = bb.loco->a_nmpt2[bb.loco->req_speed];
@@ -240,7 +240,7 @@ namespace {
         bb.loco->ve_nm = v_i_nm + a * t_a;
 
         uint64_t t_c = d_t - t_a;
-        delta = ((a * t_a * t_a) / 2 + v_m_nm * t_c + v_i_nm * t_a) / 1000;
+        delta_um = ((a * t_a * t_a) / 2 + v_m_nm * t_c + v_i_nm * t_a) / 1000;
 
         // track which speed level our current velocity corresponds to,
         // so a later slow-down uses the right decel constant
@@ -251,10 +251,15 @@ namespace {
         bb.loco->ve_nm = v_i_nm - d * t_d;
 
         uint64_t t_c = d_t - t_d;
-        delta = (v_i_nm * t_d - (d * t_d * t_d) / 2 + v_m_nm * t_c) / 1000;
+        delta_um = (v_i_nm * t_d - (d * t_d * t_d) / 2 + v_m_nm * t_c) / 1000;
       }
 
-      bb.loco->d_um += delta;
+      // if the train is reversed, we are backing up
+      if (bb.loco->reversed_since_last_sensor) {
+        bb.loco->d_um -= delta_um;
+      } else {
+        bb.loco->d_um += delta_um;
+      }
 
       auto ve_um = bb.loco->ve_nm / (1'000);
       if (ve_um == 0) {
@@ -303,8 +308,9 @@ namespace {
         }
 
         auto sens_dist_um = path->dist_mm * 1000;
-        if (sens_dist_um > (bb.loco->d_um * (100 + PCT_TOLERANCE)) / 100 ||
-            sens_dist_um < (bb.loco->d_um * (100 - PCT_TOLERANCE)) / 100) {
+        auto abs_d_um     = bb.loco->d_um < 0 ? -bb.loco->d_um : bb.loco->d_um;
+        if (sens_dist_um > (abs_d_um * (100 + PCT_TOLERANCE)) / 100 ||
+            sens_dist_um < (abs_d_um * (100 - PCT_TOLERANCE)) / 100) {
           Debug_Puts(bb.txs_tid,
                      "Ignored sensor (out of range): ", sens->to_string(),
                      " pos ", bb.loco->d_um * 100 / sens_dist_um, "% ",
@@ -581,37 +587,40 @@ namespace {
     bool initalized{false};
     bool at_speed{false};
     SetSpeed stop_speed{0};
-    WaitNode wait_to_stop{7 * TICKS_PER_S};
     SetDirectionNode dir{false};
     SetSpeed set_speed{0};
-    Sequence going_seq{};
-
-    ReverseTree() {
-      going_seq.children.push(&stop_speed);
-      going_seq.children.push(&wait_to_stop);
-      going_seq.children.push(&dir);
-      going_seq.children.push(&set_speed);
-    }
 
     NodeResult tick(Blackboard &bb) override {
+
       if (!initalized) {
         dir        = SetDirectionNode{!bb.loco->backward};
-        at_speed   = bb.loco->req_speed > 0;
         set_speed  = SetSpeed{bb.loco->req_speed};
         initalized = true;
       }
-      if (!at_speed) {
-        auto res = dir.tick(bb);
-        if (res == NodeResult::Success) {
-          bb.loco->reversed_since_last_sensor = true;
+
+      if (bb.loco->ve_nm / 1000 > 10) {
+        auto res = stop_speed.tick(bb);
+        if (res != NodeResult::Success) {
+          return res;
         }
+        return NodeResult::Running;
+      }
+
+      auto res = dir.tick(bb);
+      if (res != NodeResult::Success) {
         return res;
       }
-      auto res = going_seq.tick(bb);
-      if (res == NodeResult::Success) {
-        bb.loco->reversed_since_last_sensor = true;
+
+      if (set_speed.req_speed > 0) {
+        res = set_speed.tick(bb);
+        if (res != NodeResult::Success) {
+          return res;
+        }
       }
-      return res;
+
+      bb.loco->reversed_since_last_sensor =
+          !bb.loco->reversed_since_last_sensor;
+      return NodeResult::Success;
     }
   };
 
@@ -677,9 +686,8 @@ namespace {
         }
       }
 
-      bb.path                  = bb.path + path_opt.value();
-      bb.loco->e_path          = bb.path;
-      bb.loco->target_node_idx = goal_idx;
+      bb.path         = bb.path + path_opt.value();
+      bb.loco->e_path = bb.path;
       print_path.tick(bb);
       return NodeResult::Success;
     }

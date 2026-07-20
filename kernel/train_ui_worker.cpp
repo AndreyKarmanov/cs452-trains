@@ -24,7 +24,7 @@ uint32_t print_state(int tx_tid, const State &state) {
 
   if (state.trains_dirty) {
     line.set("\033[", TRAIN_ROW,
-             ";2HTr | D | L | spd | est | tgt | stop | last | dx\n\r");
+             ";2HTr | D | L | spd | est | stop | last | dx\n\r");
     for (const TrainState &train : state.trains) {
       line.append(" ", train.id, " | ", train.backward ? "R" : "F", " | ",
                   train.light_on ? "1" : "0", " | ");
@@ -32,16 +32,13 @@ uint32_t print_state(int tx_tid, const State &state) {
       line.append(" | ");
       AppendPadded(line, train.ve_nm / 1000, 3);
       line.append(" | ");
-      AppendPadded(line, train.target_node_idx, 3);
-      line.append(" | ");
       AppendPadded(line, train.stop_dist_um / 1000, 4);
       line.append(" |  ");
       line.append(train.last_sensor.has_value()
                       ? train.last_sensor->sens.to_string()
                       : "---");
-      line.append(" | ");
-      AppendPadded(line, train.d_um / 1000, 3);
-      line.append("\n\r", train.e_path.decode(track).to_string(&track),
+      line.append(" | ", train.d_um / 1000);
+      line.append("\033[K\n\r", train.e_path.decode(track).to_string(&track),
                   "\033[K\n\r");
     }
     Puts(tx_tid, line);

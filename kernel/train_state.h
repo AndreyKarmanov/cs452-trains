@@ -50,7 +50,6 @@ struct TrainState {
   bool light_on : 1 = true;
 
   int inital_node_idx{-1};
-  int target_node_idx{-1};
 
   // sensors attributed to this train train
   struct SeenSensor {
@@ -74,7 +73,7 @@ struct TrainState {
 
   // units of -nm/ticks^2 (nanometer per tick^2) aka 1000*um / ticks^2
   std::array<int, 15> d_nmpt2{
-      1, 1, 11, 20, 33, 40, 53, 66, 76, 85, 92, 99, 104, 108, 112,
+      33, 1, 11, 20, 33, 40, 53, 66, 76, 85, 92, 99, 104, 108, 112,
   };
 
   // manually determined
