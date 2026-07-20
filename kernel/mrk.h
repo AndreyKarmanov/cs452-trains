@@ -182,7 +182,7 @@ struct SwitchCmd {
 struct SensorData {
   static constexpr uint8_t cmdid = 0x11;
 
-  uint16_t sensor_id;
+  uint16_t sid;
 
   uint8_t bank;
   uint8_t number;
@@ -192,10 +192,10 @@ struct SensorData {
 
   SensorData() = default;
   SensorData(const CANFRAME &frame)
-      : sensor_id((frame.decode_data_0_4() & 0xFFFF)), old_state(frame.data[4]),
+      : sid((frame.decode_data_0_4() & 0xFFFF)), old_state(frame.data[4]),
         new_state(frame.data[5]) {
-    bank   = ((sensor_id - 1) / 16);
-    number = ((sensor_id - 1) % 16) + 1;
+    bank   = ((sid - 1) / 16);
+    number = ((sid - 1) % 16) + 1;
   }
   CANFRAME to_frame() const { return {}; }
 };

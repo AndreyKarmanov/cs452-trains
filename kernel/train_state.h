@@ -53,6 +53,14 @@ struct TrainState {
   int inital_node_idx{-1};
   int target_node_idx{-1};
 
+  // sensors attributed to this train train
+  struct SeenSensor {
+    SensorData data;
+    uint32_t tick;
+  };
+  std::optional<SeenSensor> last_sensor{};
+  bool reversed_since_last_sensor{false};
+
   // units of um/tick (micrometer per tick)
   std::array<int, 15> v_max_umpt{
       0, 8, 32, 50, 78, 94, 130, 176, 222, 273, 328, 389, 450, 512, 584,
@@ -76,15 +84,6 @@ struct TrainState {
 
   // units of nm / tick
   uint64_t ve_nm{0};
-};
-
-struct SensorPrediction {
-  uint16_t sensor_id{0};
-  uint32_t min_trigger_ticks{0};
-  uint32_t max_trigger_ticks{0};
-  bool did_error{false}; // error triggers if broken sensor or switch
-  uint32_t predicted_tick{0};
-  int v_at_prediction_nm{0};
 };
 
 struct State {

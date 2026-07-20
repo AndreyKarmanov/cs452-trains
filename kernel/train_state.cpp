@@ -61,12 +61,12 @@ void State::update_from_mrk(const MRKCmd &cmd, uint32_t tick) {
                  [&](const SensorData &cmd) {
                    if (cmd.new_state) {
                      if (sensors.size() == 0 ||
-                         sensors.peek_last() != cmd.sensor_id) {
+                         sensors.peek_last() != cmd.sid) {
                        sensors_dirty = true;
                        if (sensors.size() == MAX_SENSORS_RECENT) {
                          sensors.pop();
                        }
-                       sensors.push(cmd.sensor_id);
+                       sensors.push(cmd.sid);
                      }
                    }
                  },

@@ -27,25 +27,14 @@ struct Blackboard {
 
   Path path{};
 
-  // sensors attributed to this train train
-  struct SensorSighting {
-    uint16_t sid;
-    uint32_t tick;
-  };
-  Buffer<SensorSighting, TRACK_MAX> seen_sensors{};
-  bool reversed_since_last_sensor{false};
-
   // distance logs for calibraiton
   struct DistLog {
-    uint16_t from_sid;
-    uint16_t to_sid;
+    SensorData from;
+    SensorData to;
     int dx_um;
     uint32_t d_ticks;
-    SensorData sensor_data;
   };
   Buffer<DistLog, TRACK_MAX> dists{};
-  uint32_t last_sensor_ticks{0};
-  uint16_t last_sensor_sid{0};
 
   int dx_um{0};
   int stop_dist_um{0};
