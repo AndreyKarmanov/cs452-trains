@@ -10,16 +10,12 @@ struct PathNode {
   int node_idx;
   node_type type;
   int num;
-  int dx_prev{0};
   int dx_next{0};
-  int edge_v_pct{100};
   bool br_curved{false};
-  bool reserved{false};
 
   bool operator==(const PathNode &other) const {
     return node_idx == other.node_idx && type == other.type &&
-           dx_prev == other.dx_prev && dx_next == other.dx_next &&
-           br_curved == other.br_curved;
+           dx_next == other.dx_next && br_curved == other.br_curved;
   }
 };
 
@@ -54,7 +50,6 @@ public:
 private:
   Map<NodeName, int, TRACK_MAX> node_to_idx;
 
-
   std::optional<Path> build_path(int goal_idx, const int best_dist[TRACK_MAX],
                                  const int predecessor[TRACK_MAX]) const;
 
@@ -75,8 +70,7 @@ public:
   int node_idx(const track_node *node) const {
     return static_cast<int>(node - track);
   }
-    std::optional<track_edge> get_edge(int from_idx, int to_idx) const;
-
+  std::optional<track_edge> get_edge(int from_idx, int to_idx) const;
 
   std::optional<Path> find_loop(int start_idx) const;
   std::optional<Path> find_path(int start_idx, int goal_idx,
@@ -86,12 +80,58 @@ public:
 
   const char *node_name(int node_idx) const;
 
-  const track_node operator[](int idx) const { return track[idx]; }
-  const track_node operator[](const NodeName &name) const {
+  const track_node &operator[](int idx) const { return track[idx]; }
+  const track_node &operator[](const NodeName &name) const {
     auto idx = get_idx(name);
     if (!idx.has_value())
       return track[0];
     return track[idx.value()];
+  }
+};
+
+struct EncodedPath : private Buffer<uint8_t, TRACK_MAX> {
+  EncodedPath(const Path &path) {
+    for (const auto &node : path) {
+      if (node.node_idx < 0 || node.node_idx >= TRACK_MAX) {
+        _assert(false, "bad node index in path");
+        break;
+      }
+      push(static_cast<uint8_t>(node.node_idx));
+    }
+  }
+  Path decode(const Track &track) const {
+    Path result{};
+    for (auto it = begin(); it != end(); ++it) {
+      int node_idx = static_cast<int>(*it);
+      if (node_idx < 0 || node_idx >= TRACK_MAX) {
+        _assert(false, "bad node index in encoded path");
+        continue;
+      }
+
+      const track_node &node = track[node_idx];
+      int dx_next            = 0;
+      bool curved            = false;
+
+      if (it + 1 != end()) {
+        int next_idx = static_cast<int>(*(it + 1));
+        auto edge    = track.get_edge(node_idx, next_idx);
+        if (!edge.has_value()) {
+          _assert(false, "bad edge in encoded path");
+          break;
+        }
+        dx_next = edge->dist;
+        if (node.type == NODE_BRANCH) {
+          curved = (node.edge[DIR_CURVED].dest == &track[next_idx]);
+        }
+      }
+      result.push({.node_idx  = node_idx,
+                   .type      = node.type,
+                   .num       = node.num,
+                   .dx_next   = dx_next,
+                   .br_curved = curved});
+      result.dist_mm += dx_next;
+    }
+    return result;
   }
 };
 

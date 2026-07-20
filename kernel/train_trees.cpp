@@ -45,7 +45,7 @@ namespace {
         path_str.append(bb.track[node.node_idx].name,
                         node.type == NODE_BRANCH ? node.br_curved ? "C " : "S "
                                                  : " ",
-                        node.reserved ? "R " : "NR", " >");
+                        " >");
       }
       Debug_Puts(bb.txs_tid, path_str);
       return NodeResult::Success;
@@ -324,7 +324,6 @@ namespace {
 
   struct LocalizerNode : public LeafNode {
 
-    DebugPrintPath print_path{};
     NodeResult tick(Blackboard &bb) override {
       if (auto sens = std::get_if<SensorData>(&bb.new_event);
           sens && sens->new_state == 1) {
@@ -346,13 +345,6 @@ namespace {
           Debug_Puts(bb.txs_tid, "Repathing from ", sens->sid,
                      sens->to_string(), " to ",
                      bb.track[(*(bb.path.end() - 1)).node_idx].name);
-          print_path.tick(bb);
-          auto new_path = bb.track.find_path(bb.loco->last_sensor->sens.sid - 1,
-                                             (*(bb.path.end() - 1)).node_idx);
-          if (!new_path.has_value()) {
-            bb.error_msg = "Could not find path to sensor";
-            return NodeResult::Failure;
-          }
 
           for (const auto &node : bb.path) {
             if (bb.track.has_reservation(node, bb.loco->id)) {
@@ -369,9 +361,7 @@ namespace {
               bb.track.release(node.node_idx, node.br_curved, bb.loco->id);
             }
           }
-
-          bb.path = *new_path;
-          print_path.tick(bb);
+          bb.path.clear();
         } else {
           // release the last sensor if we have one
           if (bb.loco->last_sensor.has_value()) {
@@ -406,8 +396,8 @@ namespace {
           }
 
           auto d_mm = std::accumulate(
-              bb.path.begin(), idx + 1, 0,
-              [](int acc, const PathNode &node) { return acc + node.dx_prev; });
+              bb.path.begin(), idx, 0,
+              [](int acc, const PathNode &node) { return acc + node.dx_next; });
 
           if (bb.loco->last_sensor.has_value() && d_mm > 0) {
             if (bb.dists.size() == bb.dists.capacity()) {
@@ -421,7 +411,7 @@ namespace {
             });
           }
           auto skipped_nodes = std::distance(bb.path.begin(), idx) + 1;
-          bb.path.pop(skipped_nodes);
+          bb.path.pop(skipped_nodes - 1);
         }
 
         bb.loco->d_um = 0;
@@ -454,11 +444,11 @@ namespace {
           stop_buf_um + (bb.loco->ve_nm / 1000 * TICKS_PER_S * 2);
 
       for (auto &node : bb.path) {
-        dist_um += node.dx_prev * 1000;
         if (dist_um > lookahead_um) {
           fully_reserved = false;
           break;
         }
+        dist_um += node.dx_next * 1000;
         if (!bb.track.has_reservation(node, bb.loco->id)) {
           auto res = send<TC::Ack>(bb.tcs_tid, TC::Cmd::Reserve{
                                                    .id       = bb.loco->id,
@@ -568,7 +558,7 @@ namespace {
       // todo: account for going in reverse (add offset?)
       auto remaining_mm =
           std::ranges::fold_left(bb.path, 0, [](int acc, const PathNode &node) {
-            return acc + node.dx_prev;
+            return acc + node.dx_next;
           });
 
       auto remaining_um =
@@ -991,7 +981,6 @@ namespace {
 
     LocalizerTree localizer_tree{};
     PathToNode path_to_goal{sid('D', 4) - 1};
-    Repeat path_to_goal_once{&path_to_goal, 1};
     SetSpeed max_speed{7};
     StopAtDonePath stop_at_done{};
     DebugPrintDists debug_print_dists{};
@@ -999,7 +988,7 @@ namespace {
     NavigateTree(int goal_idx, uint16_t speed, int offset_mm)
         : path_to_goal{goal_idx}, max_speed{speed}, stop_at_done{offset_mm} {
       children.push(&localizer_tree);
-      children.push(&path_to_goal_once);
+      children.push(&path_to_goal);
       children.push(&max_speed);
       children.push(&stop_at_done);
       children.push(&debug_print_dists);

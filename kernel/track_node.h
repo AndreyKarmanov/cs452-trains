@@ -24,12 +24,12 @@ struct track_edge {
   track_edge *reverse;
   track_node *src, *dest;
   int dist;             /* in millimetres */
-  int edge_v_pct;       /* percentage of max speed for this edge */
   uint32_t res_loco_id; /* who has reserved this */
 };
 
 struct track_node {
   const char *name;
+  int idx;
   node_type type;
   int num;             /* sensor or switch number */
   track_node *reverse; /* same location, but opposite direction */
