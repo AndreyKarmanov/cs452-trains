@@ -262,16 +262,6 @@ namespace {
       } else {
         bb.loco->stop_dist_um = 26000 + 582 * ve_um + 3.4 * ve_um * ve_um;
       }
-
-      if (bb.curr_tick - last_print > TICKS_PER_S / 10) {
-        last_print = bb.curr_tick;
-
-        Offset_Puts(bb.txs_tid, -2, "Spd: ", bb.loco->ve_nm / 1000,
-                    "um/ms d_t ", d_t, " v_i ", v_i_nm / 1000, " v_max ",
-                    v_m_nm / 1000, "nm/t^2 dx_mm", bb.loco->d_um / 1000,
-                    " sd_mm ", bb.loco->stop_dist_um / 1000, "\033[K");
-      }
-
       return NodeResult::Success;
     }
   };
@@ -290,43 +280,39 @@ namespace {
           return NodeResult::Success;
         }
 
-        // if it's our first sensor, wait for the given inital sensor
+        // if it's our first sensor, wait for the given initial sensor
         if (!bb.loco->last_sensor.has_value()) {
           if (bb.loco->inital_node_idx + 1 != sens->sid) {
-            Debug_Puts(bb.txs_tid, "Ignored Inital: ", sens->sid, " ",
-                       (char)('A' + sens->bank), sens->number, " expected ",
-                       bb.loco->inital_node_idx + 1);
-
             return NodeResult::Running;
           }
-          Debug_Puts(bb.txs_tid, "First sensor: ", sens->sid, " ",
-                     (char)('A' + sens->bank), sens->number);
+          bb.loco->last_sensor.emplace(
+              TrainState::SeenSensor{*sens, bb.curr_tick});
           return NodeResult::Success;
         }
 
         // otherwise, check how far we are from the sensor
         // we always use shortest path for travel, so can safely use this dist.
-        auto path = bb.track.find_path(bb.loco->last_sensor->data.sid - 1,
+        auto path = bb.track.find_path(bb.loco->last_sensor->sens.sid - 1,
                                        sens->sid - 1);
 
         // if there's no path, or 20% off our estimate, we ignore
         if (!path.has_value()) {
           Debug_Puts(bb.txs_tid, "Ignored sensor (no path): ", sens->sid, " ",
-                     (char)('A' + sens->bank), sens->number);
+                     sens->to_string());
           return NodeResult::Running;
         }
 
         auto sens_dist_um = path->dist_mm * 1000;
         if (sens_dist_um > (bb.loco->d_um * (100 + PCT_TOLERANCE)) / 100 ||
             sens_dist_um < (bb.loco->d_um * (100 - PCT_TOLERANCE)) / 100) {
-          Debug_Puts(bb.txs_tid, "Ignored sensor (out of range): ",
-                     (char)('A' + sens->bank), sens->number, " pos ",
-                     bb.loco->d_um * 100 / sens_dist_um, "% ",
+          Debug_Puts(bb.txs_tid,
+                     "Ignored sensor (out of range): ", sens->to_string(),
+                     " pos ", bb.loco->d_um * 100 / sens_dist_um, "% ",
                      (bb.loco->d_um - sens_dist_um) / 1000, " mm");
           return NodeResult::Running;
         }
         Debug_Puts(bb.txs_tid, "Attributed: ", sens->sid, " ",
-                   (char)('A' + sens->bank), sens->number, " pos ",
+                   sens->to_string(), " pos ",
                    bb.loco->d_um * 100 / sens_dist_um, "% ",
                    (bb.loco->d_um - sens_dist_um) / 1000, " mm");
         bb.loco->last_sensor.emplace(
@@ -357,48 +343,87 @@ namespace {
 
         auto idx = std::ranges::find(bb.path, sens->sid, sid_cmp);
         if (idx == bb.path.end()) {
-          Debug_Puts(bb.txs_tid, "Couldn't find ", sens->sid,
-                     (char)('A' + sens->bank), sens->number, " in path");
+          Debug_Puts(bb.txs_tid, "Repathing from ", sens->sid,
+                     sens->to_string(), " to ",
+                     bb.track[(*(bb.path.end() - 1)).node_idx].name);
           print_path.tick(bb);
-          bb.error_msg = "Sensor not in path";
-          return NodeResult::Failure;
-        }
+          auto new_path = bb.track.find_path(bb.loco->last_sensor->sens.sid - 1,
+                                             (*(bb.path.end() - 1)).node_idx);
+          if (!new_path.has_value()) {
+            bb.error_msg = "Could not find path to sensor";
+            return NodeResult::Failure;
+          }
 
-        for (auto it = bb.path.begin(); it != idx + 1; ++it) {
-          // release the reservations
-          auto &node = *it;
-          if (bb.track.has_reservation(node, bb.loco->id)) {
-            auto res = send<TC::Ack>(bb.tcs_tid, TC::Cmd::ReleaseReserve{
-                                                     .id       = bb.loco->id,
-                                                     .node_idx = node.node_idx,
-                                                     .edge_dir = node.br_curved,
-                                                 });
+          for (const auto &node : bb.path) {
+            if (bb.track.has_reservation(node, bb.loco->id)) {
+              auto res =
+                  send<TC::Ack>(bb.tcs_tid, TC::Cmd::ReleaseReserve{
+                                                .id       = bb.loco->id,
+                                                .node_idx = node.node_idx,
+                                                .edge_dir = node.br_curved,
+                                            });
+              if (!res.has_value()) {
+                bb.error_msg = "Could not release";
+                return NodeResult::Failure;
+              }
+              bb.track.release(node.node_idx, node.br_curved, bb.loco->id);
+            }
+          }
+
+          bb.path = *new_path;
+          print_path.tick(bb);
+        } else {
+          // release the last sensor if we have one
+          if (bb.loco->last_sensor.has_value()) {
+            auto node_idx = bb.loco->last_sensor->sens.sid - 1;
+            auto res      = send<TC::Ack>(bb.tcs_tid, TC::Cmd::ReleaseReserve{
+                                                          .id       = bb.loco->id,
+                                                          .node_idx = node_idx,
+                                                          .edge_dir = 0,
+                                                      });
             if (!res.has_value()) {
-              bb.error_msg = "Could not release";
+              bb.error_msg = "Could not release last sensor";
               return NodeResult::Failure;
             }
-            bb.track.release(node.node_idx, node.br_curved, bb.loco->id);
           }
+          // release all the nodes we've passed.
+          for (auto it = bb.path.begin(); it != idx; ++it) {
+            // release the reservations
+            auto &node = *it;
+            if (bb.track.has_reservation(node, bb.loco->id)) {
+              auto res =
+                  send<TC::Ack>(bb.tcs_tid, TC::Cmd::ReleaseReserve{
+                                                .id       = bb.loco->id,
+                                                .node_idx = node.node_idx,
+                                                .edge_dir = node.br_curved,
+                                            });
+              if (!res.has_value()) {
+                bb.error_msg = "Could not release";
+                return NodeResult::Failure;
+              }
+              bb.track.release(node.node_idx, node.br_curved, bb.loco->id);
+            }
+          }
+
+          auto d_mm = std::accumulate(
+              bb.path.begin(), idx + 1, 0,
+              [](int acc, const PathNode &node) { return acc + node.dx_prev; });
+
+          if (bb.loco->last_sensor.has_value() && d_mm > 0) {
+            if (bb.dists.size() == bb.dists.capacity()) {
+              bb.dists.pop();
+            }
+            bb.dists.push({
+                .from = bb.loco->last_sensor->sens,
+                .to   = *sens,
+                .d_um = d_mm * 1000,
+                .d_t  = bb.curr_tick - bb.loco->last_sensor->tick,
+            });
+          }
+          auto skipped_nodes = std::distance(bb.path.begin(), idx) + 1;
+          bb.path.pop(skipped_nodes);
         }
 
-        auto d_mm = std::accumulate(
-            bb.path.begin(), idx + 1, 0,
-            [](int acc, const PathNode &node) { return acc + node.dx_prev; });
-
-        if (bb.loco->last_sensor.has_value() && d_mm > 0) {
-          if (bb.dists.size() == bb.dists.capacity()) {
-            bb.dists.pop();
-          }
-          bb.dists.push({
-              .from = bb.loco->last_sensor->data,
-              .to   = *sens,
-              .d_um = d_mm * 1000,
-              .d_t  = bb.curr_tick - bb.loco->last_sensor->tick,
-          });
-        }
-
-        auto skipped_nodes = std::distance(bb.path.begin(), idx) + 1;
-        bb.path.pop(skipped_nodes);
         bb.loco->d_um = 0;
       }
       return NodeResult::Success;
@@ -473,7 +498,7 @@ namespace {
 
       if (bb.curr_tick - last_print_tick > TICKS_PER_S / 2) {
         last_print_tick = bb.curr_tick;
-        Offset_Puts(bb.txs_tid, -4, "Res inc, dist(mm): ", dist_um / 1000,
+        Offset_Puts(bb.txs_tid, -3, "Res inc, dist(mm): ", dist_um / 1000,
                     " min_dist(mm): ", stop_buf_um / 1000,
                     " res stop: ", reservation_stop,
                     " ful res: ", fully_reserved);
@@ -615,7 +640,7 @@ namespace {
       }
 
       auto start_idx = !bb.path.empty() ? bb.path.peek_last()->node_idx
-                                        : bb.loco->last_sensor->data.sid - 1;
+                                        : bb.loco->last_sensor->sens.sid - 1;
 
       auto startr_idx = bb.track.node_idx(bb.track[start_idx].reverse);
       auto goalr_idx  = bb.track.node_idx(bb.track[goal_idx].reverse);
@@ -1050,8 +1075,7 @@ void run_tree() {
         Overloaded{
             [&](const TC::Tree::Init &msg) {
               bb.state = msg.state;
-              bb.loco  = bb.state.get_loco(bb.loco->id);
-
+              bb.loco  = bb.state.get_loco(msg.loco_id);
               switch (msg.tree_type) {
               case TC::Tree::Type::CALIBRATE:
                 tree.emplace<CalibrateTrain>(msg.value1);

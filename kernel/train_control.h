@@ -211,9 +211,9 @@ template <size_t TX_BUFFER_SIZE = 64> class TrainControlServer {
               if (res != UNRESERVED && res != cmd.id) {
                 return false;
               }
-              Debug_Puts(tx_tid, "Res: ", track[cmd.node_idx].name,
-                         cmd.edge_dir == 0 ? "S" : "C", "(this train: ", cmd.id,
-                         ") prev ", res);
+              Offset_Puts(tx_tid, -4, "Res: ", track[cmd.node_idx].name,
+                          cmd.edge_dir == 0 ? "S" : "C",
+                          "(this train: ", cmd.id, ") prev ", res);
               track.reserve(cmd.node_idx, cmd.edge_dir, cmd.id);
               return true;
             },
@@ -315,7 +315,7 @@ template <size_t TX_BUFFER_SIZE = 64> class TrainControlServer {
 
 public:
   static constexpr auto NAME                      = "TCSERVER";
-  static constexpr auto TRACK                     = Track::Layout::A;
+  static constexpr auto TRACK                     = Track::Layout::B;
   static constexpr auto TICKS_BETWEEN_TRAIN_TICKS = 10;
   TrainControlServer() : track(TRACK) {
     auto response = RegisterAs(NAME);

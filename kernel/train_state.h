@@ -55,7 +55,7 @@ struct TrainState {
 
   // sensors attributed to this train train
   struct SeenSensor {
-    SensorData data;
+    SensorData sens;
     uint32_t tick;
   };
   std::optional<SeenSensor> last_sensor{};
