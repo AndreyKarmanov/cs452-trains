@@ -7,11 +7,10 @@
 static constexpr int STATE_ROW_INT = 8;
 static constexpr int STATUS_ROW    = STATE_ROW_INT + 1;
 static constexpr int TRAIN_ROW     = STATE_ROW_INT + 3;
-static constexpr int SENSOR_ROW    = TRAIN_ROW + MAX_TRAINS * 2 + 2;
+static constexpr int SENSOR_ROW    = TRAIN_ROW + MAX_TRAINS * 3 + 2;
 static constexpr int SWITCH_ROW    = SENSOR_ROW + 3;
 
-uint32_t print_state(int tx_tid, const State &state) {
-  uint32_t draws = 0;
+void print_state(int tx_tid, const State &state) {
   StaticString<TX::MAX_DATA_LENGTH> line;
   static Track track(TrainControlServer<>::TRACK);
 
@@ -19,7 +18,6 @@ uint32_t print_state(int tx_tid, const State &state) {
     line.set("\033[", STATUS_ROW, ";2HTrack ",
              state.stopped ? "Stopped" : "Active", "  \n\r");
     Puts(tx_tid, line);
-    ++draws;
   }
 
   if (state.trains_dirty) {
@@ -34,15 +32,21 @@ uint32_t print_state(int tx_tid, const State &state) {
       line.append(" | ");
       AppendPadded(line, train.stop_dist_um / 1000, 4);
       line.append(" |  ");
-      line.append(train.last_sensor.has_value()
-                      ? train.last_sensor->sens.to_string()
-                      : "---");
+      if (train.last_sensor.has_value()) {
+        AppendPadded(line, train.last_sensor->sens.sid, 4);
+      } else {
+        line.append("----");
+      }
       line.append(" | ", train.d_um / 1000);
       line.append("\033[K\n\r", train.e_path.decode(track).to_string(&track),
                   "\033[K\n\r");
+
+      for (const auto &[key, value] : train.reservations) {
+        line.append(track[key.node_idx].name, key.edge_dir ? "C" : "S", " ");
+        line.append("\033[K\n\r");
+      }
+      Puts(tx_tid, line);
     }
-    Puts(tx_tid, line);
-    ++draws;
   }
 
   if (state.sensors_dirty) {
@@ -55,7 +59,6 @@ uint32_t print_state(int tx_tid, const State &state) {
     }
     line.append("\n\r");
     Puts(tx_tid, line);
-    ++draws;
   }
 
   if (state.switches_dirty) {
@@ -76,10 +79,7 @@ uint32_t print_state(int tx_tid, const State &state) {
       }
     }
     Puts(tx_tid, line);
-    ++draws;
   }
-
-  return draws;
 }
 void ui_update_worker() {
   auto tcs_tid = WhoIs(TrainControlServer<>::NAME);

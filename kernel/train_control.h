@@ -25,7 +25,6 @@ template <size_t TX_BUFFER_SIZE = 64> class TrainControlServer {
   bool simple_pacing_can_send      = true;
 
   Track track;
-
   struct TreeMailbox {
     Buffer<TC::Tree::Msg, 16> msgs{};
     bool waiting = false;
@@ -211,9 +210,11 @@ template <size_t TX_BUFFER_SIZE = 64> class TrainControlServer {
               if (res != UNRESERVED && res != cmd.id) {
                 return false;
               }
-              Offset_Puts(tx_tid, -4, "Res: ", track[cmd.node_idx].name,
-                          cmd.edge_dir == 0 ? "S" : "C",
-                          "(this train: ", cmd.id, ") prev ", res);
+
+              state.get_loco(cmd.id)->reservations.set(
+                  {static_cast<uint8_t>(cmd.node_idx),
+                   static_cast<bool>(cmd.edge_dir)},
+                  true);
               track.reserve(cmd.node_idx, cmd.edge_dir, cmd.id);
               return true;
             },
@@ -233,6 +234,9 @@ template <size_t TX_BUFFER_SIZE = 64> class TrainControlServer {
                 return false;
               }
 
+              state.get_loco(cmd.id)->reservations.remove(
+                  {static_cast<uint8_t>(cmd.node_idx),
+                   static_cast<bool>(cmd.edge_dir)});
               track.release(cmd.node_idx, cmd.edge_dir, cmd.id);
               return true;
             },
@@ -243,7 +247,7 @@ template <size_t TX_BUFFER_SIZE = 64> class TrainControlServer {
 
   void handle(const int tid, const TC::RX &msg) {
     auto mrk = decode_frame(msg.frame);
-    state.update_from_mrk(mrk, msg.time);
+    state.update(mrk);
     simple_pacing_can_send = simple_pacing_can_send || (msg.frame.resp == 1);
     maybe_tx();
     publish_tree_update(TC::Tree::Update{.mrk = mrk, .time = msg.time});

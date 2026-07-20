@@ -364,6 +364,9 @@ namespace {
                 bb.error_msg = "Could not release";
                 return NodeResult::Failure;
               }
+              bb.loco->reservations.remove(TrainState::Reservation{
+                  .node_idx = static_cast<uint8_t>(node.node_idx),
+                  .edge_dir = node.br_curved});
               bb.track.release(node.node_idx, node.br_curved, bb.loco->id);
             }
           }
@@ -397,6 +400,10 @@ namespace {
                 bb.error_msg = "Could not release";
                 return NodeResult::Failure;
               }
+
+              bb.loco->reservations.remove(TrainState::Reservation{
+                  .node_idx = static_cast<uint8_t>(node.node_idx),
+                  .edge_dir = node.br_curved});
               bb.track.release(node.node_idx, node.br_curved, bb.loco->id);
             }
           }
@@ -470,6 +477,9 @@ namespace {
             fully_reserved = false;
             break;
           }
+
+          bb.loco->reservations.set(
+              {static_cast<uint8_t>(node.node_idx), node.br_curved}, true);
           bb.track.reserve(node.node_idx, node.br_curved, bb.loco->id);
         }
       }
@@ -629,7 +639,6 @@ namespace {
 
     std::optional<ReverseTree> rev_tree{std::in_place};
 
-    DebugPrintPath print_path{};
     PathToNode(int goal_idx) : goal_idx(goal_idx) {}
 
     NodeResult tick(Blackboard &bb) override {
@@ -688,7 +697,6 @@ namespace {
 
       bb.path         = bb.path + path_opt.value();
       bb.loco->e_path = bb.path;
-      print_path.tick(bb);
       return NodeResult::Success;
     }
   };
@@ -1107,7 +1115,7 @@ void run_tree() {
               return true;
             },
             [&](const TC::Tree::Update &msg) {
-              bb.state.update_from_mrk(msg.mrk, msg.time);
+              bb.state.update(msg.mrk);
               bb.new_event = msg.mrk;
               bb.curr_tick = msg.time;
               return true;

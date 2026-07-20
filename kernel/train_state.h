@@ -1,6 +1,7 @@
 #pragma once
 
 #include "buffer.h"
+#include "map.h"
 #include "mrk.h"
 #include "pathfind.h"
 #include <stdint.h>
@@ -90,6 +91,22 @@ struct TrainState {
 
   // stop dist
   int stop_dist_um{0};
+
+  struct Reservation {
+    uint8_t node_idx : 7 {0};
+    bool edge_dir : 1 {0};
+
+    bool operator==(const Reservation &other) const {
+      return node_idx == other.node_idx && edge_dir == other.edge_dir;
+    }
+  };
+  struct ReservationHasher {
+    constexpr size_t operator()(const Reservation &r) const noexcept {
+      return (static_cast<size_t>(r.node_idx) << 1) |
+             static_cast<size_t>(r.edge_dir);
+    }
+  };
+  Map<Reservation, bool, TRACK_MAX, ReservationHasher> reservations{};
 };
 
 struct State {
@@ -164,7 +181,7 @@ struct State {
     status_dirty   = false;
   }
 
-  void update_from_mrk(const MRKCmd &cmd, uint32_t tick);
+  void update(const MRKCmd &cmd);
   TrainState *get_loco(uint32_t loco_id) {
     for (auto &train : trains) {
       if (train.id == loco_id) {
