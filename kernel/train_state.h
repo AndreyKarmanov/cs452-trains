@@ -42,6 +42,21 @@
 // 13,534,84,85
 // 14,607,86,94
 
+struct Reservation {
+  uint8_t node_idx : 7 {0};
+  bool edge_dir : 1 {0};
+
+  bool operator==(const Reservation &other) const {
+    return node_idx == other.node_idx && edge_dir == other.edge_dir;
+  }
+};
+struct ReservationHasher {
+  constexpr size_t operator()(const Reservation &r) const noexcept {
+    return (static_cast<size_t>(r.node_idx) << 1) |
+           static_cast<size_t>(r.edge_dir);
+  }
+};
+
 struct TrainState {
   uint32_t id;
 
@@ -94,22 +109,6 @@ struct TrainState {
   // stop dist
   int stop_dist_um{0};
 
-  struct Reservation {
-    uint8_t node_idx : 7 {0};
-    bool edge_dir : 1 {0};
-
-    bool operator==(const Reservation &other) const {
-      return node_idx == other.node_idx && edge_dir == other.edge_dir;
-    }
-  };
-  struct ReservationHasher {
-    constexpr size_t operator()(const Reservation &r) const noexcept {
-      return (static_cast<size_t>(r.node_idx) << 1) |
-             static_cast<size_t>(r.edge_dir);
-    }
-  };
-  Map<Reservation, bool, TRACK_MAX, ReservationHasher> reservations{};
-
   bool operator==(const TrainState &other) const = default;
 };
 
@@ -159,6 +158,8 @@ struct State {
   Buffer<uint16_t, MAX_SENSORS_RECENT> sensors{};
 
   // trains
+  Map<Reservation, uint32_t, TRACK_MAX, ReservationHasher> reservations{};
+
   // Map<int, TrainState, MAX_TRAINS> train_map{};
   std::array<TrainState, MAX_TRAINS> trains{{{13, 0, false, true},
                                              {14, 0, false, true},

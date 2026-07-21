@@ -47,7 +47,10 @@ void print_state(int tx_tid, const State &state, State &prev) {
       line.append("\033[K\n\r", train.e_path.decode(track).to_string(&track),
                   "\033[K\n\r");
 
-      for (const auto &[key, value] : train.reservations) {
+      for (const auto &[key, value] : state.reservations) {
+        if (value != train.id) {
+          continue;
+        }
         line.append(track[key.node_idx].name, key.edge_dir ? "C" : "S", " ");
       }
       line.append("\033[K\n\r");

@@ -211,10 +211,11 @@ template <size_t TX_BUFFER_SIZE = 64> class TrainControlServer {
                 return false;
               }
 
-              state.get_loco(cmd.id)->reservations.set(
-                  {static_cast<uint8_t>(cmd.node_idx),
-                   static_cast<bool>(cmd.edge_dir)},
-                  true);
+              state.reservations.set(
+                  Reservation{static_cast<uint8_t>(cmd.node_idx),
+                              static_cast<bool>(cmd.edge_dir)},
+                  cmd.id);
+
               track.reserve(cmd.node_idx, cmd.edge_dir, cmd.id);
               return true;
             },
@@ -227,16 +228,17 @@ template <size_t TX_BUFFER_SIZE = 64> class TrainControlServer {
               }
 
               // can't release if not reserved by this train
-              if (auto res = track.get_reservation(cmd.node_idx, cmd.edge_dir);
-                  res != UNRESERVED && res != cmd.id) {
+              auto res = track.get_reservation(cmd.node_idx, cmd.edge_dir);
+              if (res != UNRESERVED && res != cmd.id) {
                 Debug_Puts(tx_tid, "Can't release reservation, reserved by ",
                            res, " (this train: ", cmd.id, ")");
                 return false;
               }
 
-              state.get_loco(cmd.id)->reservations.remove(
-                  {static_cast<uint8_t>(cmd.node_idx),
-                   static_cast<bool>(cmd.edge_dir)});
+              state.reservations.remove(
+                  Reservation{static_cast<uint8_t>(cmd.node_idx),
+                              static_cast<bool>(cmd.edge_dir)});
+
               track.release(cmd.node_idx, cmd.edge_dir, cmd.id);
               return true;
             },

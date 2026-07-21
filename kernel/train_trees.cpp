@@ -346,14 +346,16 @@ namespace {
           return -1;
         };
 
+        // try to find the sensor in our path. If not there, repath.
         auto idx = std::ranges::find(bb.path, sens->sid, sid_cmp);
         if (idx == bb.path.end()) {
           Debug_Puts(bb.txs_tid, "Repathing from ", sens->sid,
                      sens->to_string(), " to ",
                      bb.track[(*(bb.path.end() - 1)).node_idx].name);
 
+          //  repathing means we release all reservations, and clear path.
           for (const auto &node : bb.path) {
-            if (bb.track.has_reservation(node, bb.loco->id)) {
+            if (node.has_reservation) {
               auto res =
                   send<TC::Ack>(bb.tcs_tid, TC::Cmd::ReleaseReserve{
                                                 .id       = bb.loco->id,
@@ -364,32 +366,22 @@ namespace {
                 bb.error_msg = "Could not release";
                 return NodeResult::Failure;
               }
-              bb.loco->reservations.remove(TrainState::Reservation{
-                  .node_idx = static_cast<uint8_t>(node.node_idx),
-                  .edge_dir = node.br_curved});
-              bb.track.release(node.node_idx, node.br_curved, bb.loco->id);
             }
           }
           bb.path.clear();
         } else {
-          // release the last sensor if we have one
-          if (bb.loco->last_sensor.has_value()) {
-            auto node_idx = bb.loco->last_sensor->sens.sid - 1;
-            auto res      = send<TC::Ack>(bb.tcs_tid, TC::Cmd::ReleaseReserve{
-                                                          .id       = bb.loco->id,
-                                                          .node_idx = node_idx,
-                                                          .edge_dir = 0,
-                                                      });
-            if (!res.has_value()) {
-              bb.error_msg = "Could not release last sensor";
-              return NodeResult::Failure;
-            }
-          }
-          // release all the nodes we've passed.
+          // otherwise, we found the sensor in our path
+          // we release everything up to it
+          // E.g.
+          // Path = A > B > C > D > E
+          // Sensor = C
+          // We release A and B, and keep C > D > E
+          // this way, we know "dx_um" means "distance from C along the path"
           for (auto it = bb.path.begin(); it != idx; ++it) {
             // release the reservations
             auto &node = *it;
-            if (bb.track.has_reservation(node, bb.loco->id)) {
+
+            if (node.has_reservation) {
               auto res =
                   send<TC::Ack>(bb.tcs_tid, TC::Cmd::ReleaseReserve{
                                                 .id       = bb.loco->id,
@@ -400,11 +392,7 @@ namespace {
                 bb.error_msg = "Could not release";
                 return NodeResult::Failure;
               }
-
-              bb.loco->reservations.remove(TrainState::Reservation{
-                  .node_idx = static_cast<uint8_t>(node.node_idx),
-                  .edge_dir = node.br_curved});
-              bb.track.release(node.node_idx, node.br_curved, bb.loco->id);
+              node.has_reservation = false;
             }
           }
 
@@ -462,7 +450,7 @@ namespace {
           break;
         }
         dist_um += node.dx_next * 1000;
-        if (!bb.track.has_reservation(node, bb.loco->id)) {
+        if (!node.has_reservation) {
           auto res = send<TC::Ack>(bb.tcs_tid, TC::Cmd::Reserve{
                                                    .id       = bb.loco->id,
                                                    .node_idx = node.node_idx,
@@ -477,10 +465,7 @@ namespace {
             fully_reserved = false;
             break;
           }
-
-          bb.loco->reservations.set(
-              {static_cast<uint8_t>(node.node_idx), node.br_curved}, true);
-          bb.track.reserve(node.node_idx, node.br_curved, bb.loco->id);
+          node.has_reservation = true;
         }
       }
 
@@ -514,14 +499,14 @@ namespace {
       }
 
       for (auto &node : bb.path) {
-        if (!bb.track.has_reservation(node, bb.loco->id)) {
+        if (!node.has_reservation) {
           break;
         }
 
         if (node.type == NODE_BRANCH &&
-            node.br_curved != bb.state.is_switch_curved(node.num)) {
-          auto res = send<TC::Ack>(bb.tcs_tid,
-                                   TC::Cmd::Switch(node.num, !node.br_curved));
+            node.br_curved != bb.state.is_switch_curved(node.node_idx + 1)) {
+          auto res = send<TC::Ack>(
+              bb.tcs_tid, TC::Cmd::Switch(node.node_idx + 1, !node.br_curved));
           if (!res.has_value()) {
             bb.error_msg = "Switch cmd failed";
             return NodeResult::Failure;

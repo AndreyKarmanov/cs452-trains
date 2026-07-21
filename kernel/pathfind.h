@@ -11,7 +11,8 @@ struct PathNode {
   node_type type;
   int num;
   int dx_next{0};
-  bool br_curved{false};
+  bool br_curved : 1 {false};
+  bool has_reservation : 1 {false};
 
   bool operator==(const PathNode &other) const {
     return node_idx == other.node_idx && type == other.type &&
