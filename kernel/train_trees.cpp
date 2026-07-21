@@ -502,14 +502,6 @@ namespace {
         return go.tick(bb);
       }
 
-      if (bb.curr_tick - last_print_tick > TICKS_PER_S / 2) {
-        last_print_tick = bb.curr_tick;
-        Offset_Puts(bb.txs_tid, -3, "Res inc, dist(mm): ", dist_um / 1000,
-                    " min_dist(mm): ", stop_buf_um / 1000,
-                    " res stop: ", reservation_stop,
-                    " ful res: ", fully_reserved);
-      }
-
       return NodeResult::Success;
     }
   };
@@ -572,16 +564,13 @@ namespace {
 
       // todo: account for going to a reversed destination (invert offset)
       // todo: account for going in reverse (add offset?)
-      auto remaining_mm =
-          std::ranges::fold_left(bb.path, 0, [](int acc, const PathNode &node) {
-            return acc + node.dx_next;
-          });
-
       auto remaining_um =
-          remaining_mm * 1000 - bb.loco->d_um + offset_mm * 1000;
-
-      Offset_Puts(bb.txs_tid, -3, "D: ", remaining_um / 1000,
-                  "mm sd: ", bb.loco->stop_dist_um / 1000, "mm");
+          std::ranges::fold_left(bb.path, 0,
+                                 [](int acc, const PathNode &node) {
+                                   return acc + node.dx_next;
+                                 }) *
+              1000 -
+          bb.loco->d_um + offset_mm * 1000;
 
       if (remaining_um < bb.loco->stop_dist_um) {
         stopping = true;

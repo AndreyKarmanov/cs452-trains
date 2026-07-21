@@ -179,8 +179,8 @@ static void fire_command(char *buf, size_t blen, int tx_tid) {
   } else if (strncmp(cmd, "t buf", 5) == 0) {
     test_buffer();
   } else if (strncmp(cmd, "train", 5) == 0) {
-    auto tid    = create(1, train_controller_program_task);
-    std::ignore = send<TC::Ack>(tid, TC::UIReady{});
+    auto tid = create(1, train_controller_program_task);
+    await_task(tid);
     Puts(tx_tid, "\033[2J\033[1;1H");
 
   } else {

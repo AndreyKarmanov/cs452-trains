@@ -185,6 +185,17 @@ public:
     }
   }
 
+  constexpr bool operator==(const Map &other) const {
+    if (count != other.count)
+      return false;
+    for (const auto &[key, value] : *this) {
+      auto other_value = other.get(key);
+      if (!other_value.has_value() || *other_value != value)
+        return false;
+    }
+    return true;
+  }
+
   constexpr size_t size() const { return count; }
   constexpr bool contains(const K &key) const { return get(key).has_value(); }
 

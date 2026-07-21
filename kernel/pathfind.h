@@ -138,6 +138,8 @@ struct EncodedPath : private Buffer<uint8_t, TRACK_MAX> {
     }
     return result;
   }
+
+  bool operator==(const EncodedPath &other) const = default;
 };
 
 void test_pathfind();

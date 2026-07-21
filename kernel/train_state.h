@@ -56,6 +56,8 @@ struct TrainState {
   struct SeenSensor {
     SensorData sens;
     uint32_t tick;
+
+    bool operator==(const SeenSensor &other) const = default;
   };
   std::optional<SeenSensor> last_sensor{};
   bool reversed_since_last_sensor{false};
@@ -107,6 +109,8 @@ struct TrainState {
     }
   };
   Map<Reservation, bool, TRACK_MAX, ReservationHasher> reservations{};
+
+  bool operator==(const TrainState &other) const = default;
 };
 
 struct State {
@@ -182,6 +186,7 @@ struct State {
   }
 
   void update(const MRKCmd &cmd);
+
   TrainState *get_loco(uint32_t loco_id) {
     for (auto &train : trains) {
       if (train.id == loco_id) {

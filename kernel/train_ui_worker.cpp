@@ -10,20 +10,26 @@ static constexpr int TRAIN_ROW     = STATE_ROW_INT + 3;
 static constexpr int SENSOR_ROW    = TRAIN_ROW + MAX_TRAINS * 3 + 2;
 static constexpr int SWITCH_ROW    = SENSOR_ROW + 3;
 
-void print_state(int tx_tid, const State &state) {
+void print_state(int tx_tid, const State &state, State &prev) {
   StaticString<TX::MAX_DATA_LENGTH> line;
   static Track track(TrainControlServer<>::TRACK);
 
-  if (state.status_dirty) {
+  if (state.stopped != prev.stopped) {
     line.set("\033[", STATUS_ROW, ";2HTrack ",
              state.stopped ? "Stopped" : "Active", "  \n\r");
     Puts(tx_tid, line);
   }
 
-  if (state.trains_dirty) {
+  if (state.trains != prev.trains) {
     line.set("\033[", TRAIN_ROW,
              ";2HTr | D | L | spd | est | stop | last | dx\n\r");
     for (const TrainState &train : state.trains) {
+
+      if (train == *prev.get_loco(train.id)) {
+        // skip lines if the train state hasn't changed
+        Puts(tx_tid, "\n\r\n\r\n\r");
+        continue;
+      }
       line.append(" ", train.id, " | ", train.backward ? "R" : "F", " | ",
                   train.light_on ? "1" : "0", " | ");
       AppendPadded(line, train.req_speed, 3);
@@ -33,9 +39,9 @@ void print_state(int tx_tid, const State &state) {
       AppendPadded(line, train.stop_dist_um / 1000, 4);
       line.append(" |  ");
       if (train.last_sensor.has_value()) {
-        AppendPadded(line, train.last_sensor->sens.sid, 4);
+        AppendPadded(line, train.last_sensor->sens.sid, 3);
       } else {
-        line.append("----");
+        line.append("---");
       }
       line.append(" | ", train.d_um / 1000);
       line.append("\033[K\n\r", train.e_path.decode(track).to_string(&track),
@@ -43,13 +49,13 @@ void print_state(int tx_tid, const State &state) {
 
       for (const auto &[key, value] : train.reservations) {
         line.append(track[key.node_idx].name, key.edge_dir ? "C" : "S", " ");
-        line.append("\033[K\n\r");
       }
+      line.append("\033[K\n\r");
       Puts(tx_tid, line);
     }
   }
 
-  if (state.sensors_dirty) {
+  if (state.sensors != prev.sensors) {
     line.set("\033[", SENSOR_ROW, ";2HRecent Sensors \n\r\033[K   ");
     for (size_t i = state.sensors.size(); i-- > 0;) {
       uint16_t s_id = state.sensors[i].value();
@@ -61,7 +67,7 @@ void print_state(int tx_tid, const State &state) {
     Puts(tx_tid, line);
   }
 
-  if (state.switches_dirty) {
+  if (state.switches != prev.switches) {
     line.set("\033[", SWITCH_ROW, ";2HSwitches\n\r");
     for (int sw_id = 0; sw_id < 22; ++sw_id) {
       const char c =
@@ -91,14 +97,16 @@ void ui_update_worker() {
   auto cs_tid = WhoIs(ClockServer<>::NAME);
   _assert(cs_tid >= 0, "CLOCK SERVER WHOIS FAILED");
 
+  State prev_state{};
   while (true) {
     auto cans_reply = send<TC::UIUpdate>(tcs_tid, TC::UIReady{});
     if (!cans_reply.has_value()) {
       break;
     }
 #if !defined(DATA_COLLECTION) || !DATA_COLLECTION
-    print_state(tx_tid, cans_reply->state);
+    print_state(tx_tid, cans_reply->state, prev_state);
 #endif
+    prev_state = cans_reply->state;
     Delay(cs_tid, TICKS_PER_S / 10);
   }
 
