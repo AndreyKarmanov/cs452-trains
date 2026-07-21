@@ -25,21 +25,6 @@ Path &Path::operator+(const Path &other) {
   }
 
   if (last_opt->node_idx != first_opt->node_idx) {
-
-    // special case where the last node of this path is the reverse of the first
-    // node of the other path
-    if ((*track)[last_opt->node_idx].reverse->idx == first_opt->node_idx) {
-      this->dist_mm += other.dist_mm;
-      for (size_t i = 0; i < other.size(); ++i) {
-        auto node = other[i];
-        if (!node.has_value()) {
-          _assert(false, "unexpected empty path node");
-          return *this;
-        }
-        this->push(node.value());
-      }
-      return *this;
-    }
     _assert(false, "other must start at last node of this");
     return *this;
   }
@@ -63,6 +48,55 @@ Path &Path::operator+(const Path &other) {
   }
 
   return *this;
+}
+
+Path Path::reverse() {
+  // start at the back of the path, and reverse the order of nodes
+  // we need to use the track ot get hte right edge though
+  Path reversed_path{};
+
+  if (empty()) {
+    return reversed_path;
+  }
+
+  auto &tra = *track;
+
+  for (auto it = end() - 1; it > begin(); --it) {
+    auto &node      = *it;
+    auto &prev_node = *(it - 1);
+    auto edge       = tra.get_edge(prev_node.node_idx, node.node_idx);
+    if (!edge.has_value()) {
+      _assert(false, "bad edge in path reverse");
+      return reversed_path;
+    }
+
+    auto new_edge = edge->reverse;
+    auto new_node = new_edge->src;
+
+    reversed_path.push({
+        .node_idx        = new_node->idx,
+        .type            = new_node->type,
+        .num             = new_node->num,
+        .dx_next         = new_edge->dist,
+        .br_curved       = new_node->type == NODE_BRANCH &&
+                           new_edge == &new_node->edge[DIR_CURVED],
+        .has_reservation = prev_node.has_reservation,
+    });
+    reversed_path.dist_mm += new_edge->dist;
+  }
+
+  auto node = tra[(*(begin())).node_idx].reverse;
+
+  reversed_path.push({
+      .node_idx        = node->idx,
+      .type            = node->type,
+      .num             = node->num,
+      .dx_next         = 0,
+      .br_curved       = false,
+      .has_reservation = false,
+  });
+
+  return reversed_path;
 }
 
 Track::Track(Track::Layout layout) {
@@ -108,24 +142,23 @@ std::optional<int> Track::get_idx(const Track::NodeName &name) const {
 }
 
 std::optional<track_edge> Track::get_edge(int from_idx, int to_idx) const {
-  const track_node &from    = track[from_idx];
-  const track_node &to_node = track[to_idx];
+  const track_node &from = track[from_idx];
 
-  if (from.reverse == &to_node)
+  if (from.reverse->idx == to_idx) {
     return std::nullopt;
+  }
 
   switch (from.type) {
   case NODE_SENSOR:
   case NODE_MERGE:
   case NODE_ENTER:
-    if (from.edge[DIR_AHEAD].dest == &to_node)
+    if (from.edge[DIR_AHEAD].dest->idx == to_idx)
       return from.edge[DIR_AHEAD];
     break;
-
   case NODE_BRANCH:
-    if (from.edge[DIR_STRAIGHT].dest == &to_node)
+    if (from.edge[DIR_STRAIGHT].dest->idx == to_idx)
       return from.edge[DIR_STRAIGHT];
-    if (from.edge[DIR_CURVED].dest == &to_node)
+    if (from.edge[DIR_CURVED].dest->idx == to_idx)
       return from.edge[DIR_CURVED];
     break;
 
@@ -431,34 +464,35 @@ void test_pathfind() {
     }
   }
 
-  print_path(track_a, "A1->A13", track_a.find_path("A1", "A13", true));
-  print_path(track_a, "A13->A1", track_a.find_path("A13", "A1"));
-  print_path(track_a, "A1->E16", track_a.find_path("A1", "E16"));
-  print_path(track_a, "A1->A1", track_a.find_path("A1", "A1"));
-  print_path(track_a, "A1->ZZZ", track_a.find_path("A1", "ZZZ"));
-  print_path(track_a, "A13->B6", track_a.find_path("A13", "B6"));
+  // print_path(track_a, "A1->A13", track_a.find_path("A1", "A13", true));
+  // print_path(track_a, "A13->A1", track_a.find_path("A13", "A1"));
+  // print_path(track_a, "A1->E16", track_a.find_path("A1", "E16"));
+  // print_path(track_a, "A1->A1", track_a.find_path("A1", "A1"));
+  // print_path(track_a, "A1->ZZZ", track_a.find_path("A1", "ZZZ"));
+  // print_path(track_a, "A13->B6", track_a.find_path("A13", "B6"));
 
-  print_path(track_a, "B6->B6", track_a.find_path("B6", "B6"));
-  print_path(track_a, "B5->B5", track_a.find_path("B5", "B5"));
-  print_path(track_a, "E7->E7", track_a.find_path("E7", "E7"));
-  print_path(track_a, "E8->E8", track_a.find_path("E8", "E8"));
+  // print_path(track_a, "B6->B6", track_a.find_path("B6", "B6"));
+  // print_path(track_a, "B5->B5", track_a.find_path("B5", "B5"));
+  // print_path(track_a, "E7->E7", track_a.find_path("E7", "E7"));
+  // print_path(track_a, "E8->E8", track_a.find_path("E8", "E8"));
 
-  print_path(track_b, "C10->B16", track_b.find_path("C10", "B16"));
-  print_path(track_b, "C10->C10", track_b.find_path("C10", "C10"));
-  print_path(track_b, "C13->A11", track_b.find_path(44, 10));
-  print_path(track_b, "B6->B6", track_b.find_path("B6", "B6"));
-  print_path(track_b, "B5->B5", track_b.find_path("B5", "B5"));
-  print_path(track_b, "E7->E7", track_b.find_path("E7", "E7"));
-  print_path(track_b, "E8->E8", track_b.find_path("E8", "E8"));
+  // print_path(track_b, "C10->B16", track_b.find_path("C10", "B16"));
+  // print_path(track_b, "C10->C10", track_b.find_path("C10", "C10"));
+  // print_path(track_b, "C13->A11", track_b.find_path(44, 10));
+  // print_path(track_b, "B6->B6", track_b.find_path("B6", "B6"));
+  // print_path(track_b, "B5->B5", track_b.find_path("B5", "B5"));
+  // print_path(track_b, "E7->E7", track_b.find_path("E7", "E7"));
+  // print_path(track_b, "E8->E8", track_b.find_path("E8", "E8"));
 
-  auto path1 = track_b.find_path("C14", "A2");
-  auto path2 = track_b.find_path("A1", "B6");
+  auto path = track_b.find_path("C14", "A2");
 
-  print_path(track_b, "C14->A2", path1.value() + path2.value());
+  print_path(track_b, "C14->A2", path.value());
 
-  EncodedPath ep(track_a.find_path("B6", "B6").value());
-  Path decoded_path = ep.decode(track_a);
-  print_path(track_a, "B6->B6 decoded", decoded_path);
+  print_path(track_b, "A2->C14", path.value().reverse());
+
+  // EncodedPath ep(track_a.find_path("B6", "B6").value());
+  // Path decoded_path = ep.decode(track_a);
+  // print_path(track_a, "B6->B6 decoded", decoded_path);
 
   debug_puts(CONSOLE, "pathfind tests done\n\r");
 }

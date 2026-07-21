@@ -254,12 +254,7 @@ namespace {
       }
 
       // if the train is reversed, we are backing up
-      if (bb.loco->reversed_since_last_sensor) {
-        Debug_Puts(bb.txs_tid, "Backing up: ", delta_um, " um");
-        bb.loco->d_um -= delta_um;
-      } else {
-        bb.loco->d_um += delta_um;
-      }
+      bb.loco->d_um += delta_um;
 
       auto ve_um = bb.loco->ve_nm / (1'000);
       if (ve_um == 0) {
@@ -295,10 +290,11 @@ namespace {
           return NodeResult::Success;
         }
 
-        // otherwise, check how far we are from the sensor
-        // we always use shortest path for travel, so can safely use this dist.
-        auto path = bb.track.find_path(bb.loco->last_sensor->sens.sid - 1,
-                                       sens->sid - 1);
+        // relative to the first sensor
+        auto start_node_idx = bb.path.empty()
+                                  ? bb.loco->last_sensor->sens.sid - 1
+                                  : (*bb.path.begin()).node_idx;
+        auto path           = bb.track.find_path(start_node_idx, sens->sid - 1);
 
         // if there's no path, or 20% off our estimate, we ignore
         if (!path.has_value()) {
@@ -317,13 +313,16 @@ namespace {
                      (bb.loco->d_um - sens_dist_um) / 1000, " mm");
           return NodeResult::Running;
         }
+
         Debug_Puts(bb.txs_tid, "Attributed: ", sens->sid, " ",
                    sens->to_string(), " pos ",
                    bb.loco->d_um * 100 / sens_dist_um, "% ",
                    (bb.loco->d_um - sens_dist_um) / 1000, " mm");
+
         bb.loco->last_sensor.emplace(
             TrainState::SeenSensor{*sens, bb.curr_tick});
       }
+
       return NodeResult::Success;
     }
   };
@@ -605,8 +604,6 @@ namespace {
         }
       }
 
-      bb.loco->reversed_since_last_sensor =
-          !bb.loco->reversed_since_last_sensor;
       return NodeResult::Success;
     }
   };
@@ -663,19 +660,42 @@ namespace {
         return NodeResult::Failure;
       }
 
+      auto new_path = path_opt.value();
+
+      bb.path.track = &bb.track;
+
       if (should_reverse) {
         auto res = rev_tree->tick(bb);
 
         if (res == NodeResult::Success) {
           Debug_Puts(bb.txs_tid, "Done reversing");
-
           rev_tree.emplace();
+
+          Debug_Puts(bb.txs_tid, "Curr path: ", bb.path.to_string(&bb.track));
+          Debug_Puts(bb.txs_tid,
+                     "Rev path: ", bb.path.reverse().to_string(&bb.track));
+          Debug_Puts(bb.txs_tid,
+                     "New segment: ", new_path.to_string(&bb.track));
+          Debug_Puts(bb.txs_tid, "New path: ",
+                     (new_path + bb.path.reverse()).to_string(&bb.track));
+          bb.loco->d_um = bb.path.dist_mm * 1000 - bb.loco->d_um;
+          bb.path       = new_path;
         } else {
           return res;
         }
+      } else {
+        Debug_Puts(bb.txs_tid, "Not reversing");
+
+        Debug_Puts(bb.txs_tid, "Curr path: ", bb.path.to_string(&bb.track));
+        Debug_Puts(bb.txs_tid,
+                   "Rev path: ", bb.path.reverse().to_string(&bb.track));
+        Debug_Puts(bb.txs_tid, "New segment: ", new_path.to_string(&bb.track));
+        Debug_Puts(bb.txs_tid, "New path: ",
+                   (new_path + bb.path.reverse()).to_string(&bb.track));
+
+        bb.path = bb.path + new_path;
       }
 
-      bb.path         = bb.path + path_opt.value();
       bb.loco->e_path = bb.path;
       return NodeResult::Success;
     }

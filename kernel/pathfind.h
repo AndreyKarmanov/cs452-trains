@@ -47,6 +47,8 @@ public:
   }
 
   StaticString<128> to_string(const Track *track) const;
+
+  Path reverse();
 };
 
 class Track {
