@@ -9,8 +9,7 @@
 #define SENSOR_ROW (TRAIN_ROW + MAX_TRAINS + 2)
 #define SWITCH_ROW (SENSOR_ROW + 3)
 
-void State::update_from_mrk(const MRKCmd &cmd, uint32_t tick) {
-  (void)tick;
+void State::update(const MRKCmd &cmd) {
   std::visit(Overloaded{
                  [&](const LightCmd &cmd) {
                    trains_dirty = true;

@@ -45,7 +45,7 @@ namespace {
         path_str.append(bb.track[node.node_idx].name,
                         node.type == NODE_BRANCH ? node.br_curved ? "C " : "S "
                                                  : " ",
-                        node.reserved ? "R " : "NR", " >");
+                        " >");
       }
       Debug_Puts(bb.txs_tid, path_str);
       return NodeResult::Success;
@@ -232,7 +232,7 @@ namespace {
       uint64_t d_t    = (bb.curr_tick - last_tick) * (TICK_TIME_US / 1'000);
       last_tick       = bb.curr_tick;
 
-      uint64_t delta = 0;
+      uint64_t delta_um = 0;
       if (v_m_nm >= v_i_nm) {
         // accelerating (or cruising): constant a until v_max, then cruise
         uint64_t a     = bb.loco->a_nmpt2[bb.loco->req_speed];
@@ -240,7 +240,7 @@ namespace {
         bb.loco->ve_nm = v_i_nm + a * t_a;
 
         uint64_t t_c = d_t - t_a;
-        delta = ((a * t_a * t_a) / 2 + v_m_nm * t_c + v_i_nm * t_a) / 1000;
+        delta_um = ((a * t_a * t_a) / 2 + v_m_nm * t_c + v_i_nm * t_a) / 1000;
 
         // track which speed level our current velocity corresponds to,
         // so a later slow-down uses the right decel constant
@@ -251,10 +251,15 @@ namespace {
         bb.loco->ve_nm = v_i_nm - d * t_d;
 
         uint64_t t_c = d_t - t_d;
-        delta = (v_i_nm * t_d - (d * t_d * t_d) / 2 + v_m_nm * t_c) / 1000;
+        delta_um = (v_i_nm * t_d - (d * t_d * t_d) / 2 + v_m_nm * t_c) / 1000;
       }
 
-      bb.loco->d_um += delta;
+      // if the train is reversed, we are backing up
+      if (bb.loco->reversed_since_last_sensor) {
+        bb.loco->d_um -= delta_um;
+      } else {
+        bb.loco->d_um += delta_um;
+      }
 
       auto ve_um = bb.loco->ve_nm / (1'000);
       if (ve_um == 0) {
@@ -303,8 +308,9 @@ namespace {
         }
 
         auto sens_dist_um = path->dist_mm * 1000;
-        if (sens_dist_um > (bb.loco->d_um * (100 + PCT_TOLERANCE)) / 100 ||
-            sens_dist_um < (bb.loco->d_um * (100 - PCT_TOLERANCE)) / 100) {
+        auto abs_d_um     = bb.loco->d_um < 0 ? -bb.loco->d_um : bb.loco->d_um;
+        if (sens_dist_um > (abs_d_um * (100 + PCT_TOLERANCE)) / 100 ||
+            sens_dist_um < (abs_d_um * (100 - PCT_TOLERANCE)) / 100) {
           Debug_Puts(bb.txs_tid,
                      "Ignored sensor (out of range): ", sens->to_string(),
                      " pos ", bb.loco->d_um * 100 / sens_dist_um, "% ",
@@ -324,7 +330,6 @@ namespace {
 
   struct LocalizerNode : public LeafNode {
 
-    DebugPrintPath print_path{};
     NodeResult tick(Blackboard &bb) override {
       if (auto sens = std::get_if<SensorData>(&bb.new_event);
           sens && sens->new_state == 1) {
@@ -341,21 +346,16 @@ namespace {
           return -1;
         };
 
+        // try to find the sensor in our path. If not there, repath.
         auto idx = std::ranges::find(bb.path, sens->sid, sid_cmp);
         if (idx == bb.path.end()) {
           Debug_Puts(bb.txs_tid, "Repathing from ", sens->sid,
                      sens->to_string(), " to ",
                      bb.track[(*(bb.path.end() - 1)).node_idx].name);
-          print_path.tick(bb);
-          auto new_path = bb.track.find_path(bb.loco->last_sensor->sens.sid - 1,
-                                             (*(bb.path.end() - 1)).node_idx);
-          if (!new_path.has_value()) {
-            bb.error_msg = "Could not find path to sensor";
-            return NodeResult::Failure;
-          }
 
+          //  repathing means we release all reservations, and clear path.
           for (const auto &node : bb.path) {
-            if (bb.track.has_reservation(node, bb.loco->id)) {
+            if (node.has_reservation) {
               auto res =
                   send<TC::Ack>(bb.tcs_tid, TC::Cmd::ReleaseReserve{
                                                 .id       = bb.loco->id,
@@ -366,31 +366,22 @@ namespace {
                 bb.error_msg = "Could not release";
                 return NodeResult::Failure;
               }
-              bb.track.release(node.node_idx, node.br_curved, bb.loco->id);
             }
           }
-
-          bb.path = *new_path;
-          print_path.tick(bb);
+          bb.path.clear();
         } else {
-          // release the last sensor if we have one
-          if (bb.loco->last_sensor.has_value()) {
-            auto node_idx = bb.loco->last_sensor->sens.sid - 1;
-            auto res      = send<TC::Ack>(bb.tcs_tid, TC::Cmd::ReleaseReserve{
-                                                          .id       = bb.loco->id,
-                                                          .node_idx = node_idx,
-                                                          .edge_dir = 0,
-                                                 });
-            if (!res.has_value()) {
-              bb.error_msg = "Could not release last sensor";
-              return NodeResult::Failure;
-            }
-          }
-          // release all the nodes we've passed.
+          // otherwise, we found the sensor in our path
+          // we release everything up to it
+          // E.g.
+          // Path = A > B > C > D > E
+          // Sensor = C
+          // We release A and B, and keep C > D > E
+          // this way, we know "dx_um" means "distance from C along the path"
           for (auto it = bb.path.begin(); it != idx; ++it) {
             // release the reservations
             auto &node = *it;
-            if (bb.track.has_reservation(node, bb.loco->id)) {
+
+            if (node.has_reservation) {
               auto res =
                   send<TC::Ack>(bb.tcs_tid, TC::Cmd::ReleaseReserve{
                                                 .id       = bb.loco->id,
@@ -401,13 +392,13 @@ namespace {
                 bb.error_msg = "Could not release";
                 return NodeResult::Failure;
               }
-              bb.track.release(node.node_idx, node.br_curved, bb.loco->id);
+              node.has_reservation = false;
             }
           }
 
           auto d_mm = std::accumulate(
-              bb.path.begin(), idx + 1, 0,
-              [](int acc, const PathNode &node) { return acc + node.dx_prev; });
+              bb.path.begin(), idx, 0,
+              [](int acc, const PathNode &node) { return acc + node.dx_next; });
 
           if (bb.loco->last_sensor.has_value() && d_mm > 0) {
             if (bb.dists.size() == bb.dists.capacity()) {
@@ -421,10 +412,10 @@ namespace {
             });
           }
           auto skipped_nodes = std::distance(bb.path.begin(), idx) + 1;
-          bb.path.pop(skipped_nodes);
+          bb.path.pop(skipped_nodes - 1);
         }
-
-        bb.loco->d_um = 0;
+        bb.loco->e_path = bb.path;
+        bb.loco->d_um   = 0;
       }
       return NodeResult::Success;
     }
@@ -454,12 +445,12 @@ namespace {
           stop_buf_um + (bb.loco->ve_nm / 1000 * TICKS_PER_S * 2);
 
       for (auto &node : bb.path) {
-        dist_um += node.dx_prev * 1000;
         if (dist_um > lookahead_um) {
           fully_reserved = false;
           break;
         }
-        if (!bb.track.has_reservation(node, bb.loco->id)) {
+        dist_um += node.dx_next * 1000;
+        if (!node.has_reservation) {
           auto res = send<TC::Ack>(bb.tcs_tid, TC::Cmd::Reserve{
                                                    .id       = bb.loco->id,
                                                    .node_idx = node.node_idx,
@@ -474,7 +465,7 @@ namespace {
             fully_reserved = false;
             break;
           }
-          bb.track.reserve(node.node_idx, node.br_curved, bb.loco->id);
+          node.has_reservation = true;
         }
       }
 
@@ -496,14 +487,6 @@ namespace {
         return go.tick(bb);
       }
 
-      if (bb.curr_tick - last_print_tick > TICKS_PER_S / 2) {
-        last_print_tick = bb.curr_tick;
-        Offset_Puts(bb.txs_tid, -3, "Res inc, dist(mm): ", dist_um / 1000,
-                    " min_dist(mm): ", stop_buf_um / 1000,
-                    " res stop: ", reservation_stop,
-                    " ful res: ", fully_reserved);
-      }
-
       return NodeResult::Success;
     }
   };
@@ -516,14 +499,14 @@ namespace {
       }
 
       for (auto &node : bb.path) {
-        if (!bb.track.has_reservation(node, bb.loco->id)) {
+        if (!node.has_reservation) {
           break;
         }
 
         if (node.type == NODE_BRANCH &&
-            node.br_curved != bb.state.is_switch_curved(node.num)) {
-          auto res = send<TC::Ack>(bb.tcs_tid,
-                                   TC::Cmd::Switch(node.num, !node.br_curved));
+            node.br_curved != bb.state.is_switch_curved(node.node_idx + 1)) {
+          auto res = send<TC::Ack>(
+              bb.tcs_tid, TC::Cmd::Switch(node.node_idx + 1, !node.br_curved));
           if (!res.has_value()) {
             bb.error_msg = "Switch cmd failed";
             return NodeResult::Failure;
@@ -566,16 +549,13 @@ namespace {
 
       // todo: account for going to a reversed destination (invert offset)
       // todo: account for going in reverse (add offset?)
-      auto remaining_mm =
-          std::ranges::fold_left(bb.path, 0, [](int acc, const PathNode &node) {
-            return acc + node.dx_prev;
-          });
-
       auto remaining_um =
-          remaining_mm * 1000 - bb.loco->d_um + offset_mm * 1000;
-
-      Offset_Puts(bb.txs_tid, -3, "D: ", remaining_um / 1000,
-                  "mm sd: ", bb.loco->stop_dist_um / 1000, "mm");
+          std::ranges::fold_left(bb.path, 0,
+                                 [](int acc, const PathNode &node) {
+                                   return acc + node.dx_next;
+                                 }) *
+              1000 -
+          bb.loco->d_um + offset_mm * 1000;
 
       if (remaining_um < bb.loco->stop_dist_um) {
         stopping = true;
@@ -591,37 +571,40 @@ namespace {
     bool initalized{false};
     bool at_speed{false};
     SetSpeed stop_speed{0};
-    WaitNode wait_to_stop{7 * TICKS_PER_S};
     SetDirectionNode dir{false};
     SetSpeed set_speed{0};
-    Sequence going_seq{};
-
-    ReverseTree() {
-      going_seq.children.push(&stop_speed);
-      going_seq.children.push(&wait_to_stop);
-      going_seq.children.push(&dir);
-      going_seq.children.push(&set_speed);
-    }
 
     NodeResult tick(Blackboard &bb) override {
+
       if (!initalized) {
         dir        = SetDirectionNode{!bb.loco->backward};
-        at_speed   = bb.loco->req_speed > 0;
         set_speed  = SetSpeed{bb.loco->req_speed};
         initalized = true;
       }
-      if (!at_speed) {
-        auto res = dir.tick(bb);
-        if (res == NodeResult::Success) {
-          bb.loco->reversed_since_last_sensor = true;
+
+      if (bb.loco->ve_nm / 1000 > 10) {
+        auto res = stop_speed.tick(bb);
+        if (res != NodeResult::Success) {
+          return res;
         }
+        return NodeResult::Running;
+      }
+
+      auto res = dir.tick(bb);
+      if (res != NodeResult::Success) {
         return res;
       }
-      auto res = going_seq.tick(bb);
-      if (res == NodeResult::Success) {
-        bb.loco->reversed_since_last_sensor = true;
+
+      if (set_speed.req_speed > 0) {
+        res = set_speed.tick(bb);
+        if (res != NodeResult::Success) {
+          return res;
+        }
       }
-      return res;
+
+      bb.loco->reversed_since_last_sensor =
+          !bb.loco->reversed_since_last_sensor;
+      return NodeResult::Success;
     }
   };
 
@@ -630,7 +613,6 @@ namespace {
 
     std::optional<ReverseTree> rev_tree{std::in_place};
 
-    DebugPrintPath print_path{};
     PathToNode(int goal_idx) : goal_idx(goal_idx) {}
 
     NodeResult tick(Blackboard &bb) override {
@@ -687,9 +669,8 @@ namespace {
         }
       }
 
-      bb.path                  = bb.path + path_opt.value();
-      bb.loco->target_node_idx = goal_idx;
-      print_path.tick(bb);
+      bb.path         = bb.path + path_opt.value();
+      bb.loco->e_path = bb.path;
       return NodeResult::Success;
     }
   };
@@ -991,7 +972,6 @@ namespace {
 
     LocalizerTree localizer_tree{};
     PathToNode path_to_goal{sid('D', 4) - 1};
-    Repeat path_to_goal_once{&path_to_goal, 1};
     SetSpeed max_speed{7};
     StopAtDonePath stop_at_done{};
     DebugPrintDists debug_print_dists{};
@@ -999,7 +979,7 @@ namespace {
     NavigateTree(int goal_idx, uint16_t speed, int offset_mm)
         : path_to_goal{goal_idx}, max_speed{speed}, stop_at_done{offset_mm} {
       children.push(&localizer_tree);
-      children.push(&path_to_goal_once);
+      children.push(&path_to_goal);
       children.push(&max_speed);
       children.push(&stop_at_done);
       children.push(&debug_print_dists);
@@ -1076,6 +1056,7 @@ void run_tree() {
             [&](const TC::Tree::Init &msg) {
               bb.state = msg.state;
               bb.loco  = bb.state.get_loco(msg.loco_id);
+              bb.path  = bb.loco->e_path.decode(bb.track);
               switch (msg.tree_type) {
               case TC::Tree::Type::CALIBRATE:
                 tree.emplace<CalibrateTrain>(msg.value1);
@@ -1108,7 +1089,7 @@ void run_tree() {
               return true;
             },
             [&](const TC::Tree::Update &msg) {
-              bb.state.update_from_mrk(msg.mrk, msg.time);
+              bb.state.update(msg.mrk);
               bb.new_event = msg.mrk;
               bb.curr_tick = msg.time;
               return true;

@@ -1,9 +1,9 @@
 #pragma once
 
 #include "buffer.h"
+#include "map.h"
 #include "mrk.h"
-#include "static_string.h"
-#include "track_data.h"
+#include "pathfind.h"
 #include <stdint.h>
 
 #define MAX_TRAINS 6
@@ -42,6 +42,21 @@
 // 13,534,84,85
 // 14,607,86,94
 
+struct Reservation {
+  uint8_t node_idx : 7 {0};
+  bool edge_dir : 1 {0};
+
+  bool operator==(const Reservation &other) const {
+    return node_idx == other.node_idx && edge_dir == other.edge_dir;
+  }
+};
+struct ReservationHasher {
+  constexpr size_t operator()(const Reservation &r) const noexcept {
+    return (static_cast<size_t>(r.node_idx) << 1) |
+           static_cast<size_t>(r.edge_dir);
+  }
+};
+
 struct TrainState {
   uint32_t id;
 
@@ -51,15 +66,18 @@ struct TrainState {
   bool light_on : 1 = true;
 
   int inital_node_idx{-1};
-  int target_node_idx{-1};
 
   // sensors attributed to this train train
   struct SeenSensor {
     SensorData sens;
     uint32_t tick;
+
+    bool operator==(const SeenSensor &other) const = default;
   };
   std::optional<SeenSensor> last_sensor{};
   bool reversed_since_last_sensor{false};
+
+  EncodedPath e_path{};
 
   // units of um/tick (micrometer per tick)
   std::array<int, 15> v_max_umpt{
@@ -73,7 +91,7 @@ struct TrainState {
 
   // units of -nm/ticks^2 (nanometer per tick^2) aka 1000*um / ticks^2
   std::array<int, 15> d_nmpt2{
-      33, 33, 33, 33, 33, 33, 33, 56, 52, 57, 63, 64, 71, 75, 78,
+      33, 1, 11, 20, 33, 40, 53, 66, 76, 85, 92, 99, 104, 108, 112,
   };
 
   // manually determined
@@ -90,6 +108,8 @@ struct TrainState {
 
   // stop dist
   int stop_dist_um{0};
+
+  bool operator==(const TrainState &other) const = default;
 };
 
 struct State {
@@ -138,6 +158,8 @@ struct State {
   Buffer<uint16_t, MAX_SENSORS_RECENT> sensors{};
 
   // trains
+  Map<Reservation, uint32_t, TRACK_MAX, ReservationHasher> reservations{};
+
   // Map<int, TrainState, MAX_TRAINS> train_map{};
   std::array<TrainState, MAX_TRAINS> trains{{{13, 0, false, true},
                                              {14, 0, false, true},
@@ -164,7 +186,8 @@ struct State {
     status_dirty   = false;
   }
 
-  void update_from_mrk(const MRKCmd &cmd, uint32_t tick);
+  void update(const MRKCmd &cmd);
+
   TrainState *get_loco(uint32_t loco_id) {
     for (auto &train : trains) {
       if (train.id == loco_id) {

@@ -88,6 +88,16 @@ public:
     return arr[(head + i) % SIZE];
   }
 
+  constexpr bool operator==(const Buffer &other) const {
+    if (_size != other._size)
+      return false;
+    for (size_t i = 0; i < _size; i++) {
+      if (arr[(head + i) % SIZE] != other.arr[(other.head + i) % SIZE])
+        return false;
+    }
+    return true;
+  }
+
   template <bool IsConst> class IteratorBase {
     using BufferType = std::conditional_t<IsConst, const Buffer, Buffer>;
 

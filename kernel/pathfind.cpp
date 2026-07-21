@@ -146,17 +146,9 @@ std::optional<Path> Track::build_path(int goal_idx,
     int node_idx           = node_indices[step];
     const track_node &node = track[node_idx];
 
-    int dist_to_prev = 0;
     int dist_to_next = 0;
-    int edge_v_pct   = 100;
     bool curved      = false;
 
-    if (step > 0) {
-      int prev_idx = node_indices[step - 1];
-      auto edge    = get_edge(prev_idx, node_idx).value_or({});
-      dist_to_prev = edge.dist;
-      edge_v_pct   = edge.edge_v_pct;
-    }
     if (step + 1 < path_len) {
       int next_idx = node_indices[step + 1];
       auto edge    = get_edge(node_idx, next_idx).value_or({});
@@ -166,13 +158,11 @@ std::optional<Path> Track::build_path(int goal_idx,
       }
     }
 
-    result.push({.node_idx   = node_idx,
-                 .type       = node.type,
-                 .num        = node.num,
-                 .dx_prev    = dist_to_prev,
-                 .dx_next    = dist_to_next,
-                 .edge_v_pct = edge_v_pct,
-                 .br_curved  = curved});
+    result.push({.node_idx  = node_idx,
+                 .type      = node.type,
+                 .num       = node.num,
+                 .dx_next   = dist_to_next,
+                 .br_curved = curved});
   }
 
   return result;
@@ -367,6 +357,17 @@ static const char *node_type_name(node_type type) {
   }
 }
 
+StaticString<128> Path::to_string(const Track *track) const {
+  StaticString<128> result{};
+  result.append("mm:", dist_mm, " ");
+  for (const auto &node : *this) {
+    result.append((*track)[node.node_idx].name,
+                  node.type == NODE_BRANCH ? node.br_curved ? "C" : "S" : "",
+                  " >");
+  }
+  return result;
+}
+
 static void print_path(const Track &pathfind, const char *label,
                        const std::optional<Path> &path_opt) {
   if (!path_opt.has_value()) {
@@ -394,11 +395,11 @@ static void print_path(const Track &pathfind, const char *label,
       continue;
     }
     debug_printf(CONSOLE,
-                 "  [%d] node_idx=%d name=%s type=%s dist_prev=%d dist_next=%d "
+                 "  [%d] node_idx=%d name=%s type=%s dist_next=%d "
                  "curved=%d\n\r",
                  static_cast<int>(step), node->node_idx,
                  pathfind.node_name(node->node_idx), node_type_name(node->type),
-                 node->dx_prev, node->dx_next, node->br_curved ? 1 : 0);
+                 node->dx_next, node->br_curved ? 1 : 0);
   }
 }
 
@@ -411,7 +412,8 @@ void test_pathfind() {
   for (int i = 0; i < 143; ++i) {
     auto node = track_a[i];
     if (node.type == NODE_BRANCH) {
-      if (node.edge[DIR_STRAIGHT].dist != node.edge[DIR_STRAIGHT].reverse->dist) {
+      if (node.edge[DIR_STRAIGHT].dist !=
+          node.edge[DIR_STRAIGHT].reverse->dist) {
         debug_printf(CONSOLE,
                      "track_a branch %s straight dist mismatch: %d vs %d\n\r",
                      node.name, node.edge[DIR_STRAIGHT].dist,
@@ -436,7 +438,8 @@ void test_pathfind() {
   for (int i = 0; i < 139; ++i) {
     auto node = track_b[i];
     if (node.type == NODE_BRANCH) {
-      if (node.edge[DIR_STRAIGHT].dist != node.edge[DIR_STRAIGHT].reverse->dist) {
+      if (node.edge[DIR_STRAIGHT].dist !=
+          node.edge[DIR_STRAIGHT].reverse->dist) {
         debug_printf(CONSOLE,
                      "track_b branch %s straight dist mismatch: %d vs %d\n\r",
                      node.name, node.edge[DIR_STRAIGHT].dist,
@@ -458,14 +461,12 @@ void test_pathfind() {
     }
   }
 
-
   print_path(track_a, "A1->A13", track_a.find_path("A1", "A13", true));
   print_path(track_a, "A13->A1", track_a.find_path("A13", "A1"));
   print_path(track_a, "A1->E16", track_a.find_path("A1", "E16"));
   print_path(track_a, "A1->A1", track_a.find_path("A1", "A1"));
   print_path(track_a, "A1->ZZZ", track_a.find_path("A1", "ZZZ"));
   print_path(track_a, "A13->B6", track_a.find_path("A13", "B6"));
-
 
   print_path(track_a, "B6->B6", track_a.find_path("B6", "B6"));
   print_path(track_a, "B5->B5", track_a.find_path("B5", "B5"));
@@ -480,6 +481,9 @@ void test_pathfind() {
   print_path(track_b, "E7->E7", track_b.find_path("E7", "E7"));
   print_path(track_b, "E8->E8", track_b.find_path("E8", "E8"));
 
+  EncodedPath ep(track_a.find_path("B6", "B6").value());
+  Path decoded_path = ep.decode(track_a);
+  print_path(track_a, "B6->B6 decoded", decoded_path);
 
   debug_puts(CONSOLE, "pathfind tests done\n\r");
 }

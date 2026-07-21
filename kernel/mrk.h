@@ -11,6 +11,7 @@ constexpr uint16_t MRK_HASH = 0xC300;
 // this is an intermediate format that matches the MRK diagram / frame on the
 // bus, for easy debugging
 struct CANFRAME {
+  bool operator==(const CANFRAME &other) const = default;
 
   // bitfields don't do much here, I mostly included these as a reminder for
   // what size these are.
@@ -37,6 +38,8 @@ struct CANFRAME {
 };
 
 struct LightCmd {
+  bool operator==(const LightCmd &other) const = default;
+
   static constexpr uint8_t cmdid = 0x06;
 
   uint32_t loco_id;
@@ -61,6 +64,8 @@ struct LightCmd {
 };
 
 struct FunctionCmd {
+  bool operator==(const FunctionCmd &other) const = default;
+
   static constexpr uint8_t cmdid = 0x06;
 
   uint32_t loco_id;
@@ -105,6 +110,8 @@ inline uint16_t mrk_level_to_user_speed(uint16_t level) {
 }
 
 struct SpeedCmd {
+  bool operator==(const SpeedCmd &other) const = default;
+
   static constexpr uint8_t cmdid = 0x04;
 
   uint32_t loco_id;
@@ -130,6 +137,8 @@ struct SpeedCmd {
 };
 
 struct DirectionCmd {
+  bool operator==(const DirectionCmd &other) const = default;
+
   static constexpr uint8_t cmdid = 0x05;
 
   uint32_t loco_id;
@@ -154,6 +163,8 @@ struct DirectionCmd {
 };
 
 struct SwitchCmd {
+  bool operator==(const SwitchCmd &other) const = default;
+
   static constexpr uint8_t cmdid = 0x0B;
 
   uint16_t sw_id;
@@ -181,6 +192,8 @@ struct SwitchCmd {
 };
 
 struct SensorData {
+  bool operator==(const SensorData &other) const = default;
+
   static constexpr uint8_t cmdid = 0x11;
 
   uint16_t sid;
@@ -207,6 +220,8 @@ struct SensorData {
 };
 
 struct ControlCmd {
+  bool operator==(const ControlCmd &other) const = default;
+
   static constexpr uint8_t cmdid = 0x00;
 
   typedef enum {
@@ -239,6 +254,8 @@ struct ControlCmd {
 };
 
 struct UnknownCmd {
+  bool operator==(const UnknownCmd &other) const = default;
+
   CANFRAME frame;
   UnknownCmd() = default;
   UnknownCmd(const CANFRAME &frame) : frame(frame) {}
