@@ -330,6 +330,12 @@ TC::Cmd::Any parse_command(StaticString<CLI_BUFFER_SIZE> &buf) {
         buf.set("Error: Unknown node name in reg command");
         return out;
       }
+
+      if (track[sensor].type != NODE_SENSOR) {
+        out = TC::Cmd::Invalid{};
+        buf.set("Error: Node is not a sensor in reg command");
+        return out;
+      }
       out = TC::Cmd::Reg{loco_id, node_idx.value()};
       buf.set("Success: reg ", loco_id, ' ', sensor);
     } else {

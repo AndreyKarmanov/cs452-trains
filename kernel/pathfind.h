@@ -9,7 +9,6 @@
 struct PathNode {
   int node_idx;
   node_type type;
-  int num;
   int dx_next{0};
   bool br_curved : 1 {false};
   bool has_reservation : 1 {false};
@@ -135,7 +134,6 @@ struct EncodedPath : private Buffer<uint8_t, TRACK_MAX> {
       }
       result.push({.node_idx  = node_idx,
                    .type      = node.type,
-                   .num       = node.num,
                    .dx_next   = dx_next,
                    .br_curved = curved});
       result.dist_mm += dx_next;

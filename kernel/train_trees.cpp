@@ -274,32 +274,32 @@ namespace {
       if (auto sens = std::get_if<SensorData>(&bb.new_event);
           sens && sens->new_state == 1) {
 
-        // not registered? only one train
-        if (bb.loco->inital_node_idx == -1) {
-          bb.loco->last_sensor.emplace(
-              TrainState::SeenSensor{*sens, bb.curr_tick});
-          return NodeResult::Success;
-        }
-
-        // if it's our first sensor, wait for the given initial sensor
-        if (!bb.loco->last_sensor.has_value()) {
-          if (bb.loco->inital_node_idx + 1 != sens->sid) {
+        // if path is empty, we wait for the sensor before attributing.
+        if (bb.path.empty()) {
+          // filter if we have an initial node
+          if (bb.loco->inital_node_idx != -1 &&
+              bb.loco->inital_node_idx + 1 != sens->sid) {
             return NodeResult::Running;
+          } else {
+            bb.path.push({
+                .node_idx = sens->sid - 1,
+                .type     = NODE_SENSOR,
+            });
           }
-          bb.loco->last_sensor.emplace(
-              TrainState::SeenSensor{*sens, bb.curr_tick});
           return NodeResult::Success;
         }
 
-        // relative to the first sensor
-        auto start_node_idx = bb.path.empty()
-                                  ? bb.loco->last_sensor->sens.sid - 1
-                                  : (*bb.path.begin()).node_idx;
+        // auto attribute if no given node.
+        if (bb.loco->inital_node_idx == -1) {
+          return NodeResult::Success;
+        }
+
+        auto start_node_idx = bb.path.peek().value().node_idx;
         auto path           = bb.track.find_path(start_node_idx, sens->sid - 1);
 
         // if there's no path, or 20% off our estimate, we ignore
         if (!path.has_value()) {
-          Debug_Puts(bb.txs_tid, "Ignored sensor (no path): ", sens->sid, " ",
+          Debug_Puts(bb.txs_tid, "No Path: ", bb.loco->id, " ",
                      sens->to_string());
           return NodeResult::Running;
         }
@@ -308,20 +308,17 @@ namespace {
         auto abs_d_um     = bb.loco->d_um < 0 ? -bb.loco->d_um : bb.loco->d_um;
         if (sens_dist_um > (abs_d_um * (100 + PCT_TOLERANCE)) / 100 ||
             sens_dist_um < (abs_d_um * (100 - PCT_TOLERANCE)) / 100) {
-          Debug_Puts(bb.txs_tid,
-                     "Ignored sensor (out of range): ", sens->to_string(),
-                     " pos ", bb.loco->d_um * 100 / sens_dist_um, "% ",
+          Debug_Puts(bb.txs_tid, "Out of Range: ", bb.loco->id, " ",
+                     sens->to_string(), " pos ",
+                     bb.loco->d_um * 100 / sens_dist_um, "% ",
                      (bb.loco->d_um - sens_dist_um) / 1000, " mm");
           return NodeResult::Running;
         }
 
-        Debug_Puts(bb.txs_tid, "Attributed: ", sens->sid, " ",
+        Debug_Puts(bb.txs_tid, "Attributed: ", bb.loco->id, " ", sens->sid, " ",
                    sens->to_string(), " pos ",
                    bb.loco->d_um * 100 / sens_dist_um, "% ",
                    (bb.loco->d_um - sens_dist_um) / 1000, " mm");
-
-        bb.loco->last_sensor.emplace(
-            TrainState::SeenSensor{*sens, bb.curr_tick});
       }
 
       return NodeResult::Success;
@@ -339,15 +336,13 @@ namespace {
           return NodeResult::Success;
         }
 
-        auto sid_cmp = [&](PathNode &node) {
+        // try to find the sensor in our path. If not there, repath.
+        auto idx = std::ranges::find(bb.path, sens->sid, [](PathNode &node) {
           if (node.type == NODE_SENSOR) {
             return node.node_idx + 1;
           }
           return -1;
-        };
-
-        // try to find the sensor in our path. If not there, repath.
-        auto idx = std::ranges::find(bb.path, sens->sid, sid_cmp);
+        });
         if (idx == bb.path.end()) {
           Debug_Puts(bb.txs_tid, "Repathing from ", sens->sid,
                      sens->to_string(), " to ",
@@ -400,7 +395,7 @@ namespace {
               bb.path.begin(), idx, 0,
               [](int acc, const PathNode &node) { return acc + node.dx_next; });
 
-          if (bb.loco->last_sensor.has_value() && d_mm > 0) {
+          if (bb.loco->last_sensor.has_value()) {
             if (bb.dists.size() == bb.dists.capacity()) {
               bb.dists.pop();
             }
@@ -410,6 +405,9 @@ namespace {
                 .d_um = d_mm * 1000,
                 .d_t  = bb.curr_tick - bb.loco->last_sensor->tick,
             });
+          } else {
+            bb.loco->last_sensor.emplace(
+                TrainState::SeenSensor{*sens, bb.curr_tick});
           }
           auto skipped_nodes = std::distance(bb.path.begin(), idx) + 1;
           bb.path.pop(skipped_nodes - 1);
@@ -504,9 +502,11 @@ namespace {
         }
 
         if (node.type == NODE_BRANCH &&
-            node.br_curved != bb.state.is_switch_curved(node.num)) {
-          auto res = send<TC::Ack>(bb.tcs_tid,
-                                   TC::Cmd::Switch(node.num, !node.br_curved));
+            node.br_curved !=
+                bb.state.is_switch_curved(bb.track[node.node_idx].num)) {
+          auto res = send<TC::Ack>(
+              bb.tcs_tid,
+              TC::Cmd::Switch(bb.track[node.node_idx].num, !node.br_curved));
           if (!res.has_value()) {
             bb.error_msg = "Switch cmd failed";
             return NodeResult::Failure;
@@ -617,14 +617,12 @@ namespace {
     PathToNode(int goal_idx) : goal_idx(goal_idx) {}
 
     NodeResult tick(Blackboard &bb) override {
-      if (!bb.loco->last_sensor.has_value() && bb.path.empty()) {
+      if (bb.path.empty()) {
         bb.error_msg = "Failed to find start";
         return NodeResult::Failure;
       }
 
-      auto start_idx = !bb.path.empty() ? bb.path.peek_last()->node_idx
-                                        : bb.loco->last_sensor->sens.sid - 1;
-
+      auto start_idx  = bb.path.peek_last()->node_idx;
       auto startr_idx = bb.track[start_idx].reverse->idx;
       auto goalr_idx  = bb.track[goal_idx].reverse->idx;
 
@@ -700,7 +698,7 @@ namespace {
 
       // if we're already moving, keep the same speed
       // otherwise sets to crawl speed to start localizing
-      if (!bb.loco->last_sensor.has_value() && bb.loco->req_speed != 0 &&
+      if (bb.path.empty() && bb.loco->req_speed != 0 &&
           set_speed.req_speed != bb.loco->req_speed) {
         set_speed = SetSpeed{bb.loco->req_speed};
       }
@@ -708,7 +706,7 @@ namespace {
       auto res = loop.tick(bb);
       if (res == NodeResult::Failure) {
         return NodeResult::Failure;
-      } else if (!bb.loco->last_sensor.has_value()) {
+      } else if (bb.path.empty()) {
         return NodeResult::Running;
       }
       return res;

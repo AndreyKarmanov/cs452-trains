@@ -76,7 +76,6 @@ Path Path::reverse() {
     reversed_path.push({
         .node_idx        = new_node->idx,
         .type            = new_node->type,
-        .num             = new_node->num,
         .dx_next         = new_edge->dist,
         .br_curved       = new_node->type == NODE_BRANCH &&
                            new_edge == &new_node->edge[DIR_CURVED],
@@ -90,7 +89,6 @@ Path Path::reverse() {
   reversed_path.push({
       .node_idx        = node->idx,
       .type            = node->type,
-      .num             = node->num,
       .dx_next         = 0,
       .br_curved       = false,
       .has_reservation = false,
@@ -208,7 +206,6 @@ std::optional<Path> Track::build_path(int goal_idx,
 
     result.push({.node_idx  = node_idx,
                  .type      = node.type,
-                 .num       = node.num,
                  .dx_next   = dist_to_next,
                  .br_curved = curved});
   }
