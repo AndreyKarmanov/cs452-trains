@@ -442,14 +442,13 @@ namespace {
           bb.loco->d_um +
           (bb.loco->stop_dist_um * (100 + STOP_DIST_BUF_PCT)) / 100;
       int lookahead_um =
-          stop_buf_um + (bb.loco->ve_nm / 1000 * TICKS_PER_S * 2);
+          stop_buf_um + ((bb.loco->ve_nm * TICKS_PER_S * 2) / 1000);
 
       for (auto &node : bb.path) {
         if (dist_um > lookahead_um) {
           fully_reserved = false;
           break;
         }
-        dist_um += node.dx_next * 1000;
         if (!node.has_reservation) {
           auto res = send<TC::Ack>(bb.tcs_tid, TC::Cmd::Reserve{
                                                    .id       = bb.loco->id,
@@ -467,6 +466,14 @@ namespace {
           }
           node.has_reservation = true;
         }
+        dist_um += node.dx_next * 1000;
+      }
+
+      if (bb.curr_tick - last_print_tick > TICKS_PER_S / 10) {
+        last_print_tick = bb.curr_tick;
+        Offset_Puts(bb.txs_tid, 12, "ResDist: ", dist_um,
+                    " StopBuf: ", stop_buf_um, " Lookahead: ", lookahead_um,
+                    " FullyReserved: ", fully_reserved);
       }
 
       if (fully_reserved) {
@@ -504,9 +511,9 @@ namespace {
         }
 
         if (node.type == NODE_BRANCH &&
-            node.br_curved != bb.state.is_switch_curved(node.node_idx + 1)) {
-          auto res = send<TC::Ack>(
-              bb.tcs_tid, TC::Cmd::Switch(node.node_idx + 1, !node.br_curved));
+            node.br_curved != bb.state.is_switch_curved(node.num)) {
+          auto res = send<TC::Ack>(bb.tcs_tid,
+                                   TC::Cmd::Switch(node.num, !node.br_curved));
           if (!res.has_value()) {
             bb.error_msg = "Switch cmd failed";
             return NodeResult::Failure;
@@ -523,6 +530,7 @@ namespace {
     int offset_mm{0};
     bool stopping = false;
 
+    int last_print_tick{0};
     StopAtDonePath() = default;
     StopAtDonePath(int offset_mm) : offset_mm(offset_mm) {}
 
@@ -549,15 +557,22 @@ namespace {
 
       // todo: account for going to a reversed destination (invert offset)
       // todo: account for going in reverse (add offset?)
-      auto remaining_um =
-          std::ranges::fold_left(bb.path, 0,
-                                 [](int acc, const PathNode &node) {
-                                   return acc + node.dx_next;
-                                 }) *
-              1000 -
+      int64_t remaining_um =
+          1000 * std::ranges::fold_left(bb.path, 0,
+                                        [](int acc, const PathNode &node) {
+                                          return acc + node.dx_next;
+                                        }) -
           bb.loco->d_um + offset_mm * 1000;
 
+      if (bb.curr_tick - last_print_tick > TICKS_PER_S / 10) {
+        last_print_tick = bb.curr_tick;
+
+        Offset_Puts(bb.txs_tid, 9, "R: ", remaining_um,
+                    "S: ", bb.loco->stop_dist_um, "D: ", bb.loco->d_um);
+      };
       if (remaining_um < bb.loco->stop_dist_um) {
+        Debug_Puts(bb.txs_tid, "Stopping at done path: ", remaining_um, " < ",
+                   bb.loco->stop_dist_um);
         stopping = true;
         return stop.tick(bb);
       }
