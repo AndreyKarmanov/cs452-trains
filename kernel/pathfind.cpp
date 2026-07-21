@@ -368,6 +368,21 @@ StaticString<128> Path::to_string(const Track *track) const {
   return result;
 }
 
+std::optional<PathLocation> Path::locate_at(int offset_um) const {
+  int offset = offset_um;
+  for (const auto &node : *this) {
+    int seg_um = node.dx_next * 1000;
+    int diff   = offset - seg_um;
+    if (diff < 0) {
+      return PathLocation{.node_idx  = node.node_idx,
+                          .br_curved = node.br_curved,
+                          .offset_um = offset};
+    }
+    offset -= seg_um;
+  }
+  return std::nullopt;
+}
+
 static void print_path(const Track &pathfind, const char *label,
                        const std::optional<Path> &path_opt) {
   if (!path_opt.has_value()) {

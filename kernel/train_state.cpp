@@ -9,6 +9,44 @@
 #define SENSOR_ROW (TRAIN_ROW + MAX_TRAINS + 2)
 #define SWITCH_ROW (SENSOR_ROW + 3)
 
+// Build path as if last_sensor node were prepended to e_path.
+static Path effective_path(const Track &track, const TrainState &train) {
+  Path path = train.e_path.decode(track);
+
+  if (!train.last_sensor.has_value()) {
+    return path;
+  }
+
+  int sensor_idx = train.last_sensor->sens.sid - 1;
+  auto first     = path.peek();
+  if (first.has_value() && first->node_idx == sensor_idx) {
+    return path;
+  }
+
+  if (!first.has_value()) {
+    const track_node &sensor = track[sensor_idx];
+    path.push({.node_idx  = sensor_idx,
+               .type      = sensor.type,
+               .num       = sensor.num,
+               .dx_next   = 0,
+               .br_curved = false});
+    return path;
+  }
+
+  auto prefix = track.find_path(sensor_idx, first->node_idx);
+  if (!prefix.has_value()) {
+    return path;
+  }
+
+  // operator+ mutates the left-hand path in place; local copy only.
+  return prefix.value() + path;
+}
+
+std::optional<PathLocation> locate_train(const Track &track,
+                                         const TrainState &train) {
+  return effective_path(track, train).locate_at(train.d_um);
+}
+
 void State::update(const MRKCmd &cmd) {
   std::visit(Overloaded{
                  [&](const LightCmd &cmd) {

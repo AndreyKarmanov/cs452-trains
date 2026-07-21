@@ -10,6 +10,33 @@ static constexpr int TRAIN_ROW     = STATE_ROW_INT + 3;
 static constexpr int SENSOR_ROW    = TRAIN_ROW + MAX_TRAINS * 3 + 2;
 static constexpr int SWITCH_ROW    = SENSOR_ROW + 3;
 
+static StaticString<8> format_node(const Track &track, int node_idx,
+                                   bool br_curved) {
+  StaticString<8> name{};
+  name.append(track[node_idx].name, track[node_idx].type == NODE_BRANCH
+                                        ? (br_curved ? "C" : "S")
+                                        : "");
+  return name;
+}
+
+template <size_t N>
+static void append_node_list(StaticString<N> &out, const Track &track,
+                             const Path &path) {
+  for (const auto &node : path) {
+    out.append(format_node(track, node.node_idx, node.br_curved), ",");
+  }
+}
+
+template <size_t N>
+static void append_train_reservations(StaticString<N> &out, const Track &track,
+                                      const State &state, uint32_t train_id) {
+  for (const auto &[node, id] : state.reservations) {
+    if (id != train_id)
+      continue;
+    out.append(format_node(track, node.node_idx, node.edge_dir), ",");
+  }
+}
+
 void print_state(int tx_tid, int web_tid, const State &state, State &prev) {
   StaticString<TX::MAX_DATA_LENGTH> line;
   static Track track(TrainControlServer<>::TRACK);
@@ -22,17 +49,27 @@ void print_state(int tx_tid, int web_tid, const State &state, State &prev) {
 
   // any protocol you want, here it is!
   if (web_tid >= 0 && state.reservations != prev.reservations) {
-    StaticString<128> res_print{};
-    for (const auto &[node, value] : state.reservations) {
-      res_print.append(track[node.node_idx].name,
-                       track[node.node_idx].type == NODE_BRANCH
-                           ? (node.edge_dir ? "C" : "S")
-                           : "",
-                       ",");
+    StaticString<2048> dump{};
+    dump.append("{trains: [\n\r");
+    for (const TrainState &train : state.trains) {
+      auto path = train.e_path.decode(track);
+      auto loc  = locate_train(track, train);
+
+      StaticString<128> path_str{};
+      append_node_list(path_str, track, path);
+
+      StaticString<128> res{};
+      append_train_reservations(res, track, state, train.id);
+
+      dump.append("{num: ", train.id, ", path: \"", path_str,
+                  "\", reservations: \"", res, "\", location: (",
+                  loc.has_value()
+                      ? format_node(track, loc->node_idx, loc->br_curved)
+                      : StaticString<8>("none"),
+                  ", ", loc.has_value() ? loc->offset_um : 0, ")},\n\r");
     }
-    WebSerial_Puts(web_tid, "Reserved nodes: ");
-    WebSerial_Puts(web_tid, res_print.c_str());
-    WebSerial_Puts(web_tid, "\n\r");
+    dump.append("]}");
+    WebSerial_Puts(web_tid, dump.c_str());
   }
 
   if (state.trains != prev.trains) {
@@ -60,7 +97,7 @@ void print_state(int tx_tid, int web_tid, const State &state, State &prev) {
         if (value != train.id) {
           continue;
         }
-        line.append(track[key.node_idx].name, key.edge_dir ? "C" : "S", " ");
+        line.append(format_node(track, key.node_idx, key.edge_dir), " ");
       }
       line.append("\033[K\n\r");
       Puts(tx_tid, line);
