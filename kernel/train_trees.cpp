@@ -380,7 +380,7 @@ namespace {
                                                           .id       = bb.loco->id,
                                                           .node_idx = node_idx,
                                                           .edge_dir = 0,
-                                                      });
+                                                 });
             if (!res.has_value()) {
               bb.error_msg = "Could not release last sensor";
               return NodeResult::Failure;
