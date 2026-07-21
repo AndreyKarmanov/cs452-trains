@@ -260,7 +260,7 @@ namespace {
       if (ve_um == 0) {
         bb.loco->stop_dist_um = 0;
       } else {
-        auto &p              = bb.loco->stop_params;
+        auto &p               = bb.loco->stop_params;
         bb.loco->stop_dist_um = p.c0 + p.c1 * ve_um + p.c2 * ve_um * ve_um;
       }
       return NodeResult::Success;
@@ -669,31 +669,13 @@ namespace {
         auto res = rev_tree->tick(bb);
 
         if (res == NodeResult::Success) {
-          Debug_Puts(bb.txs_tid, "Done reversing");
           rev_tree.emplace();
-
-          Debug_Puts(bb.txs_tid, "Curr path: ", bb.path.to_string(&bb.track));
-          Debug_Puts(bb.txs_tid,
-                     "Rev path: ", bb.path.reverse().to_string(&bb.track));
-          Debug_Puts(bb.txs_tid,
-                     "New segment: ", new_path.to_string(&bb.track));
-          Debug_Puts(bb.txs_tid, "New path: ",
-                     (new_path + bb.path.reverse()).to_string(&bb.track));
           bb.loco->d_um = bb.path.dist_mm * 1000 - bb.loco->d_um;
           bb.path       = new_path;
         } else {
           return res;
         }
       } else {
-        Debug_Puts(bb.txs_tid, "Not reversing");
-
-        Debug_Puts(bb.txs_tid, "Curr path: ", bb.path.to_string(&bb.track));
-        Debug_Puts(bb.txs_tid,
-                   "Rev path: ", bb.path.reverse().to_string(&bb.track));
-        Debug_Puts(bb.txs_tid, "New segment: ", new_path.to_string(&bb.track));
-        Debug_Puts(bb.txs_tid, "New path: ",
-                   (new_path + bb.path.reverse()).to_string(&bb.track));
-
         bb.path = bb.path + new_path;
       }
 
@@ -1014,7 +996,7 @@ namespace {
   };
 
   struct ForeverNavigateTree : public TreeNode {
-    Unif prng{time_get(), 0, TRACK_MAX - 1};
+    Unif prng{time_get(), 0, 122};
     bool random{true};
 
     Sequence seq{};
@@ -1023,7 +1005,7 @@ namespace {
                                            static_cast<int>(prng.nextNum())};
     SetSpeed max_speed{14};
     StopAtDonePath stop_at_done{};
-    WaitNode wait{TICKS_PER_S * 60 * 5};
+    WaitNode wait{TICKS_PER_S};
 
     ForeverNavigateTree(uint16_t speed) : random{true}, max_speed{speed} {
       seq.children.push(&localizer_tree);
@@ -1037,15 +1019,19 @@ namespace {
       seq.children.push(&localizer_tree);
       seq.children.push(&(*path_to_goal));
       seq.children.push(&max_speed);
+      seq.children.push(&stop_at_done);
       seq.children.push(&wait);
     }
 
     NodeResult tick(Blackboard &bb) override {
       auto res = seq.tick(bb);
-      if (res == NodeResult::Success && random) {
-        path_to_goal.emplace(static_cast<int>(prng.nextNum()));
+      if (res == NodeResult::Success) {
+        if (random) {
+          path_to_goal.emplace(static_cast<int>(prng.nextNum()));
+        }
         max_speed    = SetSpeed{max_speed.req_speed};
         stop_at_done = StopAtDonePath{};
+        wait         = WaitNode{TICKS_PER_S};
         Debug_Puts(bb.txs_tid, "Going to new node ",
                    bb.track[path_to_goal->goal_idx].name);
         return NodeResult::Running;

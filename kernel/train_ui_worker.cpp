@@ -36,8 +36,7 @@ void print_state(int tx_tid, int web_tid, const State &state, State &prev) {
   }
 
   if (state.trains != prev.trains) {
-    line.set("\033[", TRAIN_ROW,
-             ";2HTr | D | L | spd | est | stop | last | dx\n\r");
+    line.set("\033[", TRAIN_ROW, ";2HTr | D | L | spd | est | stop | dx\n\r");
     for (const TrainState &train : state.trains) {
 
       if (train == *prev.get_loco(train.id)) {
@@ -52,12 +51,6 @@ void print_state(int tx_tid, int web_tid, const State &state, State &prev) {
       AppendPadded(line, train.ve_nm / 1000, 3);
       line.append(" | ");
       AppendPadded(line, train.stop_dist_um / 1000, 4);
-      line.append(" |  ");
-      if (train.last_sensor.has_value()) {
-        AppendPadded(line, train.last_sensor->sens.sid, 3);
-      } else {
-        line.append("---");
-      }
       line.append(" | ", train.d_um / 1000);
 
       auto train_path = train.e_path.decode(track);

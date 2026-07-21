@@ -87,6 +87,7 @@ struct StopParams {
   int c0;
   int c1;
   double c2;
+  bool operator==(const StopParams &other) const = default;
 };
 
 struct TrainState {
@@ -107,7 +108,6 @@ struct TrainState {
     bool operator==(const SeenSensor &other) const = default;
   };
   std::optional<SeenSensor> last_sensor{};
-  bool reversed_since_last_sensor{false};
 
   EncodedPath e_path{};
 
@@ -207,7 +207,7 @@ struct State {
         .a_nmpt2 = {33, 33, 33, 33, 33, 33, 33, 56, 52, 57, 63, 64, 71, 75, 80},
         .d_nmpt2 = {33, 33, 33, 33, 33, 33, 43, 59, 68, 77, 82, 89, 92, 97,
                     112},
-        .stop_params = {-1200, 1120, 2.8}},
+        .stop_params = {1500, 1100, 2.8}},
        {.id         = 15,
         .req_speed  = 0,
         .backward   = false,
@@ -222,12 +222,11 @@ struct State {
         .req_speed  = 0,
         .backward   = false,
         .light_on   = true,
-        .v_max_umpt = {0, 8,  32,  50,  65,  97,  134, 181, 230,
-                       283, 339, 402, 465, 528, 598},
-        .a_nmpt2    = {33, 33, 33, 33, 33, 33, 60, 62, 63, 67,
-                       73, 75, 80, 82, 84},
-        .d_nmpt2    = {27, 27, 27, 28, 44, 34, 47, 61, 73, 83,
-                       88, 96, 98, 101, 114},
+        .v_max_umpt = {0, 8, 32, 50, 65, 97, 134, 181, 230, 283, 339, 402, 465,
+                       528, 598},
+        .a_nmpt2 = {33, 33, 33, 33, 33, 33, 60, 62, 63, 67, 73, 75, 80, 82, 84},
+        .d_nmpt2 = {27, 27, 27, 28, 44, 34, 47, 61, 73, 83, 88, 96, 98, 101,
+                    114},
         .stop_params = {5190, 908, 3}},
        {.id = 18, .req_speed = 0, .backward = false, .light_on = true},
        {.id = 55, .req_speed = 0, .backward = false, .light_on = true}}};
