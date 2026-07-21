@@ -183,10 +183,10 @@ static void fire_command(char *buf, size_t blen, int tx_tid) {
     int web_tid = WhoIs(UART03_TX_Server::NAME);
     WebSerial_Puts(web_tid, "hello world");
   } else if (strncmp(cmd, "train", 5) == 0) {
-    auto tid = create(1, train_controller_program_task);
-    await_task(tid);
+    train_controller_program_task();
     Puts(tx_tid, "\033[2J\033[1;1H");
-
+  } else if (strncmp(cmd, "clear", 5) == 0) {
+    Puts(tx_tid, "\033[2J\033[1;1H");
   } else {
     Puts(tx_tid, "Unknown: p (parent tid), "
                  "m (my tid), y (yield), c (create), d (dump memory), "

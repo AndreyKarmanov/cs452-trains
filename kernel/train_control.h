@@ -280,7 +280,8 @@ template <size_t TX_BUFFER_SIZE = 64> class TrainControlServer {
     auto res = expand_user_command(msg);
     reply(tid, TC::Ack{.success = res});
     maybe_tx();
-    if (std::get_if<TC::Cmd::Quit>(&msg)) {
+    if (auto data = std::get_if<TC::Cmd::Quit>(&msg); data) {
+      Debug_Puts(tx_tid, "train control server EXITING\n\r");
       exit();
     }
   }

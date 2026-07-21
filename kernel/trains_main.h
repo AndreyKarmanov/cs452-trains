@@ -23,5 +23,5 @@ inline void train_controller_program_task() {
   create(6, cli_worker);
 
   await_task(tcs_tid);
-  Offset_Puts(tx_tid, 4, "MAIN EXITING\n\r");
+  Debug_Puts(tx_tid, "MAIN EXITING\n\r");
 }

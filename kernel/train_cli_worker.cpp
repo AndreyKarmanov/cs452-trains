@@ -423,5 +423,5 @@ void cli_worker() {
       }
     }
   }
-  Offset_Puts(tx_tid, 0, "CLI EXITING\n\r");
+  Debug_Puts(tx_tid, "CLI EXITING\n\r");
 }

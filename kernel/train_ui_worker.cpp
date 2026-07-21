@@ -20,6 +20,7 @@ void print_state(int tx_tid, int web_tid, const State &state, State &prev) {
     Puts(tx_tid, line);
   }
 
+  // any protocol you want, here it is!
   if (web_tid >= 0 && state.reservations != prev.reservations) {
     StaticString<128> res_print{};
     for (const auto &[node, value] : state.reservations) {
@@ -58,8 +59,9 @@ void print_state(int tx_tid, int web_tid, const State &state, State &prev) {
         line.append("---");
       }
       line.append(" | ", train.d_um / 1000);
-      line.append("\033[K\n\r", train.e_path.decode(track).to_string(&track),
-                  "\033[K\n\r");
+
+      auto train_path = train.e_path.decode(track);
+      line.append("\033[K\n\r", train_path.to_string(&track), "\033[K\n\r");
 
       for (const auto &[key, value] : state.reservations) {
         if (value != train.id) {
@@ -130,5 +132,5 @@ void ui_update_worker() {
     Delay(cs_tid, TICKS_PER_S / 10);
   }
 
-  Offset_Puts(tx_tid, 1, "UI EXITING\n\r");
+  Debug_Puts(tx_tid, "UI EXITING\n\r");
 }

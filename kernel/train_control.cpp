@@ -22,7 +22,7 @@ template <> void TrainControlServer<>::tx_can_worker() {
     tx_can(frame);
   }
 
-  Offset_Puts(tx_tid, 2, "tx can worker EXITING\n\r");
+  Debug_Puts(tx_tid, "tx can worker EXITING\n\r");
 }
 
 template <> void TrainControlServer<>::rx_can_worker() {
@@ -47,7 +47,7 @@ template <> void TrainControlServer<>::rx_can_worker() {
     }
   }
 
-  Offset_Puts(tx_tid, 3, "rx can worker EXITING\n\r");
+  Debug_Puts(tx_tid, "rx can worker EXITING\n\r");
 }
 
 template <> void TrainControlServer<>::train_tick_worker() {
@@ -72,5 +72,5 @@ template <> void TrainControlServer<>::train_tick_worker() {
     }
   }
 
-  Offset_Puts(tx_tid, 3, "rx can worker EXITING\n\r");
+  Debug_Puts(tx_tid, "tick worker EXITING\n\r");
 }
