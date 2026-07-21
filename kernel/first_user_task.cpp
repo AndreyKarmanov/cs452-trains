@@ -7,6 +7,7 @@
 #include "sysinfo_task.h"
 #include "uart_rx_server.h"
 #include "uart_tx_server.h"
+#include "uart03_tx_server.h"
 
 #if (defined(PERF_TEST) && PERF_TEST) || (defined(RPS_TEST) && RPS_TEST) ||    \
     (defined(CLOCK_TEST) && CLOCK_TEST)
@@ -20,6 +21,7 @@ void first_user_task() {
   create(2, name_server_task);
   create(2, clock_server_task);
   create(2, uart_tx_server_task);
+  create(2, uart03_tx_server_task);
   create(2, uart_rx_server_task);
 
 #if defined(RPS_TEST) && RPS_TEST

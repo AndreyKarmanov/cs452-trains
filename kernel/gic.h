@@ -6,8 +6,10 @@ static constexpr uint32_t GIC_SPURIOUS_IRQ = 1023;
 static constexpr uint32_t GIC_IAR_ID_MASK  = 0x3FF;
 static constexpr uint32_t GIC_TIMER_IRQ_C1 = 97;
 static constexpr uint32_t GIC_TIMER_IRQ_C3 = 99;
-static constexpr uint32_t GIC_UART_IRQ     = 153;
-static constexpr uint32_t GIC_MCP2515_IRQ  = 145;
+static constexpr uint32_t GIC_UART_IRQ =
+    153; // uart3 also uses this. must check bit 18 of the PACTL_CS for uart3,
+         // or bit 20 for uart0
+static constexpr uint32_t GIC_MCP2515_IRQ = 145;
 
 void gic_init();
 uint32_t gic_iar_read();

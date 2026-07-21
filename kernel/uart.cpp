@@ -6,7 +6,6 @@
 #include <cstdarg>
 #include <cstdint>
 
-// we only use uart0
 #define UART_BASE reinterpret_cast<char *>(MMIO_BASE + 0x201000)
 #define UART_REG(line, offset)                                                 \
   (*reinterpret_cast<volatile uint32_t *>(UART_BASE + (line) * 0x200 +         \
@@ -56,17 +55,27 @@ static const uint32_t UART_IMSC_TXIM   = 1 << 5;
 static const uint32_t UART_IMSC_RTIM   = 1 << 6;
 static const uint32_t UART_IMSC_ALL    = 0x7FF;
 
+uint32_t read_pactl_cs() {
+  return *reinterpret_cast<volatile uint32_t *>(MMIO_BASE + PACTL_CS_OFFSET);
+}
+
 // Configure the line properties (e.g, parity, baud rate) of a UART and ensure
 // that it is enabled
 void uart_config_and_enable(size_t line) {
   uint32_t baud_ival, baud_fval;
   uint32_t flag = UART_LCRH_FEN;
+  bool tx_only  = false;
 
   switch (line) {
   // setting baudrate to approx. 115246.09844 (best we can do); 1 stop bit
   case CONSOLE:
     baud_ival = 26;
     baud_fval = 2;
+    break;
+  case WEBSERIAL:
+    baud_ival = 26;
+    baud_fval = 2;
+    tx_only   = true;
     break;
   default:
     return;
@@ -94,114 +103,116 @@ void uart_config_and_enable(size_t line) {
   // write to icr
   UART_REG(line, UART_ICR) = UART_IMSC_ALL;
 
-  // re-enable the UART; enable both transmit and receive regardless of previous
-  // state.
-  UART_REG(line, UART_CR) =
-      cr_state | UART_CR_UARTEN | UART_CR_TXE | UART_CR_RXE;
+  // re-enable the UART
+  if (tx_only) {
+    UART_REG(line, UART_CR) = UART_CR_UARTEN | UART_CR_TXE;
+  } else {
+    UART_REG(line, UART_CR) =
+        cr_state | UART_CR_UARTEN | UART_CR_TXE | UART_CR_RXE;
+  }
 
-  // config init interrupt states
+  // config init interrupt states (shared GIC 153 for all PL011s)
   set_interrupt_group0(GIC_UART_IRQ, true);
   set_interrupt_core_routing(0, GIC_UART_IRQ, true);
   set_interrupt(GIC_UART_IRQ, true);
 }
 
-void enable_uart_interrupt(UARTInterruptType interrupt_type) {
-  // enable the interrupt by setting the corresponding bit in the IMSC register
+void enable_uart_interrupt(UARTInterruptType interrupt_type, size_t line) {
   switch (interrupt_type) {
   case UARTInterruptType::CTSMIM:
-    UART_REG(CONSOLE, UART_IMSC) |= UART_IMSC_CTSMIM;
+    UART_REG(line, UART_IMSC) |= UART_IMSC_CTSMIM;
     break;
   case UARTInterruptType::RXIM:
-    UART_REG(CONSOLE, UART_IMSC) |= UART_IMSC_RXIM;
+    UART_REG(line, UART_IMSC) |= UART_IMSC_RXIM;
     break;
   case UARTInterruptType::TXIM:
-    UART_REG(CONSOLE, UART_IMSC) |= UART_IMSC_TXIM;
+    UART_REG(line, UART_IMSC) |= UART_IMSC_TXIM;
     break;
   case UARTInterruptType::RTIM:
-    UART_REG(CONSOLE, UART_IMSC) |= UART_IMSC_RTIM;
+    UART_REG(line, UART_IMSC) |= UART_IMSC_RTIM;
     break;
   default:
     break;
   }
 }
 
-void disable_uart_interrupt(UARTInterruptType interrupt_type) {
-  // disable the interrupt by clearing the corresponding bit in the IMSC
-  // register
+void disable_uart_interrupt(UARTInterruptType interrupt_type, size_t line) {
   switch (interrupt_type) {
   case UARTInterruptType::CTSMIM:
-    UART_REG(CONSOLE, UART_IMSC) &= ~UART_IMSC_CTSMIM;
+    UART_REG(line, UART_IMSC) &= ~UART_IMSC_CTSMIM;
     break;
   case UARTInterruptType::RXIM:
-    UART_REG(CONSOLE, UART_IMSC) &= ~UART_IMSC_RXIM;
+    UART_REG(line, UART_IMSC) &= ~UART_IMSC_RXIM;
     break;
   case UARTInterruptType::TXIM:
-    UART_REG(CONSOLE, UART_IMSC) &= ~UART_IMSC_TXIM;
+    UART_REG(line, UART_IMSC) &= ~UART_IMSC_TXIM;
     break;
   case UARTInterruptType::RTIM:
-    UART_REG(CONSOLE, UART_IMSC) &= ~UART_IMSC_RTIM;
+    UART_REG(line, UART_IMSC) &= ~UART_IMSC_RTIM;
     break;
   default:
     break;
   }
 }
 
-void clear_uart_interrupt(UARTInterruptType interrupt_type) {
+void clear_uart_interrupt(UARTInterruptType interrupt_type, size_t line) {
   switch (interrupt_type) {
   case UARTInterruptType::CTSMIM:
-    UART_REG(CONSOLE, UART_ICR) = UART_IMSC_CTSMIM;
+    UART_REG(line, UART_ICR) = UART_IMSC_CTSMIM;
     break;
   case UARTInterruptType::RXIM:
-    UART_REG(CONSOLE, UART_ICR) = UART_IMSC_RXIM;
+    UART_REG(line, UART_ICR) = UART_IMSC_RXIM;
     break;
   case UARTInterruptType::TXIM:
-    UART_REG(CONSOLE, UART_ICR) = UART_IMSC_TXIM;
+    UART_REG(line, UART_ICR) = UART_IMSC_TXIM;
     break;
   case UARTInterruptType::RTIM:
-    UART_REG(CONSOLE, UART_ICR) = UART_IMSC_RTIM;
+    UART_REG(line, UART_ICR) = UART_IMSC_RTIM;
     break;
   default:
     break;
   }
 }
 
-bool is_uart_mis_rx_pending() {
-  bool rx_timer_pending = (UART_REG(CONSOLE, UART_MIS) & UART_IMSC_RTIM) != 0;
+bool is_uart_mis_rx_pending(size_t line) {
+  bool rx_timer_pending = (UART_REG(line, UART_MIS) & UART_IMSC_RTIM) != 0;
   bool rx_interrupt_pending =
-      (UART_REG(CONSOLE, UART_MIS) & UART_IMSC_RXIM) != 0;
+      (UART_REG(line, UART_MIS) & UART_IMSC_RXIM) != 0;
   return rx_timer_pending || rx_interrupt_pending;
 }
 
-bool is_uart_mis_tx_pending() {
-  return (UART_REG(CONSOLE, UART_MIS) & UART_IMSC_TXIM) != 0;
+bool is_uart_mis_tx_pending(size_t line) {
+  return (UART_REG(line, UART_MIS) & UART_IMSC_TXIM) != 0;
 }
 
-bool is_uart_mis_cts_pending() {
-  return (UART_REG(CONSOLE, UART_MIS) & UART_IMSC_CTSMIM) != 0;
+bool is_uart_mis_cts_pending(size_t line) {
+  return (UART_REG(line, UART_MIS) & UART_IMSC_CTSMIM) != 0;
 }
 
-bool is_cts_clear_to_send() {
-  return (UART_REG(CONSOLE, UART_FR) & UART_FR_CTS) != 0;
+bool is_cts_clear_to_send(size_t line) {
+  return (UART_REG(line, UART_FR) & UART_FR_CTS) != 0;
 }
 
-bool can_receive_io() { return !(UART_REG(CONSOLE, UART_FR) & UART_FR_RXFE); }
+bool can_receive_io(size_t line) {
+  return !(UART_REG(line, UART_FR) & UART_FR_RXFE);
+}
 
-bool can_transmit_io() {
-  uint32_t fr = UART_REG(CONSOLE, UART_FR);
+bool can_transmit_io(size_t line) {
+  uint32_t fr = UART_REG(line, UART_FR);
   if (fr & UART_FR_TXFF) {
     return false;
   }
   return true;
 }
 
-char getc() { return UART_REG(CONSOLE, UART_DR); }
-void putc(char c) { UART_REG(CONSOLE, UART_DR) = c; }
+char getc(size_t line) { return static_cast<char>(UART_REG(line, UART_DR)); }
+void putc(char c, size_t line) { UART_REG(line, UART_DR) = c; }
 
 // debug functions
 char debug_getc(size_t line) {
   while (UART_REG(line, UART_FR) & UART_FR_RXFE)
     ; // wait for data ready
-  return UART_REG(line, UART_DR);
+  return static_cast<char>(UART_REG(line, UART_DR));
 }
 
 // For debugging

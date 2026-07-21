@@ -348,3 +348,5 @@ public:
     std::visit([&](auto &&arg) { handle(sender_tid, arg); }, msg);
   }
 };
+
+void dump_track(const Track &track, int web_tid);

@@ -85,6 +85,10 @@ public:
 
   const char *node_name(int node_idx) const;
 
+  static constexpr size_t RESERVED_NODES_MAX = 2048;
+  using ReservedNodesString                  = StaticString<RESERVED_NODES_MAX>;
+
+  void format_reserved_nodes(ReservedNodesString &out) const;
   const track_node &operator[](int idx) const { return track[idx]; }
   const track_node &operator[](const NodeName &name) const {
     auto idx = get_idx(name);

@@ -51,6 +51,10 @@ void gpio_init() {
 
   setup_gpio(14, GPIO_ALTFN0, GPIO_NONE); // UART TXD0
   setup_gpio(15, GPIO_ALTFN0, GPIO_NONE); // UART RXD0
+
+  // UART3 (BCM2711 §5.3): GPIO4=TXD3, GPIO5=RXD3 on ALT4
+  setup_gpio(4, GPIO_ALTFN4, GPIO_NONE); // UART TXD3
+  setup_gpio(5, GPIO_ALTFN4, GPIO_PUP);  // UART RXD3
 }
 
 static void gpio_set_pin_low_detect(uint32_t pin, int enable) {
