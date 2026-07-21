@@ -16,8 +16,11 @@
 #include "track_node.h"
 #include "train_state.h"
 #include "train_trees.h"
+#include "uart03_tx_server.h"
 #include "uart_tx_server.h"
 #include <cstddef>
+
+void dump_track(const Track &track, int web_tid);
 
 template <size_t TX_BUFFER_SIZE = 64> class TrainControlServer {
   int waiting_ui_update_worker_tid = -1;
@@ -38,9 +41,9 @@ template <size_t TX_BUFFER_SIZE = 64> class TrainControlServer {
     uint32_t speed = 0;
   } calibrating_train{};
 
-  int cs_tid = -1;
-  int tx_tid = -1;
-
+  int cs_tid  = -1;
+  int tx_tid  = -1;
+  int web_tid = -1;
   State state{};
 
   static void rx_can_worker();
@@ -217,6 +220,7 @@ template <size_t TX_BUFFER_SIZE = 64> class TrainControlServer {
                   cmd.id);
 
               track.reserve(cmd.node_idx, cmd.edge_dir, cmd.id);
+              dump_track(track, tx_tid);
               return true;
             },
             [&](const TC::Cmd::ReleaseReserve &cmd) {
@@ -333,6 +337,9 @@ public:
     tx_tid = WhoIs(UART_TX_Server::NAME);
     _assert(tx_tid >= 0, "TX SERVER WHOIS FAILED");
 
+    web_tid = WhoIs(UART03_TX_Server::NAME);
+    _assert(web_tid >= 0, "TX SERVER3 WHOIS FAILED");
+
     create(1, rx_can_worker);
     create(2, tx_can_worker);
     create(5, train_tick_worker);
@@ -348,5 +355,3 @@ public:
     std::visit([&](auto &&arg) { handle(sender_tid, arg); }, msg);
   }
 };
-
-void dump_track(const Track &track, int web_tid);
