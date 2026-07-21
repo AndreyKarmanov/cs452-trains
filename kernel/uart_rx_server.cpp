@@ -19,7 +19,6 @@ void uart_rx_server_task() {
   create(2, rx_notifier_task);
   while (true) {
     uart_rx_server.run();
-    yield();
   }
 }
 

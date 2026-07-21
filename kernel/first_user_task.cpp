@@ -5,9 +5,9 @@
 #include "shell.h"
 #include "syscall.h"
 #include "sysinfo_task.h"
+#include "uart03_tx_server.h"
 #include "uart_rx_server.h"
 #include "uart_tx_server.h"
-#include "uart03_tx_server.h"
 
 #if (defined(PERF_TEST) && PERF_TEST) || (defined(RPS_TEST) && RPS_TEST) ||    \
     (defined(CLOCK_TEST) && CLOCK_TEST)
@@ -81,5 +81,5 @@ void first_user_task() {
   create(PRIORITY_LEVELS - 2, sysinfo_task);
 
   // Shell
-  create(PRIORITY_LEVELS - 3, shell_task);
+  create(0, shell_task);
 }

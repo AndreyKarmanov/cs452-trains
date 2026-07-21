@@ -195,9 +195,11 @@ static void fire_command(char *buf, size_t blen, int tx_tid) {
 }
 void shell_task() {
   int rx_tid = WhoIs(UART_RX_Server::NAME);
-  int tx_tid = WhoIs(UART_TX_Server::NAME);
   _assert(rx_tid >= 0, "SHELL: RX SERVER WHOIS FAILED");
+
+  int tx_tid = WhoIs(UART_TX_Server::NAME);
   _assert(tx_tid >= 0, "SHELL: TX SERVER WHOIS FAILED");
+
   Puts(tx_tid, "\033[2J\033[?25l\033[2;1H" __DATE__ " / " __TIME__
                " / Andrey Karmanov / Anthony Ho\n\r");
 
@@ -205,6 +207,7 @@ void shell_task() {
   size_t buf_n = 0;
   Puts(tx_tid, "COMMANDS: trains (run trains) | d(ump) <hex address> [count] | "
                "w(write) <hex address> <hex value>\n\r> ");
+
   while (1) {
     int rc = Getc(rx_tid);
     _assert(rc >= 0, "SHELL: GETC FAILED");

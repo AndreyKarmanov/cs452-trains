@@ -418,7 +418,7 @@ void cli_worker() {
         break;
       }
 
-      if (std::get_if<TC::Cmd::Quit>(&result)) {
+      if (auto data = std::get_if<TC::Cmd::Quit>(&result); data != nullptr) {
         break;
       }
     }

@@ -54,7 +54,6 @@ template <typename T> std::expected<T, int> send(int tid, Message msg) {
                       reinterpret_cast<char *>(&reply_msg), sizeof(reply_msg));
 
   if (rcv_len < 0) {
-    debug_printf(CONSOLE, "SEND FAILED: ", rcv_len);
     return std::unexpected(rcv_len);
   }
 
@@ -62,7 +61,6 @@ template <typename T> std::expected<T, int> send(int tid, Message msg) {
     return *val_ptr;
   }
 
-  debug_printf(CONSOLE, "SEND REPLY TYPE MISMATCH");
   return std::unexpected(-2);
 }
 
