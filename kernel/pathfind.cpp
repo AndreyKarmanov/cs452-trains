@@ -25,6 +25,21 @@ Path &Path::operator+(const Path &other) {
   }
 
   if (last_opt->node_idx != first_opt->node_idx) {
+
+    // special case where the last node of this path is the reverse of the first
+    // node of the other path
+    if ((*track)[last_opt->node_idx].reverse->idx == first_opt->node_idx) {
+      this->dist_mm += other.dist_mm;
+      for (size_t i = 0; i < other.size(); ++i) {
+        auto node = other[i];
+        if (!node.has_value()) {
+          _assert(false, "unexpected empty path node");
+          return *this;
+        }
+        this->push(node.value());
+      }
+      return *this;
+    }
     _assert(false, "other must start at last node of this");
     return *this;
   }
@@ -164,6 +179,8 @@ std::optional<Path> Track::build_path(int goal_idx,
                  .dx_next   = dist_to_next,
                  .br_curved = curved});
   }
+
+  result.track = this;
 
   return result;
 }
@@ -433,6 +450,11 @@ void test_pathfind() {
   print_path(track_b, "B5->B5", track_b.find_path("B5", "B5"));
   print_path(track_b, "E7->E7", track_b.find_path("E7", "E7"));
   print_path(track_b, "E8->E8", track_b.find_path("E8", "E8"));
+
+  auto path1 = track_b.find_path("C14", "A2");
+  auto path2 = track_b.find_path("A1", "B6");
+
+  print_path(track_b, "C14->A2", path1.value() + path2.value());
 
   EncodedPath ep(track_a.find_path("B6", "B6").value());
   Path decoded_path = ep.decode(track_a);

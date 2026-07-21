@@ -179,16 +179,15 @@ namespace {
   };
 
   struct SetDirectionNode : public LeafNode {
+    bool done{false};
     bool backward{false};
     bool sent_cmd{false};
     SetDirectionNode(bool backward) : backward(backward) {}
     NodeResult tick(Blackboard &bb) override {
 
-      if (auto dir = std::get_if<DirectionCmd>(&bb.new_event);
-          sent_cmd && dir && dir->backward == backward) {
+      if (done || (sent_cmd && bb.loco->backward == backward)) {
+        done = true;
         return NodeResult::Success;
-      } else if (sent_cmd) {
-        return NodeResult::Running;
       }
 
       auto resp =
@@ -256,6 +255,7 @@ namespace {
 
       // if the train is reversed, we are backing up
       if (bb.loco->reversed_since_last_sensor) {
+        Debug_Puts(bb.txs_tid, "Backing up: ", delta_um, " um");
         bb.loco->d_um -= delta_um;
       } else {
         bb.loco->d_um += delta_um;
@@ -469,13 +469,6 @@ namespace {
         dist_um += node.dx_next * 1000;
       }
 
-      if (bb.curr_tick - last_print_tick > TICKS_PER_S / 10) {
-        last_print_tick = bb.curr_tick;
-        Offset_Puts(bb.txs_tid, 12, "ResDist: ", dist_um,
-                    " StopBuf: ", stop_buf_um, " Lookahead: ", lookahead_um,
-                    " FullyReserved: ", fully_reserved);
-      }
-
       if (fully_reserved) {
         if (reservation_stop) {
           reservation_stop = false;
@@ -564,12 +557,6 @@ namespace {
                                         }) -
           bb.loco->d_um + offset_mm * 1000;
 
-      if (bb.curr_tick - last_print_tick > TICKS_PER_S / 10) {
-        last_print_tick = bb.curr_tick;
-
-        Offset_Puts(bb.txs_tid, 9, "R: ", remaining_um,
-                    "S: ", bb.loco->stop_dist_um, "D: ", bb.loco->d_um);
-      };
       if (remaining_um < bb.loco->stop_dist_um) {
         Debug_Puts(bb.txs_tid, "Stopping at done path: ", remaining_um, " < ",
                    bb.loco->stop_dist_um);
@@ -607,6 +594,7 @@ namespace {
 
       auto res = dir.tick(bb);
       if (res != NodeResult::Success) {
+
         return res;
       }
 
@@ -639,8 +627,8 @@ namespace {
       auto start_idx = !bb.path.empty() ? bb.path.peek_last()->node_idx
                                         : bb.loco->last_sensor->sens.sid - 1;
 
-      auto startr_idx = bb.track.node_idx(bb.track[start_idx].reverse);
-      auto goalr_idx  = bb.track.node_idx(bb.track[goal_idx].reverse);
+      auto startr_idx = bb.track[start_idx].reverse->idx;
+      auto goalr_idx  = bb.track[goal_idx].reverse->idx;
 
       if (auto last_node = bb.path.peek_last();
           last_node.has_value() && (last_node->node_idx == goal_idx ||
@@ -677,7 +665,10 @@ namespace {
 
       if (should_reverse) {
         auto res = rev_tree->tick(bb);
+
         if (res == NodeResult::Success) {
+          Debug_Puts(bb.txs_tid, "Done reversing");
+
           rev_tree.emplace();
         } else {
           return res;

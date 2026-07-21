@@ -24,6 +24,7 @@ class Track;
 
 class Path : public Buffer<PathNode, TRACK_MAX> {
 public:
+  const Track *track;
   int dist_mm = 0;
 
   // in place addition of two paths
