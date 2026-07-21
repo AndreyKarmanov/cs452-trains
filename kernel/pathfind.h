@@ -20,6 +20,12 @@ struct PathNode {
   }
 };
 
+struct PathLocation {
+  int node_idx;
+  bool br_curved; // branch direction; same semantics as Reservation.edge_dir
+  int offset_um;  // distance into this segment when found
+};
+
 class Track;
 
 class Path : public Buffer<PathNode, TRACK_MAX> {
@@ -45,6 +51,9 @@ public:
       dist_mm -= elem->dx_next;
     return elem;
   }
+
+  // Walk path forward; return first node where offset_um < segment length.
+  std::optional<PathLocation> locate_at(int offset_um) const;
 
   StaticString<128> to_string(const Track *track) const;
 
