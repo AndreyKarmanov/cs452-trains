@@ -260,7 +260,8 @@ namespace {
       if (ve_um == 0) {
         bb.loco->stop_dist_um = 0;
       } else {
-        bb.loco->stop_dist_um = 26000 + 582 * ve_um + 3.4 * ve_um * ve_um;
+        auto &p              = bb.loco->stop_params;
+        bb.loco->stop_dist_um = p.c0 + p.c1 * ve_um + p.c2 * ve_um * ve_um;
       }
       return NodeResult::Success;
     }

@@ -9,38 +9,64 @@
 #define MAX_TRAINS 6
 #define MAX_SENSORS_RECENT 10
 
-// Train 15 Stats:
-// Speed,Top,Accel,Decel,Stop Dist
-//   0   ,   0 ,     0 ,     0 , 1
-//   1   ,   8 ,     0 ,     0 , 40
-//   2   ,  32 ,     0 ,     0 , 55
-//   3   ,  50 ,    33 ,    33 , 80
-//   4   ,  78 ,    33 ,    33 , 90
-//   5   ,  94 ,    33 ,    33 , 100
-//   6   , 130 ,    33 ,    33 , 154
-//   7   , 176 ,    56 ,    56 , 249
-//   8   , 222 ,    52 ,    52 , 336
-//   9   , 273 ,    57 ,    57 , 391
-//  10   , 328 ,    63 ,    63 , 501
-//  11   , 389 ,    64 ,    64 , 683
-//  12   , 450 ,    71 ,    71 , 833
-//  13   , 512 ,    75 ,    75 , 1055
-//  14   , 584 ,    78 ,    78 , 1307
-
-// spd,vmax,a,d
-// 2,33,0,33
-// 3,44,0,33
-// 4,66,33,0
-// 5,98,598,0
-// 6,137,56,4
-// 7,185,62,10
-// 8,232,67,18
-// 9,286,66,30
-// 10,343,74,44
-// 11,405,78,58
-// 12,470,81,72
-// 13,534,84,85
-// 14,607,86,94
+// Train 14 Stats:
+// Speed,Top,Accel,Decel
+//   0   ,   0 ,    33 ,    33
+//   1   ,   8 ,    33 ,    33
+//   2   ,  32 ,    33 ,    33
+//   3   ,  50 ,    33 ,    33
+//   4   ,  78 ,    33 ,    33
+//   5   ,  94 ,    33 ,    33
+//   6   , 130 ,    33 ,    43
+//   7   , 176 ,    56 ,    59
+//   8   , 222 ,    52 ,    68
+//   9   , 273 ,    57 ,    77
+//  10   , 328 ,    63 ,    82
+//  11   , 389 ,    64 ,    89
+//  12   , 450 ,    71 ,    92
+//  13   , 512 ,    75 ,    97
+//  14   , 586 ,    80 ,   112
+//
+// Train 15 Stats (defaults):
+// Speed,Top,Accel,Decel
+//   0   ,   0 ,    33 ,    33
+//   1   ,   8 ,    33 ,     1
+//   2   ,  32 ,    33 ,    11
+//   3   ,  50 ,    33 ,    20
+//   4   ,  78 ,    33 ,    33
+//   5   ,  94 ,    33 ,    40
+//   6   , 130 ,    33 ,    53
+//   7   , 176 ,    56 ,    66
+//   8   , 222 ,    52 ,    76
+//   9   , 273 ,    57 ,    85
+//  10   , 328 ,    63 ,    92
+//  11   , 389 ,    64 ,    99
+//  12   , 450 ,    71 ,   104
+//  13   , 512 ,    75 ,   108
+//  14   , 584 ,    78 ,   112
+//
+// Train 17 Stats:
+// Speed,Top,Accel,Decel
+//   0   ,   0 ,    33 ,    27
+//   1   ,   8 ,    33 ,    27
+//   2   ,  32 ,    33 ,    27
+//   3   ,  50 ,    33 ,    28
+//   4   ,  65 ,    33 ,    44
+//   5   ,  97 ,    33 ,    34
+//   6   , 134 ,    60 ,    47
+//   7   , 181 ,    62 ,    61
+//   8   , 230 ,    63 ,    73
+//   9   , 283 ,    67 ,    83
+//  10   , 339 ,    73 ,    88
+//  11   , 402 ,    75 ,    96
+//  12   , 465 ,    80 ,    98
+//  13   , 528 ,    82 ,   101
+//  14   , 598 ,    84 ,   114
+//
+// Stop dist (um): c0 + c1*v + c2*v^2
+// Train 14: -1200 + 1120*v + 2.8*v^2  (-1.2 + 1.12*v + 2.75*v^2 mm)
+// Train 15: 26000 + 582*v + 3.4*v^2
+// Train 17: 5190 + 908*v + 3*v^2  (5.19 + 0.908*v + 3*v^2 mm)
 
 struct Reservation {
   uint8_t node_idx : 7 {0};
@@ -55,6 +81,12 @@ struct ReservationHasher {
     return (static_cast<size_t>(r.node_idx) << 1) |
            static_cast<size_t>(r.edge_dir);
   }
+};
+
+struct StopParams {
+  int c0;
+  int c1;
+  double c2;
 };
 
 struct TrainState {
@@ -79,7 +111,7 @@ struct TrainState {
 
   EncodedPath e_path{};
 
-  // units of um/tick (micrometer per tick)
+  // units of um/tick (micrometer per tick) with train 15 defaults
   std::array<int, 15> v_max_umpt{
       0, 8, 32, 50, 78, 94, 130, 176, 222, 273, 328, 389, 450, 512, 584,
   };
@@ -99,6 +131,9 @@ struct TrainState {
   //     0,      40000,  55000,  80000,  90000,  100000,  154000,  249000,
   //     336000, 391000, 501000, 683000, 833000, 1055000, 1307000,
   // };
+
+  // stop dist (um): c0 + c1*ve_um + c2*ve_um^2
+  StopParams stop_params{26000, 582, 3.4};
 
   // units of nm / tick
   uint64_t ve_nm{0};
@@ -161,12 +196,41 @@ struct State {
   Map<Reservation, uint32_t, TRACK_MAX, ReservationHasher> reservations{};
 
   // Map<int, TrainState, MAX_TRAINS> train_map{};
-  std::array<TrainState, MAX_TRAINS> trains{{{13, 0, false, true},
-                                             {14, 0, false, true},
-                                             {15, 0, false, true},
-                                             {17, 0, false, true},
-                                             {18, 0, false, true},
-                                             {55, 0, false, true}}};
+  std::array<TrainState, MAX_TRAINS> trains{
+      {{.id = 13, .req_speed = 0, .backward = false, .light_on = true},
+       {.id         = 14,
+        .req_speed  = 0,
+        .backward   = false,
+        .light_on   = true,
+        .v_max_umpt = {0, 8, 32, 50, 78, 94, 130, 176, 222, 273, 328, 389, 450,
+                       512, 586},
+        .a_nmpt2 = {33, 33, 33, 33, 33, 33, 33, 56, 52, 57, 63, 64, 71, 75, 80},
+        .d_nmpt2 = {33, 33, 33, 33, 33, 33, 43, 59, 68, 77, 82, 89, 92, 97,
+                    112},
+        .stop_params = {-1200, 1120, 2.8}},
+       {.id         = 15,
+        .req_speed  = 0,
+        .backward   = false,
+        .light_on   = true,
+        .v_max_umpt = {0, 8, 32, 50, 78, 94, 130, 176, 222, 273, 328, 389, 450,
+                       512, 584},
+        .a_nmpt2 = {33, 33, 33, 33, 33, 33, 33, 56, 52, 57, 63, 64, 71, 75, 78},
+        .d_nmpt2 = {33, 1, 11, 20, 33, 40, 53, 66, 76, 85, 92, 99, 104, 108,
+                    112},
+        .stop_params = {26000, 582, 3.4}},
+       {.id         = 17,
+        .req_speed  = 0,
+        .backward   = false,
+        .light_on   = true,
+        .v_max_umpt = {0, 8,  32,  50,  65,  97,  134, 181, 230,
+                       283, 339, 402, 465, 528, 598},
+        .a_nmpt2    = {33, 33, 33, 33, 33, 33, 60, 62, 63, 67,
+                       73, 75, 80, 82, 84},
+        .d_nmpt2    = {27, 27, 27, 28, 44, 34, 47, 61, 73, 83,
+                       88, 96, 98, 101, 114},
+        .stop_params = {5190, 908, 3}},
+       {.id = 18, .req_speed = 0, .backward = false, .light_on = true},
+       {.id = 55, .req_speed = 0, .backward = false, .light_on = true}}};
 
   // track go / stop
   bool stopped : 1        = true;
