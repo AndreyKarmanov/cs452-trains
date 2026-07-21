@@ -293,53 +293,6 @@ const char *Track::node_name(int node_idx) const {
   return (name != nullptr && name[0] != '\0') ? name : "?";
 }
 
-namespace {
-
-bool append_reserved_label(Track::ReservedNodesString &out, const char *name,
-                           char suffix = '\0') {
-  if (!out.empty() && !out.append(',')) {
-    return false;
-  }
-  if (!out.append(name)) {
-    return false;
-  }
-  if (suffix != '\0' && !out.append(suffix)) {
-    return false;
-  }
-  return true;
-}
-
-} // namespace
-
-void Track::format_reserved_nodes(ReservedNodesString &out) const {
-  out.clear();
-
-  for (int node_idx = 0; node_idx < TRACK_MAX; ++node_idx) {
-    const track_node &node = track[node_idx];
-    if (node.name == nullptr || node.name[0] == '\0' ||
-        node.type == NODE_NONE || node.type == NODE_EXIT) {
-      continue;
-    }
-
-    if (node.type == NODE_BRANCH) {
-      if (node.edge[DIR_STRAIGHT].res_loco_id != UNRESERVED &&
-          !append_reserved_label(out, node.name, 's')) {
-        return;
-      }
-      if (node.edge[DIR_CURVED].res_loco_id != UNRESERVED &&
-          !append_reserved_label(out, node.name, 'c')) {
-        return;
-      }
-      continue;
-    }
-
-    if (node.edge[DIR_AHEAD].res_loco_id != UNRESERVED &&
-        !append_reserved_label(out, node.name)) {
-      return;
-    }
-  }
-}
-
 static const char *node_type_name(node_type type) {
   switch (type) {
   case NODE_SENSOR:

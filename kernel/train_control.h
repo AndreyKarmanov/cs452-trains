@@ -20,8 +20,6 @@
 #include "uart_tx_server.h"
 #include <cstddef>
 
-void dump_track(const Track &track, int web_tid);
-
 template <size_t TX_BUFFER_SIZE = 64> class TrainControlServer {
   int waiting_ui_update_worker_tid = -1;
   int waiting_can_tx_worker_tid    = -1;
@@ -220,7 +218,6 @@ template <size_t TX_BUFFER_SIZE = 64> class TrainControlServer {
                   cmd.id);
 
               track.reserve(cmd.node_idx, cmd.edge_dir, cmd.id);
-              dump_track(track, tx_tid);
               return true;
             },
             [&](const TC::Cmd::ReleaseReserve &cmd) {

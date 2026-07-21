@@ -10,7 +10,7 @@ static constexpr int TRAIN_ROW     = STATE_ROW_INT + 3;
 static constexpr int SENSOR_ROW    = TRAIN_ROW + MAX_TRAINS * 3 + 2;
 static constexpr int SWITCH_ROW    = SENSOR_ROW + 3;
 
-void print_state(int tx_tid, const State &state, State &prev) {
+void print_state(int tx_tid, int web_tid, const State &state, State &prev) {
   StaticString<TX::MAX_DATA_LENGTH> line;
   static Track track(TrainControlServer<>::TRACK);
 
@@ -18,6 +18,20 @@ void print_state(int tx_tid, const State &state, State &prev) {
     line.set("\033[", STATUS_ROW, ";2HTrack ",
              state.stopped ? "Stopped" : "Active", "  \n\r");
     Puts(tx_tid, line);
+  }
+
+  if (web_tid >= 0 && state.reservations != prev.reservations) {
+    StaticString<128> res_print{};
+    for (const auto &[node, value] : state.reservations) {
+      res_print.append(track[node.node_idx].name,
+                       track[node.node_idx].type == NODE_BRANCH
+                           ? (node.edge_dir ? "C" : "S")
+                           : "",
+                       ",");
+    }
+    WebSerial_Puts(web_tid, "Reserved nodes: ");
+    WebSerial_Puts(web_tid, res_print.c_str());
+    WebSerial_Puts(web_tid, "\n\r");
   }
 
   if (state.trains != prev.trains) {
@@ -100,6 +114,9 @@ void ui_update_worker() {
   auto cs_tid = WhoIs(ClockServer<>::NAME);
   _assert(cs_tid >= 0, "CLOCK SERVER WHOIS FAILED");
 
+  auto web_tid = WhoIs(UART03_TX_Server::NAME);
+  _assert(web_tid >= 0, "TX SERVER3 WHOIS FAILED");
+
   State prev_state{};
   while (true) {
     auto cans_reply = send<TC::UIUpdate>(tcs_tid, TC::UIReady{});
@@ -107,7 +124,7 @@ void ui_update_worker() {
       break;
     }
 #if !defined(DATA_COLLECTION) || !DATA_COLLECTION
-    print_state(tx_tid, cans_reply->state, prev_state);
+    print_state(tx_tid, web_tid, cans_reply->state, prev_state);
 #endif
     prev_state = cans_reply->state;
     Delay(cs_tid, TICKS_PER_S / 10);

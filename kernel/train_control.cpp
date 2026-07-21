@@ -4,14 +4,6 @@
 #include "message.h"
 #include "uart_tx_server.h"
 
-void dump_track(const Track &track, int web_tid) {
-  Track::ReservedNodesString reserved{};
-  track.format_reserved_nodes(reserved);
-  WebSerial_Puts(web_tid, "Reserved nodes: ");
-  WebSerial_Puts(web_tid, reserved.c_str());
-  WebSerial_Puts(web_tid, "\n\r");
-}
-
 template <> void TrainControlServer<>::tx_can_worker() {
   auto tc_tid = WhoIs(TrainControlServer<>::NAME);
   _assert(tc_tid >= 0, "TC SERVER WHOIS FAILED");
