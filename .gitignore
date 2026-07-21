@@ -18,3 +18,4 @@ cacert.pem
 *.ipynb
 **/compile_commands.json
 data/*
+webserial/*
