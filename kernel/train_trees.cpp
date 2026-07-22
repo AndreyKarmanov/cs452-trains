@@ -422,6 +422,7 @@ namespace {
     static constexpr int STOP_DIST_BUF_PCT = 20;
     static constexpr int EXTRA_BUFFER_UM   = 300'000; // one train length
     int last_print_tick{0};
+    int last_res_dist_um{0};
 
     SetSpeed stop{0};
     bool reservation_stop{false};
@@ -433,15 +434,12 @@ namespace {
       int64_t res_dist_um = 0;
       bool fully_reserved{true};
 
-      // lookahead is how much we've travelled + stop dist buf pct + 2 second
-      // buffer of our travel time.
-
       int64_t stop_buf_um =
           (bb.loco->stop_dist_um * (100 + STOP_DIST_BUF_PCT)) / 100 +
           EXTRA_BUFFER_UM;
 
       int64_t lookahead_um =
-          bb.loco->d_um + stop_buf_um +
+          stop_buf_um + bb.loco->d_um +
           static_cast<int64_t>(((bb.loco->ve_nm * TICKS_PER_S * 2) / 1000));
 
       for (auto &node : bb.path) {
@@ -468,39 +466,34 @@ namespace {
         }
         res_dist_um += node.dx_next * 1000;
       }
-      Debug_Puts(bb.txs_tid, "Reserved (no movement): ", bb.loco->id, " ",
-                 res_dist_um, " > ", stop_buf_um);
-
-      res_dist_um = res_dist_um - bb.loco->d_um;
 
       if (fully_reserved) {
+        // if fully reserved, we don't care about reserving more
+        // reset speed if we stopped it
         if (reservation_stop) {
           reservation_stop = false;
           stop             = SetSpeed{0};
-          Debug_Puts(bb.txs_tid, "Res go ful res: ", bb.loco->id, " ",
-                     res_dist_um, " > ", stop_buf_um);
           return go.tick(bb);
         }
         return NodeResult::Success;
-      } else if (res_dist_um <= stop_buf_um) {
-        go = SetSpeed{go.req_speed};
-        if (!reservation_stop) {
-          Debug_Puts(bb.txs_tid, "Res stop: ", bb.loco->id, " ", res_dist_um,
-                     " < ", stop_buf_um);
-        }
+      } else if (res_dist_um - bb.loco->d_um <= stop_buf_um) {
+        // if we're coming up on stopping distance, we stop.
+        go               = SetSpeed{go.req_speed};
         reservation_stop = true;
         stop.tick(bb);
         return NodeResult::Running;
-      } else if (reservation_stop && res_dist_um >= (stop_buf_um * 120) / 100) {
-        Debug_Puts(bb.txs_tid, "Res go: ", bb.loco->id, " ", res_dist_um, " > ",
-                   stop_buf_um);
+      } else if (reservation_stop && last_res_dist_um < res_dist_um) {
+        // if we reserved more since last move, we can go again.
         reservation_stop = false;
         stop             = SetSpeed{0};
         return go.tick(bb);
       } else if (reservation_stop) {
-        go = SetSpeed{go.req_speed};
-        return stop.tick(bb);
+        // otherwise, if we haven't reserved more, keep waiting
+        stop.tick(bb);
+        return NodeResult::Running;
       }
+
+      last_res_dist_um = res_dist_um;
 
       return NodeResult::Success;
     }
