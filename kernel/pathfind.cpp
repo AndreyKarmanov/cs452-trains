@@ -55,6 +55,7 @@ Path Path::reverse() {
   // we need to use the track ot get hte right edge though
   Path reversed_path{};
 
+  reversed_path.track = track;
   if (empty()) {
     return reversed_path;
   }
@@ -63,8 +64,8 @@ Path Path::reverse() {
     _assert(false, "Path::reverse() called with null track");
     return reversed_path;
   }
+  auto &tra = *track;
 
-  auto &tra           = *track;
   reversed_path.track = track;
 
   for (auto it = end() - 1; it > begin(); --it) {

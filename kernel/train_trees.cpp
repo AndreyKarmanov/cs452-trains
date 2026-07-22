@@ -25,6 +25,27 @@ namespace {
   constexpr int E6_SID              = sid('E', 6);
   constexpr size_t CRAWL_SPEED      = 4;
 
+  bool release_reserve(Blackboard &bb, const PathNode &node) {
+    auto res = send<TC::Ack>(bb.tcs_tid, TC::Cmd::ReleaseReserve{
+                                             .id       = bb.loco->id,
+                                             .node_idx = node.node_idx,
+                                             .edge_dir = node.br_curved,
+                                         });
+    if (node.type == NODE_BRANCH) {
+      std::ignore = send<TC::Ack>(bb.tcs_tid, TC::Cmd::ReleaseReserve{
+                                                  .id       = bb.loco->id,
+                                                  .node_idx = node.node_idx,
+                                                  .edge_dir = !node.br_curved,
+                                              });
+    }
+
+    if (!res.has_value()) {
+      bb.error_msg = "Could not release";
+      return false;
+    }
+    return true;
+  }
+
   void print_dists(int txs_tid,
                    const Buffer<Blackboard::DistLog, TRACK_MAX> &dists) {
     Debug_Puts(txs_tid, "from, to, dist (mm), ticks, spd, tticks");
@@ -292,6 +313,24 @@ namespace {
           return NodeResult::Success;
         }
 
+        if (!bb.path.empty()) {
+          // check if the sensor is in the path, an dis reserved
+          auto idx = std::ranges::find(bb.path, sens->sid, [](PathNode &node) {
+            if (node.type == NODE_SENSOR && node.has_reservation) {
+              return node.node_idx + 1;
+            }
+            return -1;
+          });
+
+          if (idx != bb.path.end()) {
+            Debug_Puts(bb.txs_tid, sens->to_string(),
+                       " Attributed: ", bb.loco->id, " in reserved path");
+            bb.loco->last_sensor.emplace(
+                TrainState::SeenSensor{*sens, bb.curr_tick});
+            return NodeResult::Success;
+          }
+        }
+
         auto start_node_idx = bb.path.empty()
                                   ? bb.loco->last_sensor->sens.sid - 1
                                   : bb.path.peek()->node_idx;
@@ -299,8 +338,7 @@ namespace {
 
         // if there's no path, or 20% off our estimate, we ignore
         if (!path.has_value()) {
-          Debug_Puts(bb.txs_tid, "No Path: ", bb.loco->id, " ",
-                     sens->to_string());
+          Debug_Puts(bb.txs_tid, sens->to_string(), " No Path: ", bb.loco->id);
           return NodeResult::Running;
         }
 
@@ -308,15 +346,15 @@ namespace {
         auto abs_d_um     = bb.loco->d_um < 0 ? -bb.loco->d_um : bb.loco->d_um;
         if (sens_dist_um > (abs_d_um * (100 + PCT_TOLERANCE)) / 100 ||
             sens_dist_um < (abs_d_um * (100 - PCT_TOLERANCE)) / 100) {
-          Debug_Puts(bb.txs_tid, "Out of Range: ", bb.loco->id, " ",
-                     sens->to_string(), " pos ",
-                     bb.loco->d_um * 100 / sens_dist_um, "% ",
+          Debug_Puts(bb.txs_tid, sens->to_string(),
+                     "Out of Range: ", bb.loco->id, " ", sens->to_string(),
+                     " pos ", bb.loco->d_um * 100 / sens_dist_um, "% ",
                      (bb.loco->d_um - sens_dist_um) / 1000, " mm");
           return NodeResult::Running;
         }
 
-        Debug_Puts(bb.txs_tid, "Attributed: ", bb.loco->id, " ", sens->sid, " ",
-                   sens->to_string(), " pos ",
+        Debug_Puts(bb.txs_tid, sens->to_string(), "Attributed: ", bb.loco->id,
+                   " ", sens->sid, " ", sens->to_string(), " pos ",
                    bb.loco->d_um * 100 / sens_dist_um, "% ",
                    (bb.loco->d_um - sens_dist_um) / 1000, " mm");
         bb.loco->last_sensor.emplace(
@@ -353,16 +391,7 @@ namespace {
           //  repathing means we release all reservations, and clear path.
           for (const auto &node : bb.path) {
             if (node.has_reservation) {
-              auto res =
-                  send<TC::Ack>(bb.tcs_tid, TC::Cmd::ReleaseReserve{
-                                                .id       = bb.loco->id,
-                                                .node_idx = node.node_idx,
-                                                .edge_dir = node.br_curved,
-                                            });
-              if (!res.has_value()) {
-                bb.error_msg = "Could not release";
-                return NodeResult::Failure;
-              }
+              release_reserve(bb, node);
             }
           }
           bb.path.clear();
@@ -379,16 +408,7 @@ namespace {
             auto &node = *it;
 
             if (node.has_reservation) {
-              auto res =
-                  send<TC::Ack>(bb.tcs_tid, TC::Cmd::ReleaseReserve{
-                                                .id       = bb.loco->id,
-                                                .node_idx = node.node_idx,
-                                                .edge_dir = node.br_curved,
-                                            });
-              if (!res.has_value()) {
-                bb.error_msg = "Could not release";
-                return NodeResult::Failure;
-              }
+              release_reserve(bb, node);
               node.has_reservation = false;
             }
           }
@@ -429,7 +449,6 @@ namespace {
     bool reservation_stop{false};
     SetDirectionNode dir_node{false};
     SetSpeed go{8};
-
     PathReservationNode(uint16_t go_speed = 8) : go(go_speed) {}
 
     NodeResult tick(Blackboard &bb) override {
@@ -469,6 +488,17 @@ namespace {
         res_dist_um += node.dx_next * 1000;
       }
 
+      if (bb.curr_tick - last_print_tick > TICKS_PER_S) {
+        Offset_Puts(
+            bb.txs_tid, 30 + bb.loco->id, bb.loco->id,
+            " Path dist: ", bb.path.dist_mm, " dx_um: ", bb.loco->d_um / 1000,
+            " res dist: ", res_dist_um / 1000,
+            " stop_buf: ", stop_buf_um / 1000, " sst: ", stopped_since_tick,
+            " ct: ", bb.curr_tick, " dt: ", bb.curr_tick - stopped_since_tick);
+
+        last_print_tick = bb.curr_tick;
+      }
+
       if (fully_reserved) {
         // if fully reserved, we don't care about reserving more
         // reset speed if we stopped it
@@ -491,8 +521,9 @@ namespace {
         reservation_stop = false;
         stop             = SetSpeed{0};
         return go.tick(bb);
-      } else if (reservation_stop && stopped_since_tick + TICKS_PER_S * 5 <
-                                         static_cast<int>(bb.curr_tick)) {
+      } else if (reservation_stop &&
+                 stopped_since_tick + TICKS_PER_S * (5 + bb.loco->extra_delay) <
+                     static_cast<int>(bb.curr_tick)) {
         // we are stopped, so we can flip directions ez
         // we try to navigate by finding a path starting at our latest reserved
         // if we can find a path, we take that!
@@ -509,6 +540,9 @@ namespace {
         }
 
         if (last_reserved == bb.path.end()) {
+          stopped_since_tick = bb.curr_tick;
+          Debug_Puts(bb.txs_tid, bb.loco->id,
+                     " Can't deadlock reverse, no reserved.");
           // we don't have any reserved
           // get scared and flip out
           stop.tick(bb);
@@ -516,28 +550,15 @@ namespace {
         }
 
         auto unreserved_nodes = std::distance(last_reserved, bb.path.end() - 1);
-        Debug_Puts(bb.txs_tid, bb.loco->id,
-                   "Path: ", bb.path.to_string(&bb.track));
-        Debug_Puts(bb.txs_tid, bb.loco->id, "Unreserved: ", unreserved_nodes);
-        for (auto it = last_reserved + 1; it < bb.path.end(); it++) {
-          auto node = bb.path.pop_back();
-          Debug_Puts(bb.txs_tid, bb.loco->id,
-                     "Unreserved: ", bb.track[node->node_idx].name);
+        WebSerial_Puts(bb.web_tid, bb.loco->id, " Unres: ", unreserved_nodes,
+                       " Old Path: ", bb.path.to_string(&bb.track));
+        for (int i = 0; i < unreserved_nodes; ++i) {
+          bb.path.dist_mm -= bb.path.pop_back()->dx_next;
         }
-        Debug_Puts(bb.txs_tid, bb.loco->id,
-                   "FPath: ", bb.path.to_string(&bb.track));
-
         auto new_path_start = bb.path.reverse();
-
-        Debug_Puts(bb.txs_tid, bb.loco->id,
-                   "RPath: ", new_path_start.to_string(&bb.track));
 
         auto start_node = new_path_start.peek_last();
         auto goal_node  = bb.path.peek_last();
-
-        Debug_Puts(bb.txs_tid, bb.loco->id, " Pathing from",
-                   bb.track[start_node->node_idx].name, " to ",
-                   bb.track[goal_node->node_idx].name);
 
         // we have something reserved.
         // we create a new path.
@@ -545,51 +566,39 @@ namespace {
             bb.track.find_path(start_node->node_idx, goal_node->node_idx);
 
         if (!new_path_opt.has_value()) {
-          Debug_Puts(bb.txs_tid, bb.loco->id, " Pathing from",
-                     bb.track[start_node->node_idx].name, " to ",
-                     bb.track[goal_node->node_idx].name, " failed");
           stop.tick(bb);
           return NodeResult::Running;
         }
         auto new_path = new_path_opt.value();
-        Debug_Puts(bb.txs_tid, bb.loco->id,
-                   " NPath: ", new_path.to_string(&bb.track));
 
         auto c_path = new_path_start + new_path;
-        Debug_Puts(bb.txs_tid, bb.loco->id,
-                   " Combined Path: ", c_path.to_string(&bb.track));
+        WebSerial_Puts(bb.web_tid, bb.loco->id,
+                       " New Path: ", c_path.to_string(&bb.track));
+
+        StaticString<128> path_str{};
+        path_str.append(bb.loco->id, " Res Path: ");
+        for (auto &node : c_path) {
+          if (!node.has_reservation) {
+            path_str.append(bb.track[node.node_idx].name, " NR ");
+          } else {
+            path_str.append(bb.track[node.node_idx].name, " R ");
+          }
+        }
+        WebSerial_Puts(bb.web_tid, path_str);
 
         if (auto last_node = bb.path.peek_last().value();
             last_node.has_reservation) {
-          auto res =
-              send<TC::Ack>(bb.tcs_tid, TC::Cmd::ReleaseReserve{
-                                            .id       = bb.loco->id,
-                                            .node_idx = last_node.node_idx,
-                                            .edge_dir = last_node.br_curved,
-                                        });
-          if (!res.has_value()) {
-            bb.error_msg = "Could not release";
-            return NodeResult::Failure;
-          }
+          release_reserve(bb, last_node);
           last_res_dist_um = res_dist_um - last_node.dx_next * 1000;
-          Debug_Puts(bb.txs_tid, bb.loco->id, " Released ",
-                     bb.track[last_node.node_idx].name);
-        } else {
-          Debug_Puts(bb.txs_tid, bb.loco->id, " Didn't have to release (?) ",
-                     bb.track[last_node.node_idx].name);
         }
 
-        Debug_Puts(bb.txs_tid, bb.loco->id,
-                   " Doing a flip path_dist: ", bb.path.dist_mm * 1000,
-                   " dx_um: ", bb.loco->d_um, " res dist: ", res_dist_um,
-                   " stop_buf: ", stop_buf_um);
         bb.loco->d_um   = bb.path.dist_mm * 1000 - bb.loco->d_um;
         c_path.track    = &bb.track;
         bb.path         = c_path;
         bb.loco->e_path = bb.path;
         dir_node        = SetDirectionNode{!bb.loco->backward};
         dir_node.tick(bb);
-        Debug_Puts(bb.txs_tid, bb.loco->id, " Completed direction flip");
+        WebSerial_Puts(bb.web_tid, bb.loco->id, " Completed direction flip");
 
         stopped_since_tick = bb.curr_tick;
         return NodeResult::Running;
@@ -800,16 +809,7 @@ namespace {
           if (!bb.path.empty()) {
             if (auto last_node = bb.path.peek_last().value();
                 last_node.has_reservation) {
-              auto res =
-                  send<TC::Ack>(bb.tcs_tid, TC::Cmd::ReleaseReserve{
-                                                .id       = bb.loco->id,
-                                                .node_idx = last_node.node_idx,
-                                                .edge_dir = last_node.br_curved,
-                                            });
-              if (!res.has_value()) {
-                bb.error_msg = "Could not release";
-                return NodeResult::Failure;
-              }
+              release_reserve(bb, last_node);
             }
           }
           bb.path = new_path;
@@ -1137,7 +1137,7 @@ namespace {
   };
 
   struct ForeverNavigateTree : public TreeNode {
-    Unif prng{time_get(), 0, 122};
+    Unif prng{time_get(), 0, 79};
     bool random{true};
 
     Sequence seq{};
@@ -1189,11 +1189,13 @@ using Tree = std::variant<CalibrateTrain, PrintTrainStats, StopMeasureTree,
 void run_tree() {
   auto tcs_tid = WhoIs(TrainControlServer<>::NAME);
   auto tx_tid  = WhoIs(UART_TX_Server::NAME);
+  auto web_tid = WhoIs(UART03_TX_Server::NAME);
 
   Tree tree = PrintTrainStats{};
   Blackboard bb{
       .tcs_tid = tcs_tid,
       .txs_tid = tx_tid,
+      .web_tid = web_tid,
       .track{TrainControlServer<>::TRACK},
   };
 

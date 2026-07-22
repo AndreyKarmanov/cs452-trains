@@ -17,6 +17,7 @@ struct Blackboard {
   // tids for servers
   int tcs_tid{0};
   int txs_tid{0};
+  int web_tid{0};
 
   // track & train data
   Track track{Track::Layout::A};

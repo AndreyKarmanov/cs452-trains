@@ -99,6 +99,7 @@ struct TrainState {
   bool light_on : 1 = true;
 
   int inital_node_idx{-1};
+  int extra_delay{0};
 
   // sensors attributed to this train train
   struct SeenSensor {
@@ -198,38 +199,52 @@ struct State {
   // Map<int, TrainState, MAX_TRAINS> train_map{};
   std::array<TrainState, MAX_TRAINS> trains{
       {{.id = 13, .req_speed = 0, .backward = false, .light_on = true},
-       {.id         = 14,
-        .req_speed  = 0,
-        .backward   = false,
-        .light_on   = true,
-        .v_max_umpt = {0, 8, 32, 50, 78, 94, 130, 176, 222, 273, 328, 389, 450,
-                       512, 586},
+       {.id          = 14,
+        .req_speed   = 0,
+        .backward    = false,
+        .light_on    = true,
+        .extra_delay = 0,
+        .v_max_umpt  = {0, 8, 32, 50, 78, 94, 130, 176, 222, 273, 328, 389, 450,
+                        512, 586},
         .a_nmpt2 = {33, 33, 33, 33, 33, 33, 33, 56, 52, 57, 63, 64, 71, 75, 80},
         .d_nmpt2 = {33, 33, 33, 33, 33, 33, 43, 59, 68, 77, 82, 89, 92, 97,
                     112},
         .stop_params = {1500, 1100, 2.8}},
-       {.id         = 15,
-        .req_speed  = 0,
-        .backward   = false,
-        .light_on   = true,
+       {.id          = 15,
+        .req_speed   = 0,
+        .backward    = false,
+        .light_on    = true,
+        .extra_delay = 3,
+
         .v_max_umpt = {0, 8, 32, 50, 78, 94, 130, 176, 222, 273, 328, 389, 450,
                        512, 584},
         .a_nmpt2 = {33, 33, 33, 33, 33, 33, 33, 56, 52, 57, 63, 64, 71, 75, 78},
         .d_nmpt2 = {33, 1, 11, 20, 33, 40, 53, 66, 76, 85, 92, 99, 104, 108,
                     112},
         .stop_params = {26000, 582, 3.4}},
-       {.id         = 17,
-        .req_speed  = 0,
-        .backward   = false,
-        .light_on   = true,
-        .v_max_umpt = {0, 8, 32, 50, 65, 97, 134, 181, 230, 283, 339, 402, 465,
-                       528, 598},
+       {.id          = 17,
+        .req_speed   = 0,
+        .backward    = false,
+        .light_on    = true,
+        .extra_delay = 6,
+        .v_max_umpt  = {0, 8, 32, 50, 65, 97, 134, 181, 230, 283, 339, 402, 465,
+                        528, 598},
         .a_nmpt2 = {33, 33, 33, 33, 33, 33, 60, 62, 63, 67, 73, 75, 80, 82, 84},
         .d_nmpt2 = {27, 27, 27, 28, 44, 34, 47, 61, 73, 83, 88, 96, 98, 101,
                     114},
         .stop_params = {5190, 908, 3}},
-       {.id = 18, .req_speed = 0, .backward = false, .light_on = true},
-       {.id = 55, .req_speed = 0, .backward = false, .light_on = true}}};
+       {.id          = 18,
+        .req_speed   = 0,
+        .backward    = false,
+        .light_on    = true,
+        .extra_delay = 9},
+       {
+           .id          = 55,
+           .req_speed   = 0,
+           .backward    = false,
+           .light_on    = true,
+           .extra_delay = 12,
+       }}};
 
   // track go / stop
   bool stopped : 1        = true;
