@@ -440,7 +440,7 @@ namespace {
 
   struct PathReservationNode : public LeafNode {
     static constexpr int STOP_DIST_BUF_PCT = 20;
-    static constexpr int EXTRA_BUFFER_UM   = 200'000; // one train length
+    static constexpr int EXTRA_BUFFER_UM   = 300'000; // one train length
     int last_print_tick{0};
     int last_res_dist_um{0};
     int stopped_since_tick{0};
@@ -464,7 +464,7 @@ namespace {
           static_cast<int64_t>(((bb.loco->ve_nm * TICKS_PER_S * 2) / 1000));
 
       for (auto &node : bb.path) {
-        if (res_dist_um > lookahead_um) {
+        if (res_dist_um > lookahead_um && !reservation_stop) {
           fully_reserved = false;
           break;
         }
@@ -486,6 +486,11 @@ namespace {
           node.has_reservation = true;
         }
         res_dist_um += node.dx_next * 1000;
+
+        // if we reserved more than last time, we break;
+        if (reservation_stop && res_dist_um > last_res_dist_um) {
+          break;
+        }
       }
 
       if (bb.curr_tick - last_print_tick > TICKS_PER_S) {
@@ -493,8 +498,9 @@ namespace {
             bb.txs_tid, 30 + bb.loco->id, bb.loco->id,
             " Path dist: ", bb.path.dist_mm, " dx_um: ", bb.loco->d_um / 1000,
             " res dist: ", res_dist_um / 1000,
-            " stop_buf: ", stop_buf_um / 1000, " sst: ", stopped_since_tick,
-            " ct: ", bb.curr_tick, " dt: ", bb.curr_tick - stopped_since_tick);
+            " last_res_dist: ", last_res_dist_um / 1000,
+            " stop_buf: ", stop_buf_um / 1000, " stopped: ", reservation_stop,
+            " time stopped: ", bb.curr_tick - stopped_since_tick, "\033K[");
 
         last_print_tick = bb.curr_tick;
       }
