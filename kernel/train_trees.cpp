@@ -1054,6 +1054,7 @@ namespace {
       seq.children.push(&localizer_tree);
       seq.children.push(&(*path_to_goal));
       seq.children.push(&max_speed);
+      seq.children.push(&stop_at_done);
     }
 
     NodeResult tick(Blackboard &bb) override {
