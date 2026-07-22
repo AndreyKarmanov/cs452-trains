@@ -640,10 +640,6 @@ namespace {
               bb.error_msg = "Switch cmd failed";
               return NodeResult::Failure;
             }
-          } else {
-            Debug_Puts(bb.txs_tid, "Can't switch: ", bb.loco->id, " ",
-                       bb.track[node.node_idx].name, " dist_um: ", dist_um,
-                       " ve_nm: ", bb.loco->ve_nm);
           }
         }
         dist_um += node.dx_next * 1000;
