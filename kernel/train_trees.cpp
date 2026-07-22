@@ -630,7 +630,9 @@ namespace {
 
     PathToNode(int goal_idx) : goal_idx(goal_idx) {}
 
-    NodeResult tick(Blackboard &bb) override {
+    NodeResult tick(Blackboard &bb) override { return tick(bb, false); }
+
+    NodeResult tick(Blackboard &bb, bool force_path = false) {
       if (!bb.loco->last_sensor.has_value() && bb.path.empty()) {
         bb.error_msg = "Failed to find start";
         return NodeResult::Failure;
@@ -642,28 +644,30 @@ namespace {
       auto goalr_idx  = bb.track[goal_idx].reverse->idx;
 
       if (auto last_node = bb.path.peek_last();
-          last_node.has_value() && (last_node->node_idx == goal_idx ||
-                                    last_node->node_idx == goalr_idx)) {
+          last_node.has_value() &&
+          (last_node->node_idx == goal_idx ||
+           last_node->node_idx == goalr_idx) &&
+          !force_path) {
         return NodeResult::Success;
       }
 
       bool should_reverse = false;
 
-      // start to ooal
+      // start to goal
       auto path_opt = bb.track.find_path(start_idx, goal_idx);
 
-      // start to reverse ooal
+      // start to reverse goal
       if (!path_opt.has_value()) {
         path_opt = bb.track.find_path(start_idx, goalr_idx);
       }
 
-      // reverse start to ooal
+      // reverse start to goal
       if (!path_opt.has_value()) {
         path_opt       = bb.track.find_path(startr_idx, goal_idx);
         should_reverse = true;
       }
 
-      // reverse start to reverse ooal
+      // reverse start to reverse goal
       if (!path_opt.has_value()) {
         path_opt       = bb.track.find_path(startr_idx, goalr_idx);
         should_reverse = true;
@@ -1054,8 +1058,12 @@ namespace {
 
     NodeResult tick(Blackboard &bb) override {
       auto res = seq.tick(bb);
-      if (res == NodeResult::Success && random) {
-        path_to_goal.emplace(static_cast<int>(prng.nextNum()));
+      if (res == NodeResult::Success) {
+        if (random) {
+          path_to_goal.emplace(static_cast<int>(prng.nextNum()));
+        } else {
+          path_to_goal->tick(bb, true);
+        }
         max_speed    = SetSpeed{max_speed.req_speed};
         stop_at_done = StopAtDonePath{};
         wait         = WaitNode{TICKS_PER_S};
