@@ -137,6 +137,8 @@ void print_state(int tx_tid, int web_tid, const State &state, State &prev) {
   }
 }
 void ui_update_worker() {
+  static Track track(TrainControlServer<>::TRACK);
+
   auto tcs_tid = WhoIs(TrainControlServer<>::NAME);
   _assert(tcs_tid >= 0, "TC SERVER NOT FOUND");
 
@@ -157,6 +159,31 @@ void ui_update_worker() {
     }
 #if !defined(DATA_COLLECTION) || !DATA_COLLECTION
     print_state(tx_tid, web_tid, cans_reply->state, prev_state);
+#else
+    if (web_tid >= 0 &&
+        cans_reply->state.reservations != prev_state.reservations) {
+      StaticString<2048> dump{};
+      dump.append("{trains: [\n\r");
+      for (const TrainState &train : cans_reply->state.trains) {
+        auto path = train.e_path.decode(track);
+        auto loc  = locate_train(track, train);
+
+        StaticString<128> path_str{};
+        append_node_list(path_str, track, path);
+
+        StaticString<128> res{};
+        append_train_reservations(res, track, cans_reply->state, train.id);
+
+        dump.append("{num: ", train.id, ", path: \"", path_str,
+                    "\", reservations: \"", res, "\", location: (",
+                    loc.has_value()
+                        ? format_node(track, loc->node_idx, loc->br_curved)
+                        : StaticString<8>("none"),
+                    ", ", loc.has_value() ? loc->offset_um : 0, ")},\n\r");
+      }
+      dump.append("]}");
+      WebSerial_Puts(web_tid, dump.c_str());
+    }
 #endif
     prev_state = cans_reply->state;
     Delay(cs_tid, TICKS_PER_S / 10);

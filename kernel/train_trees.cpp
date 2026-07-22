@@ -420,7 +420,7 @@ namespace {
 
   struct PathReservationNode : public LeafNode {
     static constexpr int STOP_DIST_BUF_PCT = 20;
-    static constexpr int EXTRA_BUFFER_UM   = 20'000; // one train length
+    static constexpr int EXTRA_BUFFER_UM   = 200'000; // one train length
     int last_print_tick{0};
 
     SetSpeed stop{0};
@@ -430,21 +430,20 @@ namespace {
     PathReservationNode(uint16_t go_speed = 8) : go(go_speed) {}
 
     NodeResult tick(Blackboard &bb) override {
-      int dist_um = 0;
+      int res_dist_um = 0;
       bool fully_reserved{true};
 
       // lookahead is how much we've travelled + stop dist buf pct + 2 second
       // buffer of our travel time.
 
       auto stop_buf_um =
-          bb.loco->d_um +
           (bb.loco->stop_dist_um * (100 + STOP_DIST_BUF_PCT)) / 100 +
           EXTRA_BUFFER_UM;
-      int lookahead_um =
-          stop_buf_um + ((bb.loco->ve_nm * TICKS_PER_S * 2) / 1000);
+      int lookahead_um = bb.loco->d_um + stop_buf_um +
+                         ((bb.loco->ve_nm * TICKS_PER_S * 2) / 1000);
 
       for (auto &node : bb.path) {
-        if (dist_um > lookahead_um) {
+        if (res_dist_um > lookahead_um) {
           fully_reserved = false;
           break;
         }
@@ -465,8 +464,9 @@ namespace {
           }
           node.has_reservation = true;
         }
-        dist_um += node.dx_next * 1000;
+        res_dist_um += node.dx_next * 1000;
       }
+      res_dist_um -= bb.loco->d_um;
 
       if (fully_reserved) {
         if (reservation_stop) {
@@ -475,12 +475,18 @@ namespace {
           return go.tick(bb);
         }
         return NodeResult::Success;
-      } else if (dist_um <= stop_buf_um) {
-        go               = SetSpeed{go.req_speed};
+      } else if (res_dist_um <= stop_buf_um) {
+        go = SetSpeed{go.req_speed};
+        if (!reservation_stop) {
+          Debug_Puts(bb.txs_tid, "Res stop: ", bb.loco->id, res_dist_um, " < ",
+                     stop_buf_um);
+        }
         reservation_stop = true;
         stop.tick(bb);
         return NodeResult::Running;
       } else if (reservation_stop) {
+        Debug_Puts(bb.txs_tid, "Res go: ", bb.loco->id, res_dist_um, " > ",
+                   stop_buf_um);
         reservation_stop = false;
         stop             = SetSpeed{0};
         return go.tick(bb);
@@ -492,27 +498,31 @@ namespace {
 
   struct PathLookaheadNode : public LeafNode {
     NodeResult tick(Blackboard &bb) override {
-
-      if (bb.path.empty()) {
-        return NodeResult::Success;
-      }
-
+      auto dist_um = 0;
       for (auto &node : bb.path) {
         if (!node.has_reservation) {
           break;
         }
 
+        // switch if we have enough time for the switch to switch.
         if (node.type == NODE_BRANCH &&
             node.br_curved !=
                 bb.state.is_switch_curved(bb.track[node.node_idx].num)) {
-          auto res = send<TC::Ack>(
-              bb.tcs_tid,
-              TC::Cmd::Switch(bb.track[node.node_idx].num, !node.br_curved));
-          if (!res.has_value()) {
-            bb.error_msg = "Switch cmd failed";
-            return NodeResult::Failure;
+          if ((dist_um * 1000 / bb.loco->ve_nm) > TICKS_PER_S / 3) {
+            auto res = send<TC::Ack>(
+                bb.tcs_tid,
+                TC::Cmd::Switch(bb.track[node.node_idx].num, !node.br_curved));
+            if (!res.has_value()) {
+              bb.error_msg = "Switch cmd failed";
+              return NodeResult::Failure;
+            }
+          } else {
+            Debug_Puts(bb.txs_tid, "Can't switch: ", bb.loco->id, " ",
+                       bb.track[node.node_idx].name, " dist_um: ", dist_um,
+                       " ve_nm: ", bb.loco->ve_nm);
           }
         }
+        dist_um += node.dx_next * 1000;
       }
       return NodeResult::Success;
     }
