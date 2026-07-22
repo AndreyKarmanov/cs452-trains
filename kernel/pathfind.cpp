@@ -59,7 +59,13 @@ Path Path::reverse() {
     return reversed_path;
   }
 
-  auto &tra = *track;
+  if (track == nullptr) {
+    _assert(false, "Path::reverse() called with null track");
+    return reversed_path;
+  }
+
+  auto &tra           = *track;
+  reversed_path.track = track;
 
   for (auto it = end() - 1; it > begin(); --it) {
     auto &node      = *it;

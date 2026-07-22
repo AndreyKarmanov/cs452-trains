@@ -420,12 +420,14 @@ namespace {
 
   struct PathReservationNode : public LeafNode {
     static constexpr int STOP_DIST_BUF_PCT = 20;
-    static constexpr int EXTRA_BUFFER_UM   = 300'000; // one train length
+    static constexpr int EXTRA_BUFFER_UM   = 200'000; // one train length
     int last_print_tick{0};
     int last_res_dist_um{0};
+    int stopped_since_tick{0};
 
     SetSpeed stop{0};
     bool reservation_stop{false};
+    SetDirectionNode dir_node{false};
     SetSpeed go{8};
 
     PathReservationNode(uint16_t go_speed = 8) : go(go_speed) {}
@@ -476,10 +478,12 @@ namespace {
           return go.tick(bb);
         }
         return NodeResult::Success;
-      } else if (res_dist_um - bb.loco->d_um <= stop_buf_um) {
+      } else if (!reservation_stop &&
+                 res_dist_um - bb.loco->d_um <= stop_buf_um) {
         // if we're coming up on stopping distance, we stop.
-        go               = SetSpeed{go.req_speed};
-        reservation_stop = true;
+        go                 = SetSpeed{go.req_speed};
+        reservation_stop   = true;
+        stopped_since_tick = bb.curr_tick;
         stop.tick(bb);
         return NodeResult::Running;
       } else if (reservation_stop && last_res_dist_um < res_dist_um) {
@@ -487,6 +491,108 @@ namespace {
         reservation_stop = false;
         stop             = SetSpeed{0};
         return go.tick(bb);
+      } else if (reservation_stop && stopped_since_tick + TICKS_PER_S * 5 <
+                                         static_cast<int>(bb.curr_tick)) {
+        // we are stopped, so we can flip directions ez
+        // we try to navigate by finding a path starting at our latest reserved
+        // if we can find a path, we take that!
+
+        Debug_Puts(bb.txs_tid, bb.loco->id, " Deadlock reversing");
+
+        auto last_reserved = bb.path.end();
+        for (auto it = bb.path.begin(); it < bb.path.end(); it++) {
+          auto node = *it;
+          if (!node.has_reservation) {
+            break;
+          }
+          last_reserved = it;
+        }
+
+        if (last_reserved == bb.path.end()) {
+          // we don't have any reserved
+          // get scared and flip out
+          stop.tick(bb);
+          return NodeResult::Running;
+        }
+
+        auto unreserved_nodes = std::distance(last_reserved, bb.path.end() - 1);
+        Debug_Puts(bb.txs_tid, bb.loco->id,
+                   "Path: ", bb.path.to_string(&bb.track));
+        Debug_Puts(bb.txs_tid, bb.loco->id, "Unreserved: ", unreserved_nodes);
+        for (auto it = last_reserved + 1; it < bb.path.end(); it++) {
+          auto node = bb.path.pop_back();
+          Debug_Puts(bb.txs_tid, bb.loco->id,
+                     "Unreserved: ", bb.track[node->node_idx].name);
+        }
+        Debug_Puts(bb.txs_tid, bb.loco->id,
+                   "FPath: ", bb.path.to_string(&bb.track));
+
+        auto new_path_start = bb.path.reverse();
+
+        Debug_Puts(bb.txs_tid, bb.loco->id,
+                   "RPath: ", new_path_start.to_string(&bb.track));
+
+        auto start_node = new_path_start.peek_last();
+        auto goal_node  = bb.path.peek_last();
+
+        Debug_Puts(bb.txs_tid, bb.loco->id, " Pathing from",
+                   bb.track[start_node->node_idx].name, " to ",
+                   bb.track[goal_node->node_idx].name);
+
+        // we have something reserved.
+        // we create a new path.
+        auto new_path_opt =
+            bb.track.find_path(start_node->node_idx, goal_node->node_idx);
+
+        if (!new_path_opt.has_value()) {
+          Debug_Puts(bb.txs_tid, bb.loco->id, " Pathing from",
+                     bb.track[start_node->node_idx].name, " to ",
+                     bb.track[goal_node->node_idx].name, " failed");
+          stop.tick(bb);
+          return NodeResult::Running;
+        }
+        auto new_path = new_path_opt.value();
+        Debug_Puts(bb.txs_tid, bb.loco->id,
+                   " NPath: ", new_path.to_string(&bb.track));
+
+        auto c_path = new_path_start + new_path;
+        Debug_Puts(bb.txs_tid, bb.loco->id,
+                   " Combined Path: ", c_path.to_string(&bb.track));
+
+        if (auto last_node = bb.path.peek_last().value();
+            last_node.has_reservation) {
+          auto res =
+              send<TC::Ack>(bb.tcs_tid, TC::Cmd::ReleaseReserve{
+                                            .id       = bb.loco->id,
+                                            .node_idx = last_node.node_idx,
+                                            .edge_dir = last_node.br_curved,
+                                        });
+          if (!res.has_value()) {
+            bb.error_msg = "Could not release";
+            return NodeResult::Failure;
+          }
+          last_res_dist_um = res_dist_um - last_node.dx_next * 1000;
+          Debug_Puts(bb.txs_tid, bb.loco->id, " Released ",
+                     bb.track[last_node.node_idx].name);
+        } else {
+          Debug_Puts(bb.txs_tid, bb.loco->id, " Didn't have to release (?) ",
+                     bb.track[last_node.node_idx].name);
+        }
+
+        Debug_Puts(bb.txs_tid, bb.loco->id,
+                   " Doing a flip path_dist: ", bb.path.dist_mm * 1000,
+                   " dx_um: ", bb.loco->d_um, " res dist: ", res_dist_um,
+                   " stop_buf: ", stop_buf_um);
+        bb.loco->d_um   = bb.path.dist_mm * 1000 - bb.loco->d_um;
+        c_path.track    = &bb.track;
+        bb.path         = c_path;
+        bb.loco->e_path = bb.path;
+        dir_node        = SetDirectionNode{!bb.loco->backward};
+        dir_node.tick(bb);
+        Debug_Puts(bb.txs_tid, bb.loco->id, " Completed direction flip");
+
+        stopped_since_tick = bb.curr_tick;
+        return NodeResult::Running;
       } else if (reservation_stop) {
         // otherwise, if we haven't reserved more, keep waiting
         stop.tick(bb);

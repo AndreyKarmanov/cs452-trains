@@ -65,6 +65,16 @@ public:
     return elem;
   }
 
+  constexpr std::optional<T> pop_back() {
+    if (empty())
+      return std::nullopt;
+    auto elem = arr[(head + _size - 1) % SIZE];
+
+    --_size;
+
+    return elem;
+  }
+
   constexpr void clear() {
     head  = 0;
     _size = 0;
