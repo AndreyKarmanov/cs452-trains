@@ -274,27 +274,27 @@ namespace {
       if (auto sens = std::get_if<SensorData>(&bb.new_event);
           sens && sens->new_state == 1) {
 
-        // if path is empty, we wait for the sensor before attributing.
-        if (bb.path.empty()) {
-          // filter if we have an initial node
-          if (bb.loco->inital_node_idx != -1 &&
-              bb.loco->inital_node_idx + 1 != sens->sid) {
-            return NodeResult::Running;
-          } else {
-            bb.path.push({
-                .node_idx = sens->sid - 1,
-                .type     = NODE_SENSOR,
-            });
-          }
-          return NodeResult::Success;
-        }
-
-        // auto attribute if no given node.
+        // auto attribute if no inital node
         if (bb.loco->inital_node_idx == -1) {
+          bb.loco->last_sensor.emplace(
+              TrainState::SeenSensor{*sens, bb.curr_tick});
+
           return NodeResult::Success;
         }
 
-        auto start_node_idx = bb.path.peek().value().node_idx;
+        // filter for inital node
+        if (!bb.loco->last_sensor.has_value()) {
+          if (bb.loco->inital_node_idx + 1 != sens->sid) {
+            return NodeResult::Running;
+          }
+          bb.loco->last_sensor.emplace(
+              TrainState::SeenSensor{*sens, bb.curr_tick});
+          return NodeResult::Success;
+        }
+
+        auto start_node_idx = bb.path.empty()
+                                  ? bb.loco->last_sensor->sens.sid - 1
+                                  : bb.path.peek()->node_idx;
         auto path           = bb.track.find_path(start_node_idx, sens->sid - 1);
 
         // if there's no path, or 20% off our estimate, we ignore
@@ -319,6 +319,8 @@ namespace {
                    sens->to_string(), " pos ",
                    bb.loco->d_um * 100 / sens_dist_um, "% ",
                    (bb.loco->d_um - sens_dist_um) / 1000, " mm");
+        bb.loco->last_sensor.emplace(
+            TrainState::SeenSensor{*sens, bb.curr_tick});
       }
 
       return NodeResult::Success;
@@ -405,9 +407,6 @@ namespace {
                 .d_um = d_mm * 1000,
                 .d_t  = bb.curr_tick - bb.loco->last_sensor->tick,
             });
-          } else {
-            bb.loco->last_sensor.emplace(
-                TrainState::SeenSensor{*sens, bb.curr_tick});
           }
           auto skipped_nodes = std::distance(bb.path.begin(), idx) + 1;
           bb.path.pop(skipped_nodes - 1);
@@ -421,6 +420,7 @@ namespace {
 
   struct PathReservationNode : public LeafNode {
     static constexpr int STOP_DIST_BUF_PCT = 20;
+    static constexpr int EXTRA_BUFFER_UM   = 20'000; // one train length
     int last_print_tick{0};
 
     SetSpeed stop{0};
@@ -438,7 +438,8 @@ namespace {
 
       auto stop_buf_um =
           bb.loco->d_um +
-          (bb.loco->stop_dist_um * (100 + STOP_DIST_BUF_PCT)) / 100;
+          (bb.loco->stop_dist_um * (100 + STOP_DIST_BUF_PCT)) / 100 +
+          EXTRA_BUFFER_UM;
       int lookahead_um =
           stop_buf_um + ((bb.loco->ve_nm * TICKS_PER_S * 2) / 1000);
 
@@ -617,12 +618,13 @@ namespace {
     PathToNode(int goal_idx) : goal_idx(goal_idx) {}
 
     NodeResult tick(Blackboard &bb) override {
-      if (bb.path.empty()) {
+      if (!bb.loco->last_sensor.has_value() && bb.path.empty()) {
         bb.error_msg = "Failed to find start";
         return NodeResult::Failure;
       }
 
-      auto start_idx  = bb.path.peek_last()->node_idx;
+      auto start_idx  = bb.path.empty() ? bb.loco->last_sensor->sens.sid - 1
+                                        : bb.path.peek_last()->node_idx;
       auto startr_idx = bb.track[start_idx].reverse->idx;
       auto goalr_idx  = bb.track[goal_idx].reverse->idx;
 
@@ -665,11 +667,29 @@ namespace {
 
       if (should_reverse) {
         auto res = rev_tree->tick(bb);
-
         if (res == NodeResult::Success) {
           rev_tree.emplace();
           bb.loco->d_um = bb.path.dist_mm * 1000 - bb.loco->d_um;
-          bb.path       = new_path;
+
+          // before we set the new path, the end of our new path is now reversed
+          // we may have reserved the final node, so we check it before
+          // reversing
+          if (!bb.path.empty()) {
+            if (auto last_node = bb.path.peek_last().value();
+                last_node.has_reservation) {
+              auto res =
+                  send<TC::Ack>(bb.tcs_tid, TC::Cmd::ReleaseReserve{
+                                                .id       = bb.loco->id,
+                                                .node_idx = last_node.node_idx,
+                                                .edge_dir = last_node.br_curved,
+                                            });
+              if (!res.has_value()) {
+                bb.error_msg = "Could not release";
+                return NodeResult::Failure;
+              }
+            }
+          }
+          bb.path = new_path;
         } else {
           return res;
         }
@@ -698,7 +718,7 @@ namespace {
 
       // if we're already moving, keep the same speed
       // otherwise sets to crawl speed to start localizing
-      if (bb.path.empty() && bb.loco->req_speed != 0 &&
+      if (!bb.loco->last_sensor.has_value() && bb.loco->req_speed != 0 &&
           set_speed.req_speed != bb.loco->req_speed) {
         set_speed = SetSpeed{bb.loco->req_speed};
       }
@@ -706,7 +726,7 @@ namespace {
       auto res = loop.tick(bb);
       if (res == NodeResult::Failure) {
         return NodeResult::Failure;
-      } else if (bb.path.empty()) {
+      } else if (!bb.loco->last_sensor.has_value()) {
         return NodeResult::Running;
       }
       return res;

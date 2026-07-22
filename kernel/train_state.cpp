@@ -27,7 +27,6 @@ static Path effective_path(const Track &track, const TrainState &train) {
     const track_node &sensor = track[sensor_idx];
     path.push({.node_idx  = sensor_idx,
                .type      = sensor.type,
-               .num       = sensor.num,
                .dx_next   = 0,
                .br_curved = false});
     return path;
