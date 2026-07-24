@@ -35,38 +35,12 @@ namespace RPS {
     enum class Choice { ROCK, PAPER, SCISSORS } choice;
   };
 
-  inline const char *choice_str(PlayMsg::Choice choice) {
-    switch (choice) {
-    case PlayMsg::Choice::ROCK:
-      return "rock";
-    case PlayMsg::Choice::PAPER:
-      return "paper";
-    case PlayMsg::Choice::SCISSORS:
-      return "scissors";
-    }
-    return "?";
-  }
-
   struct QuitMsg {};
 
   struct PlayReadyMsg {};
   struct PlayResultMsg {
     enum class Result { WIN, LOSE, TIE, PLAYER_QUIT } result;
   };
-
-  inline const char *result_str(PlayResultMsg::Result result) {
-    switch (result) {
-    case PlayResultMsg::Result::WIN:
-      return "win";
-    case PlayResultMsg::Result::LOSE:
-      return "lose";
-    case PlayResultMsg::Result::TIE:
-      return "tie";
-    case PlayResultMsg::Result::PLAYER_QUIT:
-      return "partner quit";
-    }
-    return "?";
-  }
 
   struct QuitAckMsg {};
 } // namespace RPS
@@ -257,6 +231,9 @@ namespace TC {
     using Any = std::variant<Invalid, Quit, Light, Function, Speed, Switch,
                              Reverse, Stop, Go, Reset, RemoveTrains, RunTree,
                              Direction, Nav, Reg, Reserve, ReleaseReserve>;
+
+    static_assert(std::is_trivially_copyable<Any>::value,
+                  "TC::Cmd::Any must be trivially copyable");
 
   } // namespace Cmd
 

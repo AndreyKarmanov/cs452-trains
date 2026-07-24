@@ -6,6 +6,35 @@
 #include "syscall.h"
 #include "uart_tx_server.h"
 
+namespace RPS {
+
+  inline const char *choice_str(PlayMsg::Choice choice) {
+    switch (choice) {
+    case PlayMsg::Choice::ROCK:
+      return "rock";
+    case PlayMsg::Choice::PAPER:
+      return "paper";
+    case PlayMsg::Choice::SCISSORS:
+      return "scissors";
+    }
+    return "?";
+  }
+
+  inline const char *result_str(PlayResultMsg::Result result) {
+    switch (result) {
+    case PlayResultMsg::Result::WIN:
+      return "win";
+    case PlayResultMsg::Result::LOSE:
+      return "lose";
+    case PlayResultMsg::Result::TIE:
+      return "tie";
+    case PlayResultMsg::Result::PLAYER_QUIT:
+      return "partner quit";
+    }
+    return "?";
+  }
+} // namespace RPS
+
 RPSClient::RPSClient() {
   tx_tid = WhoIs(UART_TX_Server::NAME);
   _assert(tx_tid >= 0, "TX SERVER WHOIS FAILED");
