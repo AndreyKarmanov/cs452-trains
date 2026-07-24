@@ -67,7 +67,7 @@ void print_state(int tx_tid, int web_tid, const TrackState &state,
                   loc.has_value()
                       ? format_node(track, loc->node_idx, loc->br_curved)
                       : StaticString<8>("none"),
-                  ", ", loc.has_value() ? loc->offset_um : 0, ")},\n\r");
+                  ", ", loc.has_value() ? loc->pct : 0, ")},\n\r");
     }
     dump.append("]}");
     Puts(web_tid, dump);
@@ -180,7 +180,7 @@ void ui_update_worker() {
                     loc.has_value()
                         ? format_node(track, loc->node_idx, loc->br_curved)
                         : StaticString<8>("none"),
-                    ", ", loc.has_value() ? loc->offset_um : 0, ")},\n\r");
+                    ", ", loc.has_value() ? loc->pct : 0, ")},\n\r");
       }
       dump.append("]}");
       Puts(web_tid, dump);

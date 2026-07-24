@@ -81,11 +81,11 @@ Path Path::reverse() {
     auto new_node = new_edge->src;
 
     reversed_path.push({
-        .node_idx        = new_node->idx,
-        .type            = new_node->type,
-        .dx_next         = new_edge->dist,
-        .br_curved       = new_node->type == NODE_BRANCH &&
-                           new_edge == &new_node->edge[DIR_CURVED],
+        .node_idx  = new_node->idx,
+        .type      = new_node->type,
+        .dx_next   = new_edge->dist,
+        .br_curved = new_node->type == NODE_BRANCH &&
+                     new_edge == &new_node->edge[DIR_CURVED],
         .has_reservation = prev_node.has_reservation,
     });
     reversed_path.dist_mm += new_edge->dist;
@@ -376,16 +376,15 @@ StaticString<128> Path::to_string(const Track *track) const {
 }
 
 std::optional<PathLocation> Path::locate_at(int offset_um) const {
-  int offset = offset_um;
   for (const auto &node : *this) {
     int seg_um = node.dx_next * 1000;
-    int diff   = offset - seg_um;
+    int diff   = offset_um - seg_um;
     if (diff < 0) {
-      return PathLocation{.node_idx  = node.node_idx,
-                          .br_curved = node.br_curved,
-                          .offset_um = offset};
+      int pct = (seg_um > 0) ? (offset_um * 1000) / seg_um : 0;
+      return PathLocation{
+          .node_idx = node.node_idx, .br_curved = node.br_curved, .pct = pct};
     }
-    offset -= seg_um;
+    offset_um -= seg_um;
   }
   return std::nullopt;
 }
