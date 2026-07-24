@@ -14,7 +14,6 @@
 #include "syscall.h"
 #include "test.h"
 #include "trains_main.h"
-#include "uart03_tx_server.h"
 #include "uart_rx_server.h"
 #include "uart_tx_server.h"
 #include "util.h"
@@ -181,7 +180,7 @@ static void fire_command(char *buf, size_t blen, int tx_tid) {
     test_buffer();
   } else if (strncmp(cmd, "t web", 5) == 0) {
     int web_tid = WhoIs(UART03_TX_Server::NAME);
-    WebSerial_Puts(web_tid, "hello world");
+    Puts(web_tid, "hello world");
   } else if (strncmp(cmd, "train", 5) == 0) {
     train_controller_program_task();
     Puts(tx_tid, "\033[2J\033[1;1H");

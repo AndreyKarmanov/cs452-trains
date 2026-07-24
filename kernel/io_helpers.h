@@ -9,11 +9,6 @@ int Puts(int tid, const char *str);
 int Printf(int tid, const char *fmt, ...);
 int Debug_Puts(int tid, const char *str);
 
-// Plain-text output for UART3 / WebSerial TX server (no ANSI escapes).
-// tid should be WhoIs(UART03_TX_Server::NAME).
-int WebSerial_Puts(int tid, const char *str);
-int WebSerial_Printf(int tid, const char *fmt, ...);
-
 template <size_t SIZE> int Puts(int tid, const StaticString<SIZE> &str) {
   return Puts(tid, str.c_str());
 }
@@ -22,12 +17,6 @@ template <typename... Args> int Debug_Puts(int tid, const Args &...args) {
   StaticString<TX::MAX_DATA_LENGTH> str;
   str.set(args...);
   return Debug_Puts(tid, str.c_str());
-}
-
-template <typename... Args> int WebSerial_Puts(int tid, const Args &...args) {
-  StaticString<TX::MAX_DATA_LENGTH> str;
-  str.set(args...);
-  return WebSerial_Puts(tid, str.c_str());
 }
 
 template <size_t SIZE, typename T>

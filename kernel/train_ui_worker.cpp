@@ -71,7 +71,7 @@ void print_state(int tx_tid, int web_tid, const TrackState &state,
                   ", ", loc.has_value() ? loc->offset_um : 0, ")},\n\r");
     }
     dump.append("]}");
-    WebSerial_Puts(web_tid, dump.c_str());
+    Puts(web_tid, dump.c_str());
   }
 
   if (state.trains != prev.trains) {
@@ -184,7 +184,7 @@ void ui_update_worker() {
                     ", ", loc.has_value() ? loc->offset_um : 0, ")},\n\r");
       }
       dump.append("]}");
-      WebSerial_Puts(web_tid, dump.c_str());
+      Puts(web_tid, dump.c_str());
     }
 #endif
     prev_state = cans_reply->state;

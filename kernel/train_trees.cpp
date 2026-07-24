@@ -562,8 +562,8 @@ namespace {
         }
 
         auto unreserved_nodes = std::distance(last_reserved, bb.path.end() - 1);
-        WebSerial_Puts(bb.web_tid, bb.loco->id, " Unres: ", unreserved_nodes,
-                       " Old Path: ", bb.path.to_string(&bb.track));
+           Puts(bb.web_tid, bb.loco->id, " Unres: ", unreserved_nodes,
+             " Old Path: ", bb.path.to_string(&bb.track));
         for (int i = 0; i < unreserved_nodes; ++i) {
           bb.path.dist_mm -= bb.path.pop_back()->dx_next;
         }
@@ -584,8 +584,8 @@ namespace {
         auto new_path = new_path_opt.value();
 
         auto c_path = new_path_start + new_path;
-        WebSerial_Puts(bb.web_tid, bb.loco->id,
-                       " New Path: ", c_path.to_string(&bb.track));
+           Puts(bb.web_tid, bb.loco->id, " New Path: ",
+             c_path.to_string(&bb.track));
 
         StaticString<128> path_str{};
         path_str.append(bb.loco->id, " Res Path: ");
@@ -596,7 +596,7 @@ namespace {
             path_str.append(bb.track[node.node_idx].name, " R ");
           }
         }
-        WebSerial_Puts(bb.web_tid, path_str);
+        Puts(bb.web_tid, path_str);
 
         if (auto last_node = bb.path.peek_last().value();
             last_node.has_reservation) {
@@ -610,7 +610,7 @@ namespace {
         bb.loco->e_path = bb.path;
         dir_node        = SetDirectionNode{!bb.loco->backward};
         dir_node.tick(bb);
-        WebSerial_Puts(bb.web_tid, bb.loco->id, " Completed direction flip");
+        Puts(bb.web_tid, bb.loco->id, " Completed direction flip");
 
         stopped_since_tick = bb.curr_tick;
         return NodeResult::Running;

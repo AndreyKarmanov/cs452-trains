@@ -1,13 +1,12 @@
 #include "uart_tx_server.h"
 #include "syscall.h"
-#include "uart.h"
 
-static void tx_notifier_task() {
-  int tx_tid = WhoIs(UART_TX_Server::NAME);
+template <typename ServerT, Event IRQ_EVENT> static void tx_notifier_task() {
+  int tx_tid = WhoIs(ServerT::NAME);
   _assert(tx_tid >= 0, "TX SERVER WHOIS FAILED");
 
   while (true) {
-    await_event(Event::UART_TX_IRQ);
+    await_event(IRQ_EVENT);
 
     // unlike other notifiers, we want this to block as the await_event init is
     // what unmasks the interrupt
@@ -16,68 +15,20 @@ static void tx_notifier_task() {
   }
 }
 
-void uart_tx_server_task() {
-  UART_TX_Server uart_tx_server;
-  create(2, tx_notifier_task);
+template <typename ServerT, Event IRQ_EVENT>
+static void uart_tx_server_task_impl() {
+  ServerT uart_tx_server;
+  create(2, tx_notifier_task<ServerT, IRQ_EVENT>);
   while (true) {
     uart_tx_server.run();
     yield();
   }
 }
 
-void UART_TX_Server::drain() {
-  while (!tx_buffer.empty()) {
-    if (!can_transmit_io()) {
-      break;
-    }
-    auto c = tx_buffer.pop();
-    putc(c.value());
-  }
-
-  buffer_has_pending_tx = !tx_buffer.empty();
+void uart_tx_server_task() {
+  uart_tx_server_task_impl<UART_TX_Server, Event::UART_TX_IRQ>();
 }
 
-void UART_TX_Server::reply_to_notifier() {
-  can_reply_to_notifier = false;
-  reply(notifier_tid, TX::ReplyMsg{});
-}
-
-void UART_TX_Server::handle(const int tid, const TX::SendMsg &msg) {
-  bool overflowed = false;
-  for (int i = 0; i < msg.len; ++i) {
-    if (!tx_buffer.push(msg.data[i]) && !overflowed) {
-      overflowed = true;
-      debug_puts(CONSOLE, "FAIL: TX buffer overflow\n\r");
-    }
-  }
-  drain();
-
-  // reply to sender
-  reply(tid, TX::ReplyMsg{});
-
-  // conditionally reply to notifier
-  if (can_reply_to_notifier && buffer_has_pending_tx) {
-    reply_to_notifier();
-  }
-}
-
-void UART_TX_Server::handle(const int tid, const TX::InterruptMsg &) {
-  notifier_tid          = tid;
-  can_reply_to_notifier = true;
-  drain();
-
-  // conditionally reply to notifier
-  // we do this as unblocking the notifier means an exception will be
-  // immediately raised
-  if (can_reply_to_notifier && buffer_has_pending_tx) {
-    reply_to_notifier();
-  }
-}
-
-void UART_TX_Server::run() {
-  int tid;
-  Message msg{};
-  receive(&tid, msg);
-
-  std::visit([&](auto &&arg) { handle(tid, arg); }, msg);
+void uart03_tx_server_task() {
+  uart_tx_server_task_impl<UART03_TX_Server, Event::UART3_TX_IRQ>();
 }

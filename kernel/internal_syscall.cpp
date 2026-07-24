@@ -268,33 +268,15 @@ static void handle_event(Event event, int arg0) {
   }
 }
 
-// Wake the TX notifier only when FR says we can send (!TXFF).
-// If not ready, mask the firing source without waking.
-// GIC 153 is shared across PL011s; demux with PACTL_CS then per-UART MIS.
-static void handle_uart_tx(size_t line, Event event, uint32_t pactl_bit,
-                           uint32_t pactl) {
-  if (!(pactl & pactl_bit)) {
-    return;
-  }
-  if (!is_uart_mis_tx_pending(line)) {
-    return;
-  }
-  if (can_transmit_io(line)) {
-    handle_event(event);
-    return;
-  }
-  disable_uart_interrupt(UARTInterruptType::TXIM, line);
-}
-
 static void handle_uart_irq() {
-  const uint32_t pactl = read_pactl_cs();
-
-  if ((pactl & PACTL_UART0_IRQ) && is_uart_mis_rx_pending(CONSOLE)) {
+  if (is_uart_mis_rx_pending(CONSOLE)) {
     handle_event(Event::UART_RX_IRQ);
   }
 
-  handle_uart_tx(CONSOLE, Event::UART_TX_IRQ, PACTL_UART0_IRQ, pactl);
-  handle_uart_tx(WEBSERIAL, Event::UART3_TX_IRQ, PACTL_UART3_IRQ, pactl);
+  // Shared UART IRQ line can be noisy / hard to source-demux in emulation.
+  // Broadcast TX wakeups; spurious notifier wakeups are acceptable.
+  handle_event(Event::UART_TX_IRQ);
+  handle_event(Event::UART3_TX_IRQ);
 }
 
 static void handle_mcp2515_irq() {

@@ -5,7 +5,6 @@
 #include "shell.h"
 #include "syscall.h"
 #include "sysinfo_task.h"
-#include "uart03_tx_server.h"
 #include "uart_rx_server.h"
 #include "uart_tx_server.h"
 
