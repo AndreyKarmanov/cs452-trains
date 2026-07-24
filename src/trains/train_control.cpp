@@ -11,12 +11,12 @@ template <> void TrainControlServer<>::tx_can_worker() {
   _assert(tx_tid >= 0, "TX SERVER WHOIS FAILED");
 
   while (true) {
-    auto tx_msg = send<TC::TX>(tc_tid, TC::TXReady{});
+    auto tx_msg = send<MRKCmd>(tc_tid, TC::TXReady{});
     if (!tx_msg.has_value()) {
       break;
     }
 
-    auto frame = encode_frame(tx_msg->mrk);
+    auto frame = encode_frame(tx_msg.value());
     await_event(Event::CAN_TX_IRQ);
     tx_can(frame);
   }

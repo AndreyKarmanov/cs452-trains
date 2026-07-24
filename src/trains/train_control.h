@@ -28,7 +28,7 @@ template <size_t TX_BUFFER_SIZE = 64> class TrainControlServer {
     bool waiting = false;
   };
 
-  Buffer<TC::TX, TX_BUFFER_SIZE> tx_buf;
+  Buffer<MRKCmd, TX_BUFFER_SIZE> tx_buf;
   Map<int, TreeMailbox, 10> trees;
 
   struct CalibratingTrain {
@@ -74,24 +74,22 @@ template <size_t TX_BUFFER_SIZE = 64> class TrainControlServer {
   }
 
   Message handle_command(const TC::Cmd::Light &cmd) {
-    tx_buf.push(TC::TX{.mrk = LightCmd(cmd.id, cmd.on)});
+    tx_buf.push(LightCmd(cmd.id, cmd.on));
     return TC::Ack{};
   }
 
   Message handle_command(const TC::Cmd::Function &cmd) {
-    tx_buf.push(TC::TX{.mrk = FunctionCmd(cmd.id, cmd.function, cmd.value)});
+    tx_buf.push(FunctionCmd(cmd.id, cmd.function, cmd.value));
     return TC::Ack{};
   }
 
   Message handle_command(const TC::Cmd::Speed &cmd) {
-    tx_buf.push(
-        TC::TX{.mrk = SpeedCmd(cmd.id, user_speed_to_mrk_level(cmd.speed))});
+    tx_buf.push(SpeedCmd(cmd.id, user_speed_to_mrk_level(cmd.speed)));
     return TC::Ack{};
   }
 
   Message handle_command(const TC::Cmd::Switch &cmd) {
-    tx_buf.push(
-        TC::TX{.mrk = SwitchCmd(static_cast<uint16_t>(cmd.id), cmd.straight)});
+    tx_buf.push(SwitchCmd(static_cast<uint16_t>(cmd.id), cmd.straight));
     return TC::Ack{};
   }
 
@@ -108,43 +106,42 @@ template <size_t TX_BUFFER_SIZE = 64> class TrainControlServer {
   }
 
   Message handle_command(const TC::Cmd::Direction &cmd) {
-    tx_buf.push(TC::TX{.mrk = DirectionCmd(cmd.id, cmd.backward)});
+    tx_buf.push(DirectionCmd(cmd.id, cmd.backward));
     return TC::Ack{};
   }
 
   Message handle_command(const TC::Cmd::Stop &) {
-    tx_buf.push(TC::TX{.mrk = ControlCmd(ControlCmd::CMD_STOP)});
+    tx_buf.push(ControlCmd(ControlCmd::CMD_STOP));
     return TC::Ack{};
   }
 
   Message handle_command(const TC::Cmd::Go &) {
-    tx_buf.push(TC::TX{.mrk = ControlCmd(ControlCmd::CMD_GO)});
+    tx_buf.push(ControlCmd(ControlCmd::CMD_GO));
     return TC::Ack{};
   }
 
   Message handle_command(const TC::Cmd::Reset &) {
     TrackState default_state{};
 
-    tx_buf.push(TC::TX{.mrk = ControlCmd(ControlCmd::CMD_REMOVE_TRAINS)});
-    tx_buf.push(TC::TX{.mrk = ControlCmd(ControlCmd::CMD_GO)});
+    tx_buf.push(ControlCmd(ControlCmd::CMD_REMOVE_TRAINS));
+    tx_buf.push(ControlCmd(ControlCmd::CMD_GO));
 
     for (const TrainState &train : default_state.trains) {
-      tx_buf.push(TC::TX{.mrk = LightCmd(train.id, train.light_on)});
-      tx_buf.push(TC::TX{
-          .mrk = SpeedCmd(train.id, user_speed_to_mrk_level(train.req_speed))});
-      tx_buf.push(TC::TX{.mrk = DirectionCmd(train.id, train.backward)});
+      tx_buf.push(LightCmd(train.id, train.light_on));
+      tx_buf.push(SpeedCmd(train.id, user_speed_to_mrk_level(train.req_speed)));
+      tx_buf.push(DirectionCmd(train.id, train.backward));
     }
 
     for (uint32_t sw_id = 0; sw_id < 22; ++sw_id) {
-      tx_buf.push(TC::TX{.mrk = SwitchCmd(TrackState::switch_id(sw_id),
-                                          default_state.is_switch_straight(
-                                              TrackState::switch_id(sw_id)))});
+      tx_buf.push(SwitchCmd(
+          TrackState::switch_id(sw_id),
+          default_state.is_switch_straight(TrackState::switch_id(sw_id))));
     }
     return TC::Ack{};
   }
 
   Message handle_command(const TC::Cmd::RemoveTrains &) {
-    tx_buf.push(TC::TX{.mrk = ControlCmd(ControlCmd::CMD_REMOVE_TRAINS)});
+    tx_buf.push(ControlCmd(ControlCmd::CMD_REMOVE_TRAINS));
     return TC::Ack{};
   }
 
@@ -170,13 +167,14 @@ template <size_t TX_BUFFER_SIZE = 64> class TrainControlServer {
     if (cmd.node_idx < 0 || cmd.node_idx >= TRACK_MAX) {
       return TC::Ack{.return_code = -1};
     }
-    spawn_tree_task(run_tree,
-                    TC::Tree::Init{.loco_id   = cmd.id,
-                                   .tree_type = TC::Tree::Type::NAVIGATE,
-                                   .value1    = cmd.node_idx,
-                                   .value2    = static_cast<int>(cmd.speed),
-                                   .value3    = cmd.offset,
-                                   .state     = state});
+    spawn_tree_task(run_tree, TC::Tree::Init{
+                                  .loco_id   = cmd.id,
+                                  .tree_type = TC::Tree::Type::NAVIGATE,
+                                  .value1    = cmd.node_idx,
+                                  .value2    = static_cast<int>(cmd.speed),
+                                  .value3    = cmd.offset,
+                                  .state     = state,
+                              });
     return TC::Ack{};
   }
 
@@ -202,9 +200,12 @@ template <size_t TX_BUFFER_SIZE = 64> class TrainControlServer {
       return TC::Ack{.return_code = -1};
     }
 
-    state.reservations.set(Reservation{static_cast<uint8_t>(cmd.node_idx),
-                                       static_cast<bool>(cmd.edge_dir)},
-                           cmd.id);
+    state.reservations.set(
+        Reservation{
+            static_cast<uint8_t>(cmd.node_idx),
+            static_cast<bool>(cmd.edge_dir),
+        },
+        cmd.id);
 
     track.reserve(cmd.node_idx, cmd.edge_dir, cmd.id);
     return TC::Ack{};
@@ -246,7 +247,11 @@ template <size_t TX_BUFFER_SIZE = 64> class TrainControlServer {
     state.update(mrk);
     simple_pacing_can_send = simple_pacing_can_send || (msg.frame.resp == 1);
     maybe_tx();
-    publish_tree_update(TC::Tree::Update{.mrk = mrk, .time = msg.time});
+    publish_tree_update(TC::Tree::Update{
+        .state = state,
+        .mrk   = mrk,
+        .time  = msg.time,
+    });
     reply(tid, TC::Ack{});
   }
 
@@ -279,18 +284,28 @@ template <size_t TX_BUFFER_SIZE = 64> class TrainControlServer {
       *loco = msg.train;
     }
 
-    auto next_msg = mailbox->msgs.pop();
-    if (next_msg.has_value()) {
-      reply(tid, next_msg.value());
+    auto next_msg_opt = mailbox->msgs.pop();
+    if (!next_msg_opt.has_value()) {
+      mailbox->waiting = true;
       return;
     }
-    mailbox->waiting = true;
+    // need to update state to be the most recent one
+    auto next_msg = next_msg_opt.value();
+    std::visit(
+        [&](auto &next_msg) {
+          next_msg.state = state;
+          reply(tid, next_msg);
+        },
+        next_msg);
   }
 
   void handle(const int tid, const TC::Tree::Tick &msg) {
     reply(tid, TC::Ack{});
-    publish_tree_update(
-        TC::Tree::Update{.mrk = UnknownCmd{}, .time = msg.time});
+    publish_tree_update(TC::Tree::Update{
+        .state = state,
+        .mrk   = UnknownCmd{},
+        .time  = msg.time,
+    });
   }
 
   void handle(const int tid, const TC::Tree::Exit &) {

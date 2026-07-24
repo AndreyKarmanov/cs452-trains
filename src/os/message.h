@@ -115,9 +115,6 @@ namespace TC {
   };
 
   struct TXReady {};
-  struct TX {
-    MRKCmd mrk;
-  };
 
   struct RX {
     CANFRAME frame;
@@ -157,6 +154,7 @@ namespace TC {
     };
 
     struct Update {
+      TrackState state;
       MRKCmd mrk;
       uint32_t time;
     };
@@ -257,8 +255,8 @@ using Message = std::variant<
     FUT::ClientParamRequestMsg, FUT::ClientInitMsg, TX::SendMsg,
     TX::InterruptMsg, TX::ReplyMsg, RX::GetcMsg, RX::GetcReplyMsg,
     RX::InterruptMsg, RX::InterruptReplyMsg, ErrorMsg, TaskExitMsg, TC::UIReady,
-    TC::UIUpdate, TC::Cmd::Any, TC::Quit, TC::TX, TC::RX, TC::TXReady,
-    TC::Tree::Msg, TC::Tree::Ready, TC::Tree::Tick, TC::Tree::Exit, TC::Ack>;
+    TC::UIUpdate, TC::Cmd::Any, TC::Quit, TC::RX, TC::TXReady, TC::Tree::Msg,
+    TC::Tree::Ready, TC::Tree::Tick, TC::Tree::Exit, TC::Ack, MRKCmd>;
 
 static_assert(std::is_trivially_copyable<Message>::value,
               "MessageVar must be trivially copyable");
