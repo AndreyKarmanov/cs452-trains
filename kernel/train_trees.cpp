@@ -505,6 +505,12 @@ namespace {
         last_print_tick = bb.curr_tick;
       }
 
+      // if we're stopped, but we're reserving more
+      // we shouldn't try to reverse so soon
+      if (reservation_stop && last_res_dist_um < res_dist_um) {
+        stopped_since_tick = bb.curr_tick;
+      }
+
       if (fully_reserved) {
         // if fully reserved, we don't care about reserving more
         // reset speed if we stopped it
