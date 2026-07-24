@@ -24,7 +24,7 @@ public:
     auto response = RegisterAs(NAME);
     _assert(response == 0, "CLOCK SERVER REGISTERAS FAILED");
 
-    create(2, clock_tick_task);
+    create(0, clock_tick_task);
   }
 
   void handle(const int tid, const CS::TimeMsg &) {

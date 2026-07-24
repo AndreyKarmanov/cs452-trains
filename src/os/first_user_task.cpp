@@ -18,7 +18,7 @@
 
 void first_user_task() {
   create(2, name_server_task);
-  create(2, clock_server_task);
+  create(1, clock_server_task);
   create(2, uart_tx_server_task);
   create(2, uart03_tx_server_task);
   create(2, uart_rx_server_task);
