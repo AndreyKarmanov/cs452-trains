@@ -21,8 +21,8 @@ struct Blackboard {
 
   // track & train data
   Track track{Track::Layout::A};
-  State state{};
-  TrainState *loco{nullptr};
+  TrackState state{};
+  TrainState *loco{};
 
   Path path{};
 

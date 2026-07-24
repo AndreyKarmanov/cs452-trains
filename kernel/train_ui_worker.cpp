@@ -29,7 +29,8 @@ static void append_node_list(StaticString<N> &out, const Track &track,
 
 template <size_t N>
 static void append_train_reservations(StaticString<N> &out, const Track &track,
-                                      const State &state, uint32_t train_id) {
+                                      const TrackState &state,
+                                      uint32_t train_id) {
   for (const auto &[node, id] : state.reservations) {
     if (id != train_id)
       continue;
@@ -37,7 +38,8 @@ static void append_train_reservations(StaticString<N> &out, const Track &track,
   }
 }
 
-void print_state(int tx_tid, int web_tid, const State &state, State &prev) {
+void print_state(int tx_tid, int web_tid, const TrackState &state,
+                 TrackState &prev) {
   StaticString<TX::MAX_DATA_LENGTH> line;
   static Track track(TrainControlServer<>::TRACK);
 
@@ -120,7 +122,7 @@ void print_state(int tx_tid, int web_tid, const State &state, State &prev) {
     line.set("\033[", SWITCH_ROW, ";2HSwitches\n\r");
     for (int sw_id = 0; sw_id < 22; ++sw_id) {
       const char c =
-          state.is_switch_straight(State::switch_id(sw_id)) ? 'S' : 'C';
+          state.is_switch_straight(TrackState::switch_id(sw_id)) ? 'S' : 'C';
 
       if (sw_id < 9) {
         line.append("   ", sw_id + 1, "  : ", c);
@@ -151,7 +153,7 @@ void ui_update_worker() {
   auto web_tid = WhoIs(UART03_TX_Server::NAME);
   _assert(web_tid >= 0, "TX SERVER3 WHOIS FAILED");
 
-  State prev_state{};
+  TrackState prev_state{};
   while (true) {
     auto cans_reply = send<TC::UIUpdate>(tcs_tid, TC::UIReady{});
     if (!cans_reply.has_value()) {

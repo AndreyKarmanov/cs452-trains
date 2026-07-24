@@ -21,9 +21,8 @@
 #include <cstddef>
 
 template <size_t TX_BUFFER_SIZE = 64> class TrainControlServer {
-  int waiting_ui_update_worker_tid = -1;
-  int waiting_can_tx_worker_tid    = -1;
-  bool simple_pacing_can_send      = true;
+  int waiting_can_tx_worker_tid = -1;
+  bool simple_pacing_can_send   = true;
 
   Track track;
   struct TreeMailbox {
@@ -42,7 +41,7 @@ template <size_t TX_BUFFER_SIZE = 64> class TrainControlServer {
   int cs_tid  = -1;
   int tx_tid  = -1;
   int web_tid = -1;
-  State state{};
+  TrackState state{};
 
   static void rx_can_worker();
   static void tx_can_worker();
@@ -123,7 +122,7 @@ template <size_t TX_BUFFER_SIZE = 64> class TrainControlServer {
               return TC::Ack{};
             },
             [&](const TC::Cmd::Reset &) {
-              State default_state{};
+              TrackState default_state{};
 
               tx_buf.push(
                   TC::TX{.mrk = ControlCmd(ControlCmd::CMD_REMOVE_TRAINS)});
@@ -139,10 +138,10 @@ template <size_t TX_BUFFER_SIZE = 64> class TrainControlServer {
               }
 
               for (uint32_t sw_id = 0; sw_id < 22; ++sw_id) {
-                tx_buf.push(
-                    TC::TX{.mrk = SwitchCmd(State::switch_id(sw_id),
-                                            default_state.is_switch_straight(
-                                                State::switch_id(sw_id)))});
+                tx_buf.push(TC::TX{
+                    .mrk = SwitchCmd(TrackState::switch_id(sw_id),
+                                     default_state.is_switch_straight(
+                                         TrackState::switch_id(sw_id)))});
               }
               return TC::Ack{};
             },
@@ -162,10 +161,6 @@ template <size_t TX_BUFFER_SIZE = 64> class TrainControlServer {
               return TC::Ack{};
             },
             [&](const TC::Cmd::Quit &) {
-              if (waiting_ui_update_worker_tid >= 0) {
-                reply(waiting_ui_update_worker_tid, TC::Quit{});
-                waiting_ui_update_worker_tid = -1;
-              }
               if (waiting_can_tx_worker_tid >= 0) {
                 reply(waiting_can_tx_worker_tid, TC::Quit{});
                 waiting_can_tx_worker_tid = -1;
@@ -192,7 +187,6 @@ template <size_t TX_BUFFER_SIZE = 64> class TrainControlServer {
               }
               if (TrainState *train = state.get_loco(cmd.id)) {
                 train->inital_node_idx = cmd.node_idx;
-                state.trains_dirty     = true;
               }
               return TC::Ack{};
             },
@@ -205,9 +199,7 @@ template <size_t TX_BUFFER_SIZE = 64> class TrainControlServer {
               // already reserved by another train
               auto res = track.get_reservation(cmd.node_idx, cmd.edge_dir);
               if (res != UNRESERVED && res != cmd.id) {
-                return TC::Cmd::Reserve{.id       = res,
-                                        .node_idx = cmd.node_idx,
-                                        .edge_dir = cmd.edge_dir};
+                return TC::Ack{.return_code = -1};
               }
 
               state.reservations.set(
@@ -216,7 +208,7 @@ template <size_t TX_BUFFER_SIZE = 64> class TrainControlServer {
                   cmd.id);
 
               track.reserve(cmd.node_idx, cmd.edge_dir, cmd.id);
-              return cmd;
+              return TC::Ack{};
             },
             [&](const TC::Cmd::ReleaseReserve &cmd) {
               if (cmd.node_idx < 0 || cmd.node_idx >= TRACK_MAX ||
@@ -258,21 +250,11 @@ template <size_t TX_BUFFER_SIZE = 64> class TrainControlServer {
     simple_pacing_can_send = simple_pacing_can_send || (msg.frame.resp == 1);
     maybe_tx();
     publish_tree_update(TC::Tree::Update{.mrk = mrk, .time = msg.time});
-    if (state.is_dirty() && waiting_ui_update_worker_tid >= 0) {
-      reply(waiting_ui_update_worker_tid, TC::UIUpdate{state});
-      state.clear_dirty();
-      waiting_ui_update_worker_tid = -1;
-    }
     reply(tid, TC::Ack{});
   }
 
   void handle(const int tid, const TC::UIReady &) {
-    if (state.is_dirty()) {
-      reply(tid, TC::UIUpdate{state});
-      state.clear_dirty();
-      return;
-    }
-    waiting_ui_update_worker_tid = tid;
+    reply(tid, TC::UIUpdate{state});
   }
 
   void handle(const int tid, const TC::TXReady &) {
@@ -297,8 +279,7 @@ template <size_t TX_BUFFER_SIZE = 64> class TrainControlServer {
     }
 
     if (auto loco = state.get_loco(msg.train.id); loco) {
-      *loco              = msg.train;
-      state.trains_dirty = true;
+      *loco = msg.train;
     }
 
     auto next_msg = mailbox->msgs.pop();

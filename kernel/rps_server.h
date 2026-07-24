@@ -5,6 +5,35 @@
 #include "name_server.h"
 #include "uart_tx_server.h"
 
+namespace RPS {
+
+  inline const char *choice_str(PlayMsg::Choice choice) {
+    switch (choice) {
+    case PlayMsg::Choice::ROCK:
+      return "rock";
+    case PlayMsg::Choice::PAPER:
+      return "paper";
+    case PlayMsg::Choice::SCISSORS:
+      return "scissors";
+    }
+    return "?";
+  }
+
+  inline const char *result_str(PlayResultMsg::Result result) {
+    switch (result) {
+    case PlayResultMsg::Result::WIN:
+      return "win";
+    case PlayResultMsg::Result::LOSE:
+      return "lose";
+    case PlayResultMsg::Result::TIE:
+      return "tie";
+    case PlayResultMsg::Result::PLAYER_QUIT:
+      return "partner quit";
+    }
+    return "?";
+  }
+} // namespace RPS
+
 template <size_t MAX_GAMES = 32> class RPSServer {
   struct Game {
     enum class GameState {

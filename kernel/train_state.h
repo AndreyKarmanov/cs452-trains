@@ -148,7 +148,7 @@ struct TrainState {
   bool operator==(const TrainState &other) const = default;
 };
 
-struct State {
+struct TrackState {
 
   static constexpr uint16_t switch_index(uint16_t sw_id) {
     return sw_id > 18 ? sw_id - 135 : sw_id - 1;
@@ -247,22 +247,7 @@ struct State {
        }}};
 
   // track go / stop
-  bool stopped : 1        = true;
-  bool trains_dirty : 1   = true;
-  bool switches_dirty : 1 = true;
-  bool sensors_dirty : 1  = true;
-  bool status_dirty : 1   = true;
-
-  bool is_dirty() const {
-    return trains_dirty || switches_dirty || sensors_dirty || status_dirty;
-  };
-
-  void clear_dirty() {
-    trains_dirty   = false;
-    switches_dirty = false;
-    sensors_dirty  = false;
-    status_dirty   = false;
-  }
+  bool stopped : 1 = true;
 
   void update(const MRKCmd &cmd);
 

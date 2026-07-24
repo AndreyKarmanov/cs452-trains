@@ -479,7 +479,7 @@ namespace {
             return NodeResult::Failure;
           }
 
-          if (!res->success) {
+          if (res->return_code == -1) {
             fully_reserved = false;
             break;
           }

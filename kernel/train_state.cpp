@@ -46,10 +46,9 @@ std::optional<PathLocation> locate_train(const Track &track,
   return effective_path(track, train).locate_at(train.d_um);
 }
 
-void State::update(const MRKCmd &cmd) {
+void TrackState::update(const MRKCmd &cmd) {
   std::visit(Overloaded{
                  [&](const LightCmd &cmd) {
-                   trains_dirty = true;
                    for (TrainState &train : trains) {
                      if (train.id == cmd.loco_id) {
                        train.light_on = cmd.value;
@@ -59,7 +58,6 @@ void State::update(const MRKCmd &cmd) {
                  },
                  [&](const FunctionCmd &) {},
                  [&](const SpeedCmd &cmd) {
-                   trains_dirty = true;
                    for (TrainState &train : trains) {
                      if (train.id == cmd.loco_id) {
                        train.req_speed = mrk_level_to_user_speed(cmd.speed);
@@ -68,7 +66,6 @@ void State::update(const MRKCmd &cmd) {
                    }
                  },
                  [&](const DirectionCmd &cmd) {
-                   trains_dirty = true;
                    for (TrainState &train : trains) {
                      if (train.id == cmd.loco_id) {
                        train.backward = cmd.backward;
@@ -77,8 +74,7 @@ void State::update(const MRKCmd &cmd) {
                    }
                  },
                  [&](const SwitchCmd &cmd) {
-                   switches_dirty = true;
-                   if (State::is_switch_id(cmd.sw_id)) {
+                   if (TrackState::is_switch_id(cmd.sw_id)) {
                      // special case for sw 153/154 and 155/156
                      // if 153 is curved, 154 must be straight, and v.v., same
                      // for 155/156
@@ -98,7 +94,6 @@ void State::update(const MRKCmd &cmd) {
                    if (cmd.new_state) {
                      if (sensors.size() == 0 ||
                          sensors.peek_last() != cmd.sid) {
-                       sensors_dirty = true;
                        if (sensors.size() == MAX_SENSORS_RECENT) {
                          sensors.pop();
                        }
@@ -110,14 +105,12 @@ void State::update(const MRKCmd &cmd) {
                    switch (cmd.type) {
                    case ControlCmd::CMD_GO:
                      if (stopped) {
-                       stopped      = false;
-                       status_dirty = true;
+                       stopped = false;
                      }
                      break;
                    case ControlCmd::CMD_STOP:
                      if (!stopped) {
-                       stopped      = true;
-                       status_dirty = true;
+                       stopped = true;
                      }
                      break;
                    case ControlCmd::CMD_HALT:

@@ -111,7 +111,7 @@ namespace TC {
 
   struct UIReady {};
   struct UIUpdate {
-    State state;
+    TrackState state;
   };
 
   struct TXReady {};
@@ -153,7 +153,7 @@ namespace TC {
       int value2;
       int value3;
 
-      State state;
+      TrackState state;
     };
 
     struct Update {
