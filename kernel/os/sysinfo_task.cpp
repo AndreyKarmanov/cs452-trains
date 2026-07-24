@@ -1,6 +1,5 @@
 #include "sysinfo_task.h"
 #include "clock_server.h"
-#include "io_helpers.h"
 #include "name_server.h"
 #include "syscall.h"
 #include "time.h"

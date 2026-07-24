@@ -34,8 +34,11 @@ CXXFLAGS:=-g -pipe -static -march=armv8-a -mcpu=cortex-a72 -std=gnu++23 -DDATA_C
 # doing this rather than calling the linker directly simplifies the compilation procedure
 LDFLAGS:=-Wl,-nmagic -Wl,-Tlinker.ld -Wl,--no-warn-rwx-segments -nostartfiles
 
-# Source files and include dirs
-SOURCES := $(wildcard *.S) $(wildcard *.c) $(wildcard *.cpp)
+# Source files and include dirs (recursive so files can live in subfolders)
+SOURCES := $(shell find . -type f \( -name '*.S' -o -name '*.c' -o -name '*.cpp' \) | sed 's|^\./||' | sort)
+INCLUDE_DIRS := $(shell find . -type d | sort)
+CXXFLAGS += $(addprefix -I,$(INCLUDE_DIRS))
+
 # Create .o and .d files for every source file.
 OBJECTS := $(patsubst %.S, %.o, $(patsubst %.c, %.o, $(patsubst %.cpp, %.o, $(SOURCES))))
 DEPENDS := $(patsubst %.S, %.d, $(patsubst %.c, %.d, $(patsubst %.cpp, %.d, $(SOURCES))))

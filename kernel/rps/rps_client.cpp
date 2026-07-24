@@ -1,6 +1,5 @@
 #include "rps_client.h"
 #include "debug.h"
-#include "io_helpers.h"
 #include "message.h"
 #include "rps_server.h"
 #include "syscall.h"

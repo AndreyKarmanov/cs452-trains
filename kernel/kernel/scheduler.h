@@ -6,6 +6,7 @@
 #include <optional>
 
 template <size_t MAX_TASKS, size_t MAX_PRIORITY> class Scheduler {
+  Buffer<int, MAX_TASKS> schedules[MAX_PRIORITY]{};
 public:
   void schedule(TaskDescriptor &td) { schedules[td.priority].push(td.tid); };
 
@@ -19,6 +20,4 @@ public:
     return std::nullopt;
   };
 
-private:
-  Buffer<int, MAX_TASKS> schedules[MAX_PRIORITY]{};
 };

@@ -3,7 +3,6 @@
 #include "clock_server.h"
 #include "debug.h"
 #include "heap.h"
-#include "io_helpers.h"
 #include "kernel_state.h"
 #include "map.h"
 #include "mcp2515.h"
