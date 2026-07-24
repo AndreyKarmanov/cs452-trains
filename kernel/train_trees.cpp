@@ -562,7 +562,7 @@ namespace {
         }
 
         auto unreserved_nodes = std::distance(last_reserved, bb.path.end() - 1);
-           Puts(bb.web_tid, bb.loco->id, " Unres: ", unreserved_nodes,
+        Puts(bb.web_tid, bb.loco->id, " Unres: ", unreserved_nodes,
              " Old Path: ", bb.path.to_string(&bb.track));
         for (int i = 0; i < unreserved_nodes; ++i) {
           bb.path.dist_mm -= bb.path.pop_back()->dx_next;
@@ -584,8 +584,8 @@ namespace {
         auto new_path = new_path_opt.value();
 
         auto c_path = new_path_start + new_path;
-           Puts(bb.web_tid, bb.loco->id, " New Path: ",
-             c_path.to_string(&bb.track));
+        Puts(bb.web_tid, bb.loco->id,
+             " New Path: ", c_path.to_string(&bb.track));
 
         StaticString<128> path_str{};
         path_str.append(bb.loco->id, " Res Path: ");

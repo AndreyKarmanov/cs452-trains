@@ -54,13 +54,13 @@ void test_clock_server() {
   int tx_tid = WhoIs(UART_TX_Server::NAME);
 
   auto time = Time(cs_tid);
-  Printf(tx_tid, "Current time: %d ticks\n\r", time);
+  Puts(tx_tid, "Current time: ", time, " ticks\n\r");
 
   time = Delay(cs_tid, 500);
-  Printf(tx_tid, "5 second delay finished at %d ticks\n\r", time);
+  Puts(tx_tid, "5 second delay finished at ", time, " ticks\n\r");
 
   time = DelayUntil(cs_tid, time + 500);
-  Printf(tx_tid, "5 second delay until finished at %d ticks\n\r", time);
+  Puts(tx_tid, "5 second delay until finished at ", time, " ticks\n\r");
 }
 
 void test_clock_client_task() {
@@ -79,8 +79,8 @@ void test_clock_client_task() {
   for (int delays_complete = 0; delays_complete < delay_count;
        ++delays_complete) {
     auto time = Delay(cs_tid, delay_ticks);
-    Printf(tx_tid,
-           "T %d delay_ticks: %d delay_count: %d delays_complete: %d at %d\n\r",
-           tid, delay_ticks, delay_count, delays_complete, time);
+    Puts(tx_tid, "T ", tid, " delay_ticks: ", delay_ticks,
+         " delay_count: ", delay_count, " delays_complete: ", delays_complete,
+         " at ", time, "\n\r");
   }
 }

@@ -99,16 +99,16 @@ static void fire_command(char *buf, size_t blen, int tx_tid) {
     exit();
   } else if (strncmp(cmd, "p", 1) == 0) {
     int parent_tid = my_parent_tid();
-    Printf(tx_tid, "My parent tid is %d\n\r", parent_tid);
+    Puts(tx_tid, "My parent tid is ", parent_tid, "\n\r");
   } else if (strncmp(cmd, "m", 1) == 0) {
     int tid = my_tid();
-    Printf(tx_tid, "My tid is %d\n\r", tid);
+    Puts(tx_tid, "My tid is ", tid, "\n\r");
   } else if (strncmp(cmd, "y", 1) == 0) {
     yield();
     Puts(tx_tid, "Yielded\n\r");
   } else if (strncmp(cmd, "c", 1) == 0) {
     int tid = create(3, shell_task);
-    Printf(tx_tid, "Created new shell %u", tid);
+    Puts(tx_tid, "Created new shell ", tid);
   } else if (strncmp(cmd, "d", 1) == 0) {
     char *cursor = cmd + 1;
     size_t address;
@@ -137,15 +137,16 @@ static void fire_command(char *buf, size_t blen, int tx_tid) {
         Puts(tx_tid, "Usage: w <hex address> <hex value>\n\r");
       } else {
         write_memory_word(address, value);
-        Puts(tx_tid, "Wrote ");
-        Printf(tx_tid, "0x%x", static_cast<unsigned int>(value));
-        Puts(tx_tid, " to ");
-        Printf(tx_tid, "0x%x\n\r", static_cast<unsigned int>(address));
+        char hex_value[32];
+        char hex_addr[32];
+        ui2a(static_cast<unsigned int>(value), 16, hex_value);
+        ui2a(static_cast<unsigned int>(address), 16, hex_addr);
+        Puts(tx_tid, "Wrote 0x", hex_value, " to 0x", hex_addr, "\n\r");
       }
     }
   } else if (strncmp(cmd, "t k1", 4) == 0) {
     int tid = create(2, test_k1);
-    Printf(tx_tid, "Created tid %u", tid);
+    Puts(tx_tid, "Created tid ", tid);
   } else if (strncmp(cmd, "t map", 5) == 0) {
     test_map();
   } else if (strncmp(cmd, "t heap", 6) == 0) {
@@ -157,17 +158,26 @@ static void fire_command(char *buf, size_t blen, int tx_tid) {
   } else if (strncmp(cmd, "t name_server", 13) == 0) {
     create(0, test_name_server);
   } else if (strncmp(cmd, "t cycles", 8) == 0) {
-    Printf(tx_tid, "Syscall cycle counts:\n\r");
+    Puts(tx_tid, "Syscall cycle counts:\n\r");
     for (const auto &[k, v] : Kernel::syscall_cycle_counts) {
       auto total_cycles = Kernel::syscall_cycle_totals.get(k).value_or(1);
-      Printf(tx_tid, "  %d: %d cycles\n\r", k, v / total_cycles);
+      Puts(tx_tid, "  ", static_cast<int>(k), ": ", v / total_cycles,
+           " cycles\n\r");
     }
   } else if (strncmp(cmd, "t ssr", 5) == 0) {
     create(1, test_timer_task);
   } else if (strncmp(cmd, "t canf", 6) == 0) {
-    Printf(tx_tid, "CAN irq flags: %b\n\r", mcp2515_get_active_irq());
+    char bin[32];
+    ui2a(static_cast<unsigned int>(
+             static_cast<uint8_t>(mcp2515_get_active_irq())),
+         2, bin);
+    Puts(tx_tid, "CAN irq flags: ", bin, "\n\r");
   } else if (strncmp(cmd, "t cane", 6) == 0) {
-    Printf(tx_tid, "CAN enabled irq: %b\n\r", mcp2515_get_enabled_interrupt());
+    char bin[32];
+    ui2a(static_cast<unsigned int>(
+             static_cast<uint8_t>(mcp2515_get_enabled_interrupt())),
+         2, bin);
+    Puts(tx_tid, "CAN enabled irq: ", bin, "\n\r");
   } else if (strncmp(cmd, "t cans", 6) == 0) {
     create(1, test_can_tx_irq_task);
   } else if (strncmp(cmd, "t can", 5) == 0) {
@@ -213,7 +223,7 @@ void shell_task() {
     char c = static_cast<char>(rc);
     if (isprint(c) && buf_n < BUFFER_SIZE - 1) {
       buf[buf_n++] = c;
-      Putc(tx_tid, c);
+      Puts(tx_tid, c);
     } else if ((c == 0x08 || c == 0x7f) && buf_n > 0) { // backspace
       Puts(tx_tid, "\b \b"); // move back, print space, move back again
       --buf_n;

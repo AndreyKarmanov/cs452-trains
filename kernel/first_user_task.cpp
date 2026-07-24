@@ -25,15 +25,15 @@ void first_user_task() {
 
 #if defined(RPS_TEST) && RPS_TEST
   int rps_tid = create(1, rps_server_task);
-  Printf(tx_tid, "RPS Server %d\n\r", rps_tid);
+  Puts(tx_tid, "RPS Server ", rps_tid, "\n\r");
   int rps_task_tid = create(2, test_rps_task);
-  Printf(tx_tid, "RPS Test Client %d\n\r", rps_tid);
+  Puts(tx_tid, "RPS Test Client ", rps_tid, "\n\r");
   await_task(rps_task_tid);
 #endif
 
 #if defined(PERF_TEST) && PERF_TEST
   int timer_tid = create(1, test_timer_task);
-  Printf(tx_tid, "Timer Test %d\n\r", timer_tid);
+  Puts(tx_tid, "Timer Test ", timer_tid, "\n\r");
 #endif
 
 #if defined(CLOCK_TEST) && CLOCK_TEST
@@ -42,8 +42,8 @@ void first_user_task() {
   auto p5_tid = create(5, test_clock_client_task);
   auto p6_tid = create(6, test_clock_client_task);
 
-  Printf(tx_tid, "Created p3: %d, p4: %d, p5: %d, p6: %d\n\r", p3_tid, p4_tid,
-         p5_tid, p6_tid);
+  Puts(tx_tid, "Created p3: ", p3_tid, ", p4: ", p4_tid, ", p5: ", p5_tid,
+       ", p6: ", p6_tid, "\n\r");
 
   int rcv_tid;
   MessageVar rcv_msg;
