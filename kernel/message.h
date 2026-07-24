@@ -261,7 +261,7 @@ namespace TC {
   } // namespace Cmd
 
   struct Ack {
-    bool success{true};
+    int return_code{0};
   };
   struct Quit {};
 } // namespace TC

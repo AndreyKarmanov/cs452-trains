@@ -55,6 +55,18 @@ public:
     data[len] = '\0';
   }
 
+  StaticString(const StaticString &other) {
+    len = other.len < SIZE - 1 ? other.len : SIZE - 1;
+    for (size_t i = 0; i < len; ++i) {
+      data[i] = other.data[i];
+    }
+    data[len] = '\0';
+  }
+
+  template <typename... Args> StaticString(const Args &...args) {
+    set(args...);
+  }
+
   void clear() {
     len     = 0;
     data[0] = '\0';

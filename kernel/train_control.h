@@ -76,27 +76,27 @@ template <size_t TX_BUFFER_SIZE = 64> class TrainControlServer {
     }
   }
 
-  bool expand_user_command(const TC::Cmd::Any &command) {
+  Message handle_command(const TC::Cmd::Any &command) {
     return std::visit(
         Overloaded{
             [&](const TC::Cmd::Light &cmd) {
               tx_buf.push(TC::TX{.mrk = LightCmd(cmd.id, cmd.on)});
-              return true;
+              return TC::Ack{};
             },
             [&](const TC::Cmd::Function &cmd) {
               tx_buf.push(
                   TC::TX{.mrk = FunctionCmd(cmd.id, cmd.function, cmd.value)});
-              return true;
+              return TC::Ack{};
             },
             [&](const TC::Cmd::Speed &cmd) {
               tx_buf.push(TC::TX{
                   .mrk = SpeedCmd(cmd.id, user_speed_to_mrk_level(cmd.speed))});
-              return true;
+              return TC::Ack{};
             },
             [&](const TC::Cmd::Switch &cmd) {
               tx_buf.push(TC::TX{.mrk = SwitchCmd(static_cast<uint16_t>(cmd.id),
                                                   cmd.straight)});
-              return true;
+              return TC::Ack{};
             },
             [&](const TC::Cmd::Reverse &cmd) {
               spawn_tree_task(run_tree,
@@ -108,19 +108,19 @@ template <size_t TX_BUFFER_SIZE = 64> class TrainControlServer {
                                   .value3    = 0,
                                   .state     = state,
                               });
-              return true;
+              return TC::Ack{};
             },
             [&](const TC::Cmd::Direction &cmd) {
               tx_buf.push(TC::TX{.mrk = DirectionCmd(cmd.id, cmd.backward)});
-              return true;
+              return TC::Ack{};
             },
             [&](const TC::Cmd::Stop &) {
               tx_buf.push(TC::TX{.mrk = ControlCmd(ControlCmd::CMD_STOP)});
-              return true;
+              return TC::Ack{};
             },
             [&](const TC::Cmd::Go &) {
               tx_buf.push(TC::TX{.mrk = ControlCmd(ControlCmd::CMD_GO)});
-              return true;
+              return TC::Ack{};
             },
             [&](const TC::Cmd::Reset &) {
               State default_state{};
@@ -144,12 +144,12 @@ template <size_t TX_BUFFER_SIZE = 64> class TrainControlServer {
                                             default_state.is_switch_straight(
                                                 State::switch_id(sw_id)))});
               }
-              return true;
+              return TC::Ack{};
             },
             [&](const TC::Cmd::RemoveTrains &) {
               tx_buf.push(
                   TC::TX{.mrk = ControlCmd(ControlCmd::CMD_REMOVE_TRAINS)});
-              return true;
+              return TC::Ack{};
             },
             [&](const TC::Cmd::RunTree &cmd) {
               spawn_tree_task(run_tree,
@@ -159,7 +159,7 @@ template <size_t TX_BUFFER_SIZE = 64> class TrainControlServer {
                                              .value2    = cmd.value2,
                                              .value3    = cmd.value3,
                                              .state     = state});
-              return true;
+              return TC::Ack{};
             },
             [&](const TC::Cmd::Quit &) {
               if (waiting_ui_update_worker_tid >= 0) {
@@ -170,12 +170,11 @@ template <size_t TX_BUFFER_SIZE = 64> class TrainControlServer {
                 reply(waiting_can_tx_worker_tid, TC::Quit{});
                 waiting_can_tx_worker_tid = -1;
               }
-              return true;
+              return TC::Ack{};
             },
             [&](const TC::Cmd::Nav &cmd) {
               if (cmd.node_idx < 0 || cmd.node_idx >= TRACK_MAX) {
-                Debug_Puts(tx_tid, "Invalid node index in nav command");
-                return false;
+                return TC::Ack{.return_code = -1};
               }
               spawn_tree_task(
                   run_tree,
@@ -185,31 +184,30 @@ template <size_t TX_BUFFER_SIZE = 64> class TrainControlServer {
                                  .value2    = static_cast<int>(cmd.speed),
                                  .value3    = cmd.offset,
                                  .state     = state});
-              return true;
+              return TC::Ack{};
             },
             [&](const TC::Cmd::Reg &cmd) {
               if (cmd.node_idx < 0 || cmd.node_idx >= TRACK_MAX) {
-                Debug_Puts(tx_tid, "Invalid node index in reg command");
-                return false;
+                return TC::Ack{.return_code = -1};
               }
               if (TrainState *train = state.get_loco(cmd.id)) {
                 train->inital_node_idx = cmd.node_idx;
                 state.trains_dirty     = true;
               }
-              return true;
+              return TC::Ack{};
             },
             [&](const TC::Cmd::Reserve &cmd) {
               if (cmd.node_idx < 0 || cmd.node_idx >= TRACK_MAX ||
                   (cmd.edge_dir != 0 && cmd.edge_dir != 1)) {
-                Debug_Puts(tx_tid,
-                           "Invalid node index or direction in reserve");
-                return false;
+                return TC::Ack{.return_code = -1};
               }
 
               // already reserved by another train
               auto res = track.get_reservation(cmd.node_idx, cmd.edge_dir);
               if (res != UNRESERVED && res != cmd.id) {
-                return false;
+                return TC::Cmd::Reserve{.id       = res,
+                                        .node_idx = cmd.node_idx,
+                                        .edge_dir = cmd.edge_dir};
               }
 
               state.reservations.set(
@@ -218,22 +216,18 @@ template <size_t TX_BUFFER_SIZE = 64> class TrainControlServer {
                   cmd.id);
 
               track.reserve(cmd.node_idx, cmd.edge_dir, cmd.id);
-              return true;
+              return cmd;
             },
             [&](const TC::Cmd::ReleaseReserve &cmd) {
               if (cmd.node_idx < 0 || cmd.node_idx >= TRACK_MAX ||
                   (cmd.edge_dir != 0 && cmd.edge_dir != 1)) {
-                Debug_Puts(tx_tid,
-                           "Invalid node index or direction in reserve path");
-                return false;
+                return TC::Ack{.return_code = -1};
               }
 
               // can't release if not reserved by this train
               auto res = track.get_reservation(cmd.node_idx, cmd.edge_dir);
               if (res != UNRESERVED && res != cmd.id) {
-                Debug_Puts(tx_tid, "Can't release reservation, reserved by ",
-                           res, " (this train: ", cmd.id, ")");
-                return false;
+                return TC::Ack{.return_code = -1};
               }
 
               state.reservations.remove(
@@ -249,9 +243,11 @@ template <size_t TX_BUFFER_SIZE = 64> class TrainControlServer {
               }
 
               track.release(cmd.node_idx, cmd.edge_dir, cmd.id);
-              return true;
+              return TC::Ack{};
             },
-            [&](const TC::Cmd::Invalid &) { return false; },
+            [&](const TC::Cmd::Invalid &) {
+              return TC::Ack{.return_code = -1};
+            },
         },
         command);
   }
@@ -285,8 +281,7 @@ template <size_t TX_BUFFER_SIZE = 64> class TrainControlServer {
   }
 
   void handle(const int tid, const TC::Cmd::Any &msg) {
-    auto res = expand_user_command(msg);
-    reply(tid, TC::Ack{.success = res});
+    reply(tid, handle_command(msg));
     maybe_tx();
     if (auto data = std::get_if<TC::Cmd::Quit>(&msg); data) {
       Debug_Puts(tx_tid, "train control server EXITING\n\r");
@@ -350,8 +345,8 @@ public:
     create(2, tx_can_worker);
     create(5, train_tick_worker);
 
-    expand_user_command(TC::Cmd::RemoveTrains{});
-    expand_user_command(TC::Cmd::Reset{});
+    handle_command(TC::Cmd::RemoveTrains{});
+    handle_command(TC::Cmd::Reset{});
   }
 
   void run() {
