@@ -414,7 +414,6 @@ namespace {
 
     NodeResult tick(Blackboard &bb) override {
       int64_t res_dist_um = 0;
-      bool fully_reserved{true};
 
       int stop_buf_um =
           (bb.loco->stop_dist_um * (100 + STOP_DIST_BUF_PCT)) / 100 +
@@ -450,6 +449,8 @@ namespace {
         stopped_since_tick = bb.curr_tick;
       }
 
+      bool fully_reserved = res_dist_um == bb.path.dist_mm * 1000;
+
       if (fully_reserved) {
         // if fully reserved, we don't care about reserving more
         // reset speed if we stopped it
@@ -481,15 +482,15 @@ namespace {
 
         Debug_Puts(bb.txs_tid, bb.loco->id, " Deadlock reversing");
 
-        auto last_reserved = bb.path.end();
-        auto dist_reserved = 0;
+        auto last_reserved    = bb.path.end();
+        auto dist_reserved_mm = 0;
         for (auto it = bb.path.begin(); it < bb.path.end(); it++) {
           auto node = *it;
-          if (dist_reserved >= bb.loco->res_dist_um) {
+          if (dist_reserved_mm >= bb.loco->res_dist_um) {
             break;
           }
-          dist_reserved += node.dx_next;
-          last_reserved  = it;
+          dist_reserved_mm += node.dx_next * 1000;
+          last_reserved     = it;
         }
 
         if (last_reserved == bb.path.end()) {

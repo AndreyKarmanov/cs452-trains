@@ -221,9 +221,9 @@ template <size_t TX_BUFFER_SIZE = 64> class TrainControlServer {
           auto rev_path = other_path.reverse();
           int node_d_um = rev_path.dist_along_path(node) * 1000;
           if (node_d_um >= 0 &&
-              std::min(rev_path.dist_mm - loco.d_um - loco.stop_dist_um,
+              std::min(rev_path.dist_mm * 1000 - loco.d_um - loco.stop_dist_um,
                        loco.res_dist_um) < node_d_um &&
-              node_d_um < rev_path.dist_mm - loco.d_um) {
+              node_d_um < rev_path.dist_mm * 1000 - loco.d_um) {
             state.get_loco(cmd.id)->res_dist_um = res_dist_um;
             return TC::Cmd::ReserveResponse{res_dist_um};
           }
@@ -233,7 +233,7 @@ template <size_t TX_BUFFER_SIZE = 64> class TrainControlServer {
       res_dist_um += node.dx_next * 1000;
     }
     state.get_loco(cmd.id)->res_dist_um = res_dist_um;
-    return TC::Cmd::ReserveResponse{cmd.lookahead_um};
+    return TC::Cmd::ReserveResponse{res_dist_um};
   }
 
   Message handle_command(const TC::Cmd::Invalid &) { return TC::Ack{}; }
