@@ -216,7 +216,7 @@ TC::Cmd::Any parse_command(StaticString<CLI_BUFFER_SIZE> &buf) {
         buf.set("Error: Unknown node name in res command");
         return out;
       }
-      out = TC::Cmd::Reserve{loco_id, node_idx.value(), edge_dir};
+      // out = TC::Cmd::Reserve{loco_id, node_idx.value(), edge_dir};
       buf.set("Success: res ", loco_id, " ", node_name, " ", dir_label);
     } else {
       out = TC::Cmd::Invalid{};
@@ -242,7 +242,7 @@ TC::Cmd::Any parse_command(StaticString<CLI_BUFFER_SIZE> &buf) {
         buf.set("Error: Unknown node name in rel command");
         return out;
       }
-      out = TC::Cmd::ReleaseReserve{loco_id, node_idx.value(), edge_dir};
+      // out = TC::Cmd::ReleaseReserve{loco_id, node_idx.value(), edge_dir};
       buf.set("Success: rel ", loco_id, " ", node_name, " ", dir_label);
     } else {
       out = TC::Cmd::Invalid{};

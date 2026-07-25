@@ -4,6 +4,7 @@
 #include "map.h"
 #include "mrk.h"
 #include "pathfind.h"
+#include <cstdint>
 #include <stdint.h>
 
 #define MAX_TRAINS 6
@@ -111,6 +112,7 @@ struct TrainState {
   std::optional<SeenSensor> last_sensor{};
 
   EncodedPath e_path{};
+  int res_dist_um{0};
 
   // units of um/tick (micrometer per tick) with train 15 defaults
   std::array<int, 15> v_max_umpt{

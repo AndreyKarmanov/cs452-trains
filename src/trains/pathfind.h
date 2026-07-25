@@ -11,11 +11,10 @@ struct PathNode {
   node_type type;
   int dx_next{0};
   bool br_curved : 1 {false};
-  bool has_reservation : 1 {false};
 
   bool operator==(const PathNode &other) const {
     return node_idx == other.node_idx && type == other.type &&
-           dx_next == other.dx_next && br_curved == other.br_curved;
+           br_curved == other.br_curved;
   }
 };
 
@@ -50,6 +49,10 @@ public:
       dist_mm -= elem->dx_next;
     return elem;
   }
+
+  int dist_along_path(const PathNode &node) const;
+
+  // Walk path forward; return first node where offset_um < segment length.
   std::optional<PathLocation> locate_at(int offset_um) const;
 
   StaticString<128> to_string(const Track *track) const;
@@ -74,11 +77,6 @@ public:
   static constexpr int REVERSE_COST = 500;
 
   explicit Track(Layout layout);
-
-  void reserve(int node_idx, int dir, uint32_t id);
-  void release(int node_idx, int dir, uint32_t id);
-  bool has_reservation(const PathNode &node, uint32_t loco_id);
-  uint32_t get_reservation(int node_idx, int dir);
 
   std::optional<int> get_idx(const NodeName &name) const;
   int node_idx(const track_node *node) const {

@@ -11,7 +11,6 @@
 #include "static_string.h"
 #include "syscall.h"
 #include "time.h"
-#include "track_node.h"
 #include "train_state.h"
 #include "train_trees.h"
 #include "uart_tx_server.h"
@@ -146,12 +145,14 @@ template <size_t TX_BUFFER_SIZE = 64> class TrainControlServer {
   }
 
   Message handle_command(const TC::Cmd::RunTree &cmd) {
-    spawn_tree_task(run_tree, TC::Tree::Init{.loco_id   = cmd.id,
-                                             .tree_type = cmd.tree_type,
-                                             .value1    = cmd.value1,
-                                             .value2    = cmd.value2,
-                                             .value3    = cmd.value3,
-                                             .state     = state});
+    spawn_tree_task(run_tree, TC::Tree::Init{
+                                  .loco_id   = cmd.id,
+                                  .tree_type = cmd.tree_type,
+                                  .value1    = cmd.value1,
+                                  .value2    = cmd.value2,
+                                  .value3    = cmd.value3,
+                                  .state     = state,
+                              });
     return TC::Ack{};
   }
 
@@ -165,7 +166,7 @@ template <size_t TX_BUFFER_SIZE = 64> class TrainControlServer {
 
   Message handle_command(const TC::Cmd::Nav &cmd) {
     if (cmd.node_idx < 0 || cmd.node_idx >= TRACK_MAX) {
-      return TC::Ack{.return_code = -1};
+      return TC::Ack{};
     }
     spawn_tree_task(run_tree, TC::Tree::Init{
                                   .loco_id   = cmd.id,
@@ -180,7 +181,7 @@ template <size_t TX_BUFFER_SIZE = 64> class TrainControlServer {
 
   Message handle_command(const TC::Cmd::Reg &cmd) {
     if (cmd.node_idx < 0 || cmd.node_idx >= TRACK_MAX) {
-      return TC::Ack{.return_code = -1};
+      return TC::Ack{};
     }
     if (TrainState *train = state.get_loco(cmd.id)) {
       train->inital_node_idx = cmd.node_idx;
@@ -189,58 +190,53 @@ template <size_t TX_BUFFER_SIZE = 64> class TrainControlServer {
   }
 
   Message handle_command(const TC::Cmd::Reserve &cmd) {
-    if (cmd.node_idx < 0 || cmd.node_idx >= TRACK_MAX ||
-        (cmd.edge_dir != 0 && cmd.edge_dir != 1)) {
-      return TC::Ack{.return_code = -1};
+    int res_dist_um = 0;
+
+    for (const auto &node : cmd.path) {
+      if (res_dist_um > cmd.lookahead_um) {
+        break;
+      }
+
+      for (const auto &loco : state.trains) {
+        if (loco.id == cmd.id) {
+          continue;
+        }
+
+        Path other_path = loco.e_path.decode(track);
+
+        // forwards
+        {
+          int node_d_um = other_path.dist_along_path(node) * 1000;
+          if (node_d_um >= 0 &&
+              (loco.d_um < node_d_um &&
+               node_d_um <
+                   std::max(loco.d_um + loco.stop_dist_um, loco.res_dist_um))) {
+            state.get_loco(cmd.id)->res_dist_um = res_dist_um;
+            return TC::Cmd::ReserveResponse{res_dist_um};
+          }
+        }
+
+        // backwards
+        {
+          auto rev_path = other_path.reverse();
+          int node_d_um = rev_path.dist_along_path(node) * 1000;
+          if (node_d_um >= 0 &&
+              std::min(rev_path.dist_mm - loco.d_um - loco.stop_dist_um,
+                       loco.res_dist_um) < node_d_um &&
+              node_d_um < rev_path.dist_mm - loco.d_um) {
+            state.get_loco(cmd.id)->res_dist_um = res_dist_um;
+            return TC::Cmd::ReserveResponse{res_dist_um};
+          }
+        }
+      }
+
+      res_dist_um += node.dx_next * 1000;
     }
-
-    // already reserved by another train
-    auto res = track.get_reservation(cmd.node_idx, cmd.edge_dir);
-    if (res != UNRESERVED && res != cmd.id) {
-      return TC::Ack{.return_code = -1};
-    }
-
-    state.reservations.set(
-        Reservation{
-            static_cast<uint8_t>(cmd.node_idx),
-            static_cast<bool>(cmd.edge_dir),
-        },
-        cmd.id);
-
-    track.reserve(cmd.node_idx, cmd.edge_dir, cmd.id);
-    return TC::Ack{};
+    state.get_loco(cmd.id)->res_dist_um = res_dist_um;
+    return TC::Cmd::ReserveResponse{cmd.lookahead_um};
   }
 
-  Message handle_command(const TC::Cmd::ReleaseReserve &cmd) {
-    if (cmd.node_idx < 0 || cmd.node_idx >= TRACK_MAX ||
-        (cmd.edge_dir != 0 && cmd.edge_dir != 1)) {
-      return TC::Ack{.return_code = -1};
-    }
-
-    // can't release if not reserved by this train
-    auto res = track.get_reservation(cmd.node_idx, cmd.edge_dir);
-    if (res != UNRESERVED && res != cmd.id) {
-      return TC::Ack{.return_code = -1};
-    }
-
-    state.reservations.remove(Reservation{static_cast<uint8_t>(cmd.node_idx),
-                                          static_cast<bool>(cmd.edge_dir)});
-
-    // also have to remove the reversed edge reservation
-    auto redge = track[cmd.node_idx].edge[cmd.edge_dir].reverse;
-    if (redge != nullptr) {
-      bool curved = (redge != &redge->src->edge[DIR_STRAIGHT]);
-      state.reservations.remove(
-          Reservation{static_cast<uint8_t>(redge->src->idx), curved});
-    }
-
-    track.release(cmd.node_idx, cmd.edge_dir, cmd.id);
-    return TC::Ack{};
-  }
-
-  Message handle_command(const TC::Cmd::Invalid &) {
-    return TC::Ack{.return_code = -1};
-  }
+  Message handle_command(const TC::Cmd::Invalid &) { return TC::Ack{}; }
 
   void handle(const int tid, const TC::RX &msg) {
     auto mrk = decode_frame(msg.frame);

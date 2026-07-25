@@ -4,7 +4,6 @@
 #include "track_data.h"
 #include "uart.h"
 #include <climits>
-#include <cstdint>
 
 static constexpr int INF = INT_MAX / 2;
 
@@ -86,7 +85,6 @@ Path Path::reverse() {
         .dx_next   = new_edge->dist,
         .br_curved = new_node->type == NODE_BRANCH &&
                      new_edge == &new_node->edge[DIR_CURVED],
-        .has_reservation = prev_node.has_reservation,
     });
     reversed_path.dist_mm += new_edge->dist;
   }
@@ -94,14 +92,24 @@ Path Path::reverse() {
   auto node = tra[(*(begin())).node_idx].reverse;
 
   reversed_path.push({
-      .node_idx        = node->idx,
-      .type            = node->type,
-      .dx_next         = 0,
-      .br_curved       = false,
-      .has_reservation = false,
+      .node_idx  = node->idx,
+      .type      = node->type,
+      .dx_next   = 0,
+      .br_curved = false,
   });
 
   return reversed_path;
+}
+
+int Path::dist_along_path(const PathNode &node) const {
+  int dist = 0;
+  for (const auto &n : *this) {
+    if (n == node) {
+      return dist;
+    }
+    dist += n.dx_next;
+  }
+  return -1;
 }
 
 Track::Track(Track::Layout layout) {
@@ -116,30 +124,6 @@ Track::Track(Track::Layout layout) {
     if (track[node_idx].name != nullptr && track[node_idx].name[0] != '\0')
       node_to_idx.set(track[node_idx].name, node_idx);
   }
-}
-
-void Track::reserve(int node_idx, int dir, uint32_t id) {
-  auto &edge                = track[node_idx].edge[dir];
-  edge.res_loco_id          = id;
-  edge.reverse->res_loco_id = id;
-}
-
-void Track::release(int node_idx, int dir, uint32_t id) {
-  auto &edge = track[node_idx].edge[dir];
-  if (edge.res_loco_id == UNRESERVED ||
-      static_cast<uint32_t>(edge.res_loco_id) != id) {
-    return;
-  }
-  edge.res_loco_id          = UNRESERVED;
-  edge.reverse->res_loco_id = UNRESERVED;
-}
-
-bool Track::has_reservation(const PathNode &node, uint32_t loco_id) {
-  return track[node.node_idx].edge[node.br_curved].res_loco_id == loco_id;
-}
-
-uint32_t Track::get_reservation(int node_idx, int dir) {
-  return track[node_idx].edge[dir].res_loco_id;
 }
 
 std::optional<int> Track::get_idx(const Track::NodeName &name) const {
@@ -502,11 +486,16 @@ void test_pathfind() {
   // print_path(track_b, "E7->E7", track_b.find_path("E7", "E7"));
   // print_path(track_b, "E8->E8", track_b.find_path("E8", "E8"));
 
-  auto path = track_b.find_path("C14", "A2");
+  auto path_opt = track_b.find_path("C14", "A2");
+  auto path     = path_opt.value();
 
-  print_path(track_b, "C14->A2", path.value());
+  print_path(track_b, "C14->A2", path);
 
-  print_path(track_b, "A2->C14", path.value().reverse());
+  auto node = std::ranges::find(path, path.peek_last());
+
+  debug_puts(CONSOLE, node == path.end() ? "not found\n\r" : "found\n\r");
+
+  print_path(track_b, "A2->C14", path.reverse());
 
   // EncodedPath ep(track_a.find_path("B6", "B6").value());
   // Path decoded_path = ep.decode(track_a);

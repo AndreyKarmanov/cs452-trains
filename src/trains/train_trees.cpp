@@ -24,27 +24,6 @@ namespace {
   constexpr int E6_SID              = sid('E', 6);
   constexpr size_t CRAWL_SPEED      = 4;
 
-  bool release_reserve(Blackboard &bb, const PathNode &node) {
-    auto res = send<TC::Ack>(bb.tcs_tid, TC::Cmd::ReleaseReserve{
-                                             .id       = bb.loco->id,
-                                             .node_idx = node.node_idx,
-                                             .edge_dir = node.br_curved,
-                                         });
-    if (node.type == NODE_BRANCH) {
-      std::ignore = send<TC::Ack>(bb.tcs_tid, TC::Cmd::ReleaseReserve{
-                                                  .id       = bb.loco->id,
-                                                  .node_idx = node.node_idx,
-                                                  .edge_dir = !node.br_curved,
-                                              });
-    }
-
-    if (!res.has_value()) {
-      bb.error_msg = "Could not release";
-      return false;
-    }
-    return true;
-  }
-
   void print_dists(int txs_tid,
                    const Buffer<Blackboard::DistLog, TRACK_MAX> &dists) {
     Debug_Puts(txs_tid, "from, to, dist (mm), ticks, spd, tticks");
@@ -282,6 +261,9 @@ namespace {
       } else {
         auto &p               = bb.loco->stop_params;
         bb.loco->stop_dist_um = p.c0 + p.c1 * ve_um + p.c2 * ve_um * ve_um;
+        if (bb.loco->backward) {
+          bb.loco->stop_dist_um += 100'000;
+        }
       }
       return NodeResult::Success;
     }
@@ -315,9 +297,9 @@ namespace {
         if (!bb.path.empty()) {
           // check if the sensor is in the path, an dis reserved
           auto idx = std::ranges::find(bb.path, sens->sid, [](PathNode &node) {
-            if (node.type == NODE_SENSOR && node.has_reservation) {
-              return node.node_idx + 1;
-            }
+            // if (node.type == NODE_SENSOR && node.has_reservation) {
+            //   return node.node_idx + 1;
+            // }
             return -1;
           });
 
@@ -386,35 +368,13 @@ namespace {
           Debug_Puts(bb.txs_tid, "Repathing from ", sens->sid,
                      sens->to_string(), " to ",
                      bb.track[(*(bb.path.end() - 1)).node_idx].name);
-
-          //  repathing means we release all reservations, and clear path.
-          for (const auto &node : bb.path) {
-            if (node.has_reservation) {
-              release_reserve(bb, node);
-            }
-          }
           bb.path.clear();
         } else {
-          // otherwise, we found the sensor in our path
-          // we release everything up to it
-          // E.g.
-          // Path = A > B > C > D > E
-          // Sensor = C
-          // We release A and B, and keep C > D > E
-          // this way, we know "dx_um" means "distance from C along the path"
-          for (auto it = bb.path.begin(); it != idx; ++it) {
-            // release the reservations
-            auto &node = *it;
-
-            if (node.has_reservation) {
-              release_reserve(bb, node);
-              node.has_reservation = false;
-            }
-          }
-
           auto d_mm = std::accumulate(
               bb.path.begin(), idx, 0,
               [](int acc, const PathNode &node) { return acc + node.dx_next; });
+          bb.loco->res_dist_um =
+              std::max(bb.loco->res_dist_um - d_mm * 1000, 0);
 
           if (bb.loco->last_sensor.has_value()) {
             if (bb.dists.size() == bb.dists.capacity()) {
@@ -454,43 +414,21 @@ namespace {
       int64_t res_dist_um = 0;
       bool fully_reserved{true};
 
-      int64_t stop_buf_um =
+      int stop_buf_um =
           (bb.loco->stop_dist_um * (100 + STOP_DIST_BUF_PCT)) / 100 +
           EXTRA_BUFFER_UM;
 
-      int64_t lookahead_um =
-          stop_buf_um + bb.loco->d_um +
-          static_cast<int64_t>(((bb.loco->ve_nm * TICKS_PER_S * 2) / 1000));
+      int lookahead_um = stop_buf_um + bb.loco->d_um +
+                         (bb.loco->ve_nm * TICKS_PER_S * 2) / 1000;
 
-      for (auto &node : bb.path) {
-        if (res_dist_um > lookahead_um && !reservation_stop) {
-          fully_reserved = false;
-          break;
-        }
-        if (!node.has_reservation) {
-          auto res = send<TC::Ack>(bb.tcs_tid, TC::Cmd::Reserve{
-                                                   .id       = bb.loco->id,
-                                                   .node_idx = node.node_idx,
-                                                   .edge_dir = node.br_curved,
-                                               });
-          if (!res.has_value()) {
-            bb.error_msg = "Could not reserve";
-            return NodeResult::Failure;
-          }
-
-          if (res->return_code == -1) {
-            fully_reserved = false;
-            break;
-          }
-          node.has_reservation = true;
-        }
-        res_dist_um += node.dx_next * 1000;
-
-        // if we reserved more than last time, we break;
-        if (reservation_stop && res_dist_um > last_res_dist_um) {
-          break;
-        }
-      }
+      auto res = send<TC::Cmd::ReserveResponse>(
+          bb.tcs_tid, TC::Cmd::Reserve{
+                          .id           = bb.loco->id,
+                          .lookahead_um = lookahead_um,
+                          .path         = bb.path,
+                      });
+      bb.loco->res_dist_um = res->res_dist_um;
+      res_dist_um          = bb.loco->res_dist_um;
 
       if (bb.curr_tick - last_print_tick > TICKS_PER_S) {
         Offset_Puts(
@@ -520,7 +458,7 @@ namespace {
         }
         return NodeResult::Success;
       } else if (!reservation_stop &&
-                 res_dist_um - bb.loco->d_um <= stop_buf_um) {
+                 res_dist_um <= stop_buf_um + bb.loco->d_um) {
         // if we're coming up on stopping distance, we stop.
         go                 = SetSpeed{go.req_speed};
         reservation_stop   = true;
@@ -542,12 +480,14 @@ namespace {
         Debug_Puts(bb.txs_tid, bb.loco->id, " Deadlock reversing");
 
         auto last_reserved = bb.path.end();
+        auto dist_reserved = 0;
         for (auto it = bb.path.begin(); it < bb.path.end(); it++) {
           auto node = *it;
-          if (!node.has_reservation) {
+          if (dist_reserved >= bb.loco->res_dist_um) {
             break;
           }
-          last_reserved = it;
+          dist_reserved += node.dx_next;
+          last_reserved  = it;
         }
 
         if (last_reserved == bb.path.end()) {
@@ -588,21 +528,7 @@ namespace {
 
         StaticString<128> path_str{};
         path_str.append(bb.loco->id, " Res Path: ");
-        for (auto &node : c_path) {
-          if (!node.has_reservation) {
-            path_str.append(bb.track[node.node_idx].name, " NR ");
-          } else {
-            path_str.append(bb.track[node.node_idx].name, " R ");
-          }
-        }
         Puts(bb.web_tid, path_str);
-
-        if (auto last_node = bb.path.peek_last().value();
-            last_node.has_reservation) {
-          release_reserve(bb, last_node);
-          last_res_dist_um = res_dist_um - last_node.dx_next * 1000;
-        }
-
         bb.loco->d_um   = bb.path.dist_mm * 1000 - bb.loco->d_um;
         c_path.track    = &bb.track;
         bb.path         = c_path;
@@ -627,9 +553,9 @@ namespace {
 
   struct PathLookaheadNode : public LeafNode {
     NodeResult tick(Blackboard &bb) override {
-      auto dist_um = 0;
+      int dist_um = 0;
       for (auto &node : bb.path) {
-        if (!node.has_reservation) {
+        if (dist_um > bb.loco->res_dist_um) {
           break;
         }
 
@@ -809,17 +735,7 @@ namespace {
         if (res == NodeResult::Success) {
           rev_tree.emplace();
           bb.loco->d_um = bb.path.dist_mm * 1000 - bb.loco->d_um;
-
-          // before we set the new path, the end of our new path is now reversed
-          // we may have reserved the final node, so we check it before
-          // reversing
-          if (!bb.path.empty()) {
-            if (auto last_node = bb.path.peek_last().value();
-                last_node.has_reservation) {
-              release_reserve(bb, last_node);
-            }
-          }
-          bb.path = new_path;
+          bb.path       = new_path;
         } else {
           return res;
         }
