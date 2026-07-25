@@ -34,8 +34,11 @@ public:
   // in place addition of two paths
   Path &operator+(const Path &other);
 
-  constexpr void pop(int n) {
-    for (int i = 0; i < n; i++) {
+  bool push(const PathNode &node);
+  bool push_front(const PathNode &node);
+
+  constexpr void pop(size_t n) {
+    for (size_t i = 0; i < n; i++) {
       auto elem = Buffer<PathNode, TRACK_MAX>::pop();
       if (!elem.has_value())
         break;
@@ -48,6 +51,24 @@ public:
     if (elem.has_value())
       dist_mm -= elem->dx_next;
     return elem;
+  }
+
+  constexpr std::optional<PathNode> pop_back() {
+    auto elem = Buffer<PathNode, TRACK_MAX>::pop_back();
+    if (elem.has_value()) {
+      dist_mm -= elem->dx_next;
+      // set the last node's dx_next to 0 since it is now the last node
+      if (!empty()) {
+        dist_mm               -= (*(end() - 1)).dx_next;
+        (*(end() - 1)).dx_next = 0;
+      }
+    }
+    return elem;
+  }
+
+  constexpr void clear() {
+    Buffer<PathNode, TRACK_MAX>::clear();
+    dist_mm = 0;
   }
 
   int dist_along_path(const PathNode &node) const;
@@ -114,6 +135,7 @@ struct EncodedPath : private Buffer<uint8_t, TRACK_MAX> {
   }
   Path decode(const Track &track) const {
     Path result{};
+    result.track = &track;
     for (auto it = begin(); it != end(); ++it) {
       int node_idx = static_cast<int>(*it);
       if (node_idx < 0 || node_idx >= TRACK_MAX) {
@@ -141,7 +163,6 @@ struct EncodedPath : private Buffer<uint8_t, TRACK_MAX> {
                    .type      = node.type,
                    .dx_next   = dx_next,
                    .br_curved = curved});
-      result.dist_mm += dx_next;
     }
     return result;
   }

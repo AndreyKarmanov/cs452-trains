@@ -33,11 +33,8 @@ Path &Path::operator+(const Path &other) {
     return *this;
   }
 
-  this->dist_mm                  += other.dist_mm;
-  (*(this->end() - 1)).dx_next    = first_opt->dx_next;
-  (*(this->end() - 1)).br_curved  = first_opt->br_curved;
-
-  for (size_t i = 1; i < other.size(); ++i) {
+  this->pop_back();
+  for (size_t i = 0; i < other.size(); ++i) {
     auto node = other[i];
     if (!node.has_value()) {
       _assert(false, "unexpected empty path node");
@@ -47,6 +44,97 @@ Path &Path::operator+(const Path &other) {
   }
 
   return *this;
+}
+
+bool Path::push(const PathNode &node) {
+  PathNode to_insert = node;
+
+  if (empty()) {
+    to_insert.dx_next = 0;
+    return Buffer<PathNode, TRACK_MAX>::push(to_insert);
+  }
+
+  auto &tail       = *(end() - 1);
+  int old_tail_dx  = tail.dx_next;
+  bool old_tail_br = tail.br_curved;
+  int new_tail_dx  = old_tail_dx;
+  bool new_tail_br = old_tail_br;
+
+  if (track != nullptr) {
+    auto edge = track->get_edge(tail.node_idx, node.node_idx);
+    if (!edge.has_value()) {
+      _assert(false, "bad edge in path push");
+      return false;
+    }
+
+    new_tail_dx = edge->dist;
+    if (tail.type == NODE_BRANCH) {
+      new_tail_br = (track->operator[](tail.node_idx).edge[DIR_CURVED].dest ==
+                     &track->operator[](node.node_idx));
+    }
+  }
+
+  dist_mm      -= old_tail_dx;
+  tail.dx_next  = new_tail_dx;
+  if (tail.type == NODE_BRANCH) {
+    tail.br_curved = new_tail_br;
+  }
+  dist_mm += tail.dx_next;
+
+  to_insert.dx_next = 0;
+  if (!Buffer<PathNode, TRACK_MAX>::push(to_insert)) {
+    dist_mm        -= tail.dx_next;
+    tail.dx_next    = old_tail_dx;
+    tail.br_curved  = old_tail_br;
+    dist_mm        += tail.dx_next;
+    return false;
+  }
+
+  return true;
+}
+
+bool Path::push_front(const PathNode &node) {
+  PathNode to_insert = node;
+
+  if (empty()) {
+    to_insert.dx_next = 0;
+    return Buffer<PathNode, TRACK_MAX>::push_front(to_insert);
+  }
+
+  auto old_head_opt = peek();
+  if (!old_head_opt.has_value()) {
+    _assert(false, "non-empty path has no head");
+    return false;
+  }
+
+  int edge_dist = to_insert.dx_next;
+  bool curved   = to_insert.br_curved;
+
+  if (track != nullptr) {
+    auto edge = track->get_edge(to_insert.node_idx, old_head_opt->node_idx);
+    if (!edge.has_value()) {
+      _assert(false, "bad edge in path push_front");
+      return false;
+    }
+
+    edge_dist = edge->dist;
+    if (to_insert.type == NODE_BRANCH) {
+      curved = (track->operator[](to_insert.node_idx).edge[DIR_CURVED].dest ==
+                &track->operator[](old_head_opt->node_idx));
+    }
+  }
+
+  to_insert.dx_next = edge_dist;
+  if (to_insert.type == NODE_BRANCH) {
+    to_insert.br_curved = curved;
+  }
+
+  if (!Buffer<PathNode, TRACK_MAX>::push_front(to_insert)) {
+    return false;
+  }
+
+  dist_mm += edge_dist;
+  return true;
 }
 
 Path Path::reverse() {
@@ -86,7 +174,6 @@ Path Path::reverse() {
         .br_curved = new_node->type == NODE_BRANCH &&
                      new_edge == &new_node->edge[DIR_CURVED],
     });
-    reversed_path.dist_mm += new_edge->dist;
   }
 
   auto node = tra[(*(begin())).node_idx].reverse;
@@ -177,7 +264,7 @@ std::optional<Path> Track::build_path(int goal_idx,
     node_indices[--write_idx] = node_idx;
 
   Path result{};
-  result.dist_mm = best_dist[goal_idx];
+  result.track = this;
 
   for (size_t step = 0; step < path_len; ++step) {
     int node_idx           = node_indices[step];
@@ -200,8 +287,6 @@ std::optional<Path> Track::build_path(int goal_idx,
                  .dx_next   = dist_to_next,
                  .br_curved = curved});
   }
-
-  result.track = this;
 
   return result;
 }
@@ -408,6 +493,24 @@ static void print_path(const Track &pathfind, const char *label,
   }
 }
 
+static int sum_path_dx_mm(const Path &path) {
+  int sum = 0;
+  for (const auto &node : path) {
+    sum += node.dx_next;
+  }
+  return sum;
+}
+
+static void assert_path_dist_consistent(const Path &path) {
+  _assert(path.dist_mm == sum_path_dx_mm(path),
+          "path dist_mm must match sum(dx_next)");
+
+  auto tail = path.peek_last();
+  if (tail.has_value()) {
+    _assert(tail->dx_next == 0, "path tail dx_next must be 0");
+  }
+}
+
 void test_pathfind() {
   debug_puts(CONSOLE, "pathfind tests\n\r");
 
@@ -489,13 +592,78 @@ void test_pathfind() {
   auto path_opt = track_b.find_path("C14", "A2");
   auto path     = path_opt.value();
 
+  _assert(path_opt.has_value(), "expected a valid C14->A2 path");
+  assert_path_dist_consistent(path);
+
   print_path(track_b, "C14->A2", path);
 
   auto node = std::ranges::find(path, path.peek_last());
 
   debug_puts(CONSOLE, node == path.end() ? "not found\n\r" : "found\n\r");
 
-  print_path(track_b, "A2->C14", path.reverse());
+  auto reversed = path.reverse();
+  assert_path_dist_consistent(reversed);
+  _assert(reversed.dist_mm == path.dist_mm,
+          "reversed path distance must match original");
+  print_path(track_b, "A2->C14", reversed);
+
+  // Mutation regression checks: pop/pop_back/pop(n)/clear keep dist_mm synced.
+  Path pop_front_test = path;
+  auto popped_front   = pop_front_test.pop();
+  _assert(popped_front.has_value(), "pop() should return value for non-empty");
+  assert_path_dist_consistent(pop_front_test);
+
+  Path pop_back_test = path;
+  auto popped_back   = pop_back_test.pop_back();
+  _assert(popped_back.has_value(),
+          "pop_back() should return value for non-empty");
+  assert_path_dist_consistent(pop_back_test);
+
+  Path pop_n_test = path;
+  pop_n_test.pop(2);
+  assert_path_dist_consistent(pop_n_test);
+
+  Path clear_test = path;
+  clear_test.clear();
+  _assert(clear_test.empty(), "clear() should make path empty");
+  _assert(clear_test.dist_mm == 0, "clear() should reset path distance");
+
+  Path push_front_test{};
+  push_front_test.track = &track_b;
+  auto e8_opt           = track_b.get_idx("E8");
+  auto c14_opt          = track_b.get_idx("C14");
+  _assert(e8_opt.has_value() && c14_opt.has_value(),
+          "expected E8/C14 nodes for push_front test");
+  _assert(push_front_test.push({.node_idx  = c14_opt.value(),
+                                .type      = track_b[c14_opt.value()].type,
+                                .dx_next   = 123,
+                                .br_curved = false}),
+          "push should succeed for push_front test");
+  _assert(push_front_test.push_front({.node_idx  = e8_opt.value(),
+                                      .type      = track_b[e8_opt.value()].type,
+                                      .dx_next   = 999,
+                                      .br_curved = false}),
+          "push_front should succeed for push_front test");
+  assert_path_dist_consistent(push_front_test);
+
+  auto p1_opt = track_b.find_path("E8", "C14");
+  auto p2_opt = track_b.find_path("C14", "A2");
+  print_path(track_b, "E8->C14", p1_opt);
+  print_path(track_b, "C14->A2", p2_opt);
+  Path concat = p1_opt.value() + p2_opt.value();
+  print_path(track_b, "E8->A2", concat);
+  assert_path_dist_consistent(concat);
+  concat.pop(1);
+  assert_path_dist_consistent(concat);
+  print_path(track_b, "E8->A2 (after pop)", concat);
+
+  Path concat2 = track_b.find_path("E8", "C14").value() +
+                 track_b.find_path("C14", "A2").value();
+  concat2.pop_back();
+  assert_path_dist_consistent(concat2);
+  print_path(track_b, "E8->A2 (after pop back)", concat2);
+
+  print_path(track_b, "E8->A2 (after pop back)", concat2.reverse());
 
   // EncodedPath ep(track_a.find_path("B6", "B6").value());
   // Path decoded_path = ep.decode(track_a);
