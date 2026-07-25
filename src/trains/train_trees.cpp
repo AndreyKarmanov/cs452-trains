@@ -296,12 +296,14 @@ namespace {
 
         if (!bb.path.empty()) {
           // check if the sensor is in the path, an dis reserved
-          auto idx = std::ranges::find(bb.path, sens->sid, [](PathNode &node) {
-            // if (node.type == NODE_SENSOR && node.has_reservation) {
-            //   return node.node_idx + 1;
-            // }
-            return -1;
-          });
+          auto idx = std::ranges::find(
+              bb.path, sens->sid, [&, dist = 0](PathNode &node) mutable {
+                if (node.type == NODE_SENSOR && dist <= bb.loco->res_dist_um) {
+                  return node.node_idx + 1;
+                }
+                dist += node.dx_next * 1000;
+                return -1;
+              });
 
           if (idx != bb.path.end()) {
             Debug_Puts(bb.txs_tid, sens->to_string(),
@@ -555,7 +557,7 @@ namespace {
     NodeResult tick(Blackboard &bb) override {
       int dist_um = 0;
       for (auto &node : bb.path) {
-        if (dist_um > bb.loco->res_dist_um) {
+        if (dist_um >= bb.loco->res_dist_um) {
           break;
         }
 
