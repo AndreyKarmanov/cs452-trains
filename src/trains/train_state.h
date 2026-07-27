@@ -261,7 +261,6 @@ struct TrackState {
   }
 };
 
-// Returns location on the train's effective path (last_sensor-prefixed) at
-// d_um.
+// Returns location on the train's current path at d_um from the first node.
 std::optional<PathLocation> locate_train(const Track &track,
                                          const TrainState &train);
