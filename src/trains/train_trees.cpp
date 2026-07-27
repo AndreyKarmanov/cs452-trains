@@ -440,14 +440,13 @@ namespace {
         // count the number of nodes that we are past
         auto count_nodes = std::ranges::fold_left(
             bb.path, 0, [&, distance = 0](int acc, PathNode &node) mutable {
-              if (bb.loco->d_um - TRAIN_LENGTH >
-                  (distance + node.dx_next) * 1000) {
-                distance += node.dx_next;
+              distance += node.dx_next;
+              if (distance * 1000 < bb.loco->d_um - TRAIN_LENGTH * 1.5) {
                 return acc + 1;
               }
               return acc;
             });
-
+        int old_dist = bb.path.dist_mm;
         for (int i = 0; i < count_nodes; ++i) {
           auto node = bb.path.peek();
           if (node.has_value()) {
@@ -457,7 +456,8 @@ namespace {
             bb.path.pop();
           }
         }
-        bb.loco->e_path = bb.path;
+        bb.loco->d_um   -= (old_dist - bb.path.dist_mm) * 1000;
+        bb.loco->e_path  = bb.path;
       }
       return NodeResult::Success;
     }

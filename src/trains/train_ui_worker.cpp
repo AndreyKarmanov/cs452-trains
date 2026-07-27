@@ -49,29 +49,29 @@ void print_state(int tx_tid, int web_tid, const TrackState &state,
   }
 
   // any protocol you want, here it is!
-  if (web_tid >= 0 && state.reservations != prev.reservations) {
-    StaticString<2048> dump{};
-    dump.append("{trains: [\n\r");
-    for (const TrainState &train : state.trains) {
-      auto path = train.e_path.decode(track);
-      auto loc  = locate_train(track, train);
+  // if (web_tid >= 0 && state.reservations != prev.reservations) {
+  StaticString<2048> dump{};
+  dump.append("{trains: [\n\r");
+  for (const TrainState &train : state.trains) {
+    auto path = train.e_path.decode(track);
+    auto loc  = locate_train(track, train);
 
-      StaticString<128> path_str{};
-      append_node_list(path_str, track, path);
+    StaticString<128> path_str{};
+    append_node_list(path_str, track, path);
 
-      StaticString<128> res{};
-      append_train_reservations(res, track, state, train.id);
+    StaticString<128> res{};
+    append_train_reservations(res, track, state, train.id);
 
-      dump.append("{num: ", train.id, ", path: \"", path_str,
-                  "\", reservations: \"", res, "\", location: (",
-                  loc.has_value()
-                      ? format_node(track, loc->node_idx, loc->br_curved)
-                      : StaticString<8>("none"),
-                  ", ", loc.has_value() ? loc->pct : 0, ")},\n\r");
-    }
-    dump.append("]}");
-    Puts(web_tid, dump);
+    dump.append("{num: ", train.id, ", path: \"", path_str,
+                "\", reservations: \"", res, "\", location: (",
+                loc.has_value()
+                    ? format_node(track, loc->node_idx, loc->br_curved)
+                    : StaticString<8>("none"),
+                ", ", loc.has_value() ? loc->pct : 0, ")},\n\r");
   }
+  dump.append("]}");
+  Puts(web_tid, dump);
+  // }
 
   if (state.trains != prev.trains) {
     line.set("\033[", TRAIN_ROW, ";2HTr | D | L | spd | est | stop | dx\n\r");
