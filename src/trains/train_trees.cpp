@@ -457,6 +457,7 @@ namespace {
             bb.path.pop();
           }
         }
+        bb.loco->e_path = bb.path;
       }
       return NodeResult::Success;
     }
