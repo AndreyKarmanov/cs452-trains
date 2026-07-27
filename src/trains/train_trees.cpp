@@ -207,7 +207,9 @@ namespace {
     AwaitSensorNode(int sid) : sid(sid) {}
     NodeResult tick(Blackboard &bb) override {
       if (auto sens = std::get_if<SensorData>(&bb.new_event);
-          sens && sens->new_state == 1 && (sens->sid == sid || sid == -1)) {
+          sens && sens->new_state == 1 &&
+          (sens->loco_id == 0 || sens->loco_id == bb.loco->id) &&
+          (sens->sid == sid || sid == -1)) {
         return NodeResult::Success;
       }
       return NodeResult::Running;
@@ -275,6 +277,12 @@ namespace {
     NodeResult tick(Blackboard &bb) override {
       if (auto sens = std::get_if<SensorData>(&bb.new_event);
           sens && sens->new_state == 1) {
+
+        // Sensor ownership is centralized in train control.
+        // Ignore sensor events attributed to other trains.
+        if (sens->loco_id != 0 && sens->loco_id != bb.loco->id) {
+          return NodeResult::Success;
+        }
 
         // auto attribute if no inital node
         if (bb.loco->inital_node_idx == -1) {
@@ -354,6 +362,11 @@ namespace {
       if (auto sens = std::get_if<SensorData>(&bb.new_event);
           sens && sens->new_state == 1) {
 
+        // Ignore sensors attributed to another train.
+        if (sens->loco_id != 0 && sens->loco_id != bb.loco->id) {
+          return NodeResult::Success;
+        }
+
         if (bb.path.empty()) {
           bb.loco->d_um = 0;
           return NodeResult::Success;
@@ -421,6 +434,12 @@ namespace {
 
       int lookahead_um = stop_buf_um + bb.loco->d_um +
                          (bb.loco->ve_nm * TICKS_PER_S * 2) / 1000;
+
+      //  if we're stopped, we want to look ahead by at least how much we've
+      //  reserved
+      if (reservation_stop) {
+        lookahead_um = std::max(bb.loco->res_dist_um + 1, lookahead_um);
+      }
 
       auto res = send<TC::Cmd::ReserveResponse>(
           bb.tcs_tid, TC::Cmd::Reserve{

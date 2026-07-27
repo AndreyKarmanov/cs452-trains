@@ -216,7 +216,14 @@ TC::Cmd::Any parse_command(StaticString<CLI_BUFFER_SIZE> &buf) {
         buf.set("Error: Unknown node name in res command");
         return out;
       }
-      // out = TC::Cmd::Reserve{loco_id, node_idx.value(), edge_dir};
+      Path path{};
+      path.push({
+          .node_idx  = node_idx.value(),
+          .type      = track[node_idx.value()].type,
+          .dx_next   = 0,
+          .br_curved = false,
+      });
+      out = TC::Cmd::Reserve{.id = loco_id, .lookahead_um = 1, .path = path};
       buf.set("Success: res ", loco_id, " ", node_name, " ", dir_label);
     } else {
       out = TC::Cmd::Invalid{};

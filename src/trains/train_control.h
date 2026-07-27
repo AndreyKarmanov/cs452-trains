@@ -15,6 +15,8 @@
 #include "train_trees.h"
 #include "uart_tx_server.h"
 #include <cstddef>
+#include <limits>
+#include <optional>
 #include <variant>
 
 template <size_t TX_BUFFER_SIZE = 64> class TrainControlServer {
@@ -39,6 +41,80 @@ template <size_t TX_BUFFER_SIZE = 64> class TrainControlServer {
   int tx_tid  = -1;
   int web_tid = -1;
   TrackState state{};
+
+  static int abs_int(int x) { return x < 0 ? -x : x; }
+
+  std::optional<int> sensor_dist_on_path_um(const TrainState &train,
+                                            int sensor_node_idx,
+                                            bool require_reserved) {
+    auto path    = train.e_path.decode(track);
+    int dist_um  = 0;
+    bool matched = false;
+
+    for (const auto &node : path) {
+      if (node.type == NODE_SENSOR && node.node_idx == sensor_node_idx) {
+        if (!require_reserved || dist_um <= train.res_dist_um) {
+          matched = true;
+        }
+        break;
+      }
+      dist_um += node.dx_next * 1000;
+    }
+
+    if (!matched) {
+      return std::nullopt;
+    }
+
+    return dist_um;
+  }
+
+  std::optional<uint32_t> attribute_sensor_loco(const SensorData &sens) {
+    int sensor_node_idx = sens.sid - 1;
+    if (sensor_node_idx < 0 || sensor_node_idx >= TRACK_MAX) {
+      return std::nullopt;
+    }
+
+    auto pick_best =
+        [&](bool require_reserved,
+            bool require_initial_for_unlocalized) -> std::optional<uint32_t> {
+      int best_abs_dist = std::numeric_limits<int>::max();
+      std::optional<uint32_t> best_loco{};
+
+      for (const auto &train : state.trains) {
+        if (require_initial_for_unlocalized && !train.last_sensor.has_value() &&
+            train.inital_node_idx >= 0 &&
+            train.inital_node_idx != sensor_node_idx) {
+          continue;
+        }
+
+        auto sensor_dist_um =
+            sensor_dist_on_path_um(train, sensor_node_idx, require_reserved);
+        if (!sensor_dist_um.has_value()) {
+          continue;
+        }
+
+        int abs_dist = abs_int(train.d_um - sensor_dist_um.value());
+        if (abs_dist < best_abs_dist) {
+          best_abs_dist = abs_dist;
+          best_loco     = train.id;
+        }
+      }
+
+      return best_loco;
+    };
+
+    // Primary policy: attribute only to trains that currently reserve the
+    // sensor along their active path, selecting the closest by |d_um - dist|.
+    if (auto reserved_pick = pick_best(true, false);
+        reserved_pick.has_value()) {
+      return reserved_pick;
+    }
+
+    // Bootstrap fallback: if nobody has the sensor reserved yet, allow a
+    // nearest in-path attribution gated by initial-node constraints for
+    // trains that are still unlocalized.
+    return pick_best(false, true);
+  }
 
   static void rx_can_worker();
   static void tx_can_worker();
@@ -233,6 +309,7 @@ template <size_t TX_BUFFER_SIZE = 64> class TrainControlServer {
       res_dist_um += node.dx_next * 1000;
     }
     state.get_loco(cmd.id)->res_dist_um = res_dist_um;
+    state.get_loco(cmd.id)->e_path      = cmd.path;
     return TC::Cmd::ReserveResponse{res_dist_um};
   }
 
@@ -243,6 +320,14 @@ template <size_t TX_BUFFER_SIZE = 64> class TrainControlServer {
     state.update(mrk);
     simple_pacing_can_send = simple_pacing_can_send || (msg.frame.resp == 1);
     maybe_tx();
+
+    if (auto mrk_msg = std::get_if<SensorData>(&mrk); mrk_msg) {
+      mrk_msg->loco_id = 0;
+      if (auto loco_id = attribute_sensor_loco(*mrk_msg); loco_id.has_value()) {
+        mrk_msg->loco_id = loco_id.value();
+      }
+    }
+
     publish_tree_update(TC::Tree::Update{
         .state = state,
         .mrk   = mrk,

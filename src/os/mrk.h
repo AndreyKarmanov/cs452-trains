@@ -194,12 +194,12 @@ struct SwitchCmd {
 struct SensorData {
   bool operator==(const SensorData &other) const = default;
 
-  static constexpr uint8_t cmdid = 0x11;
-
+  uint32_t loco_id{0};
   uint16_t sid;
 
   uint8_t bank;
   uint8_t number;
+  static constexpr uint8_t cmdid = 0x11;
 
   bool old_state;
   bool new_state;
