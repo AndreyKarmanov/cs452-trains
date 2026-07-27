@@ -23,6 +23,7 @@ namespace {
   constexpr int E3_SID              = sid('E', 3);
   constexpr int E6_SID              = sid('E', 6);
   constexpr size_t CRAWL_SPEED      = 4;
+  constexpr int TRAIN_LENGTH        = 200'000; // in um
 
   bool release_reserve(Blackboard &bb, const PathNode &node) {
     auto res = send<TC::Ack>(bb.tcs_tid, TC::Cmd::ReleaseReserve{
@@ -283,7 +284,7 @@ namespace {
         auto &p               = bb.loco->stop_params;
         bb.loco->stop_dist_um = p.c0 + p.c1 * ve_um + p.c2 * ve_um * ve_um;
         if (bb.loco->backward) {
-          bb.loco->stop_dist_um += 100'000; // going backward
+          bb.loco->stop_dist_um += TRAIN_LENGTH / 2; // going backward
         }
       }
       return NodeResult::Success;
@@ -435,6 +436,27 @@ namespace {
         }
         bb.loco->e_path = bb.path;
         bb.loco->d_um   = 0;
+      } else {
+        // count the number of nodes that we are past
+        auto count_nodes = std::ranges::fold_left(
+            bb.path, 0, [&, distance = 0](int acc, PathNode &node) mutable {
+              if (bb.loco->d_um - TRAIN_LENGTH >
+                  (distance + node.dx_next) * 1000) {
+                distance += node.dx_next;
+                return acc + 1;
+              }
+              return acc;
+            });
+
+        for (int i = 0; i < count_nodes; ++i) {
+          auto node = bb.path.peek();
+          if (node.has_value()) {
+            if (node->has_reservation) {
+              release_reserve(bb, *node);
+            }
+            bb.path.pop();
+          }
+        }
       }
       return NodeResult::Success;
     }
