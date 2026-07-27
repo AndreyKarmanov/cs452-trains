@@ -282,6 +282,9 @@ namespace {
       } else {
         auto &p               = bb.loco->stop_params;
         bb.loco->stop_dist_um = p.c0 + p.c1 * ve_um + p.c2 * ve_um * ve_um;
+        if (bb.loco->backward) {
+          bb.loco->stop_dist_um += 100'000; // going backward
+        }
       }
       return NodeResult::Success;
     }
