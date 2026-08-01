@@ -590,7 +590,9 @@ namespace {
         Puts(bb.web_tid, bb.loco->id, " Unres: ", unreserved_nodes,
              " Old Path: ", bb.path.to_string(&bb.track));
         for (int i = 0; i < unreserved_nodes; ++i) {
-          bb.path.dist_mm -= bb.path.pop_back()->dx_next;
+          if (!bb.path.pop_back().has_value()) {
+            break;
+          }
         }
         auto new_path_start = bb.path.reverse();
 
