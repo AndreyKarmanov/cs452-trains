@@ -509,6 +509,17 @@ namespace {
             break;
           }
           node.has_reservation = true;
+
+          // once we get hte reservation, set the branch
+          if (node.type == NODE_BRANCH) {
+            auto res = send<TC::Ack>(
+                bb.tcs_tid,
+                TC::Cmd::Switch(bb.track[node.node_idx].num, !node.br_curved));
+            if (!res.has_value()) {
+              bb.error_msg = "Switch cmd failed";
+              return NodeResult::Failure;
+            }
+          }
         }
         res_dist_um += node.dx_next * 1000;
 
@@ -649,34 +660,6 @@ namespace {
 
       last_res_dist_um = res_dist_um;
 
-      return NodeResult::Success;
-    }
-  };
-
-  struct PathLookaheadNode : public LeafNode {
-    NodeResult tick(Blackboard &bb) override {
-      auto dist_um = 0;
-      for (auto &node : bb.path) {
-        if (!node.has_reservation) {
-          break;
-        }
-
-        // switch if we have enough time for the switch to switch.
-        if (node.type == NODE_BRANCH &&
-            node.br_curved !=
-                bb.state.is_switch_curved(bb.track[node.node_idx].num)) {
-          if ((dist_um * 1000 / bb.loco->ve_nm) > TICKS_PER_S / 3) {
-            auto res = send<TC::Ack>(
-                bb.tcs_tid,
-                TC::Cmd::Switch(bb.track[node.node_idx].num, !node.br_curved));
-            if (!res.has_value()) {
-              bb.error_msg = "Switch cmd failed";
-              return NodeResult::Failure;
-            }
-          }
-        }
-        dist_um += node.dx_next * 1000;
-      }
       return NodeResult::Success;
     }
   };
