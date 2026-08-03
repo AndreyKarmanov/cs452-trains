@@ -419,23 +419,6 @@ namespace {
         }
         bb.loco->e_path = bb.path;
         bb.loco->d_um   = 0;
-      } else {
-        // dynamically pop non-sensors from path if we are past them.
-        int released = 0;
-        int distance = 0;
-        for (auto &node : bb.path) {
-          distance += node.dx_next * 1000;
-          if (node.type == NODE_SENSOR || !node.has_reservation ||
-              distance + TRAIN_LENGTH > bb.loco->d_um) {
-            break;
-          }
-          release_reserve(bb, node);
-          released += 1;
-        }
-        int old_dist_mm = bb.path.dist_mm;
-        bb.path.pop(released);
-        bb.loco->d_um   -= (old_dist_mm - bb.path.dist_mm) * 1000;
-        bb.loco->e_path  = bb.path;
       }
       return NodeResult::Success;
     }

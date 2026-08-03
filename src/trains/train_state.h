@@ -243,6 +243,7 @@ struct TrackState {
            .backward    = false,
            .light_on    = true,
            .extra_delay = 12,
+           .stop_params = {2090, 908, 3},
        }}};
 
   // track go / stop
