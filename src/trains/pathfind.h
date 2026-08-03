@@ -98,10 +98,10 @@ public:
 
   explicit Track(Layout layout);
 
-  void reserve(int node_idx, int dir, uint32_t id);
-  void release(int node_idx, int dir, uint32_t id);
+  void reserve(int node_idx, uint32_t id);
+  void release(int node_idx, uint32_t id);
   bool has_reservation(const PathNode &node, uint32_t loco_id);
-  uint32_t get_reservation(int node_idx, int dir);
+  uint32_t get_reservation(int node_idx);
 
   std::optional<int> get_idx(const NodeName &name) const;
   int node_idx(const track_node *node) const {

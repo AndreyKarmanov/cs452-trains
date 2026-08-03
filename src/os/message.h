@@ -217,13 +217,11 @@ namespace TC {
     struct Reserve {
       uint32_t id;
       int node_idx;
-      int edge_dir;
     };
 
     struct ReleaseReserve {
       uint32_t id;
       int node_idx;
-      int edge_dir;
     };
 
     using Any = std::variant<Invalid, Quit, Light, Function, Speed, Switch,

@@ -31,15 +31,7 @@ namespace {
     auto res = send<TC::Ack>(bb.tcs_tid, TC::Cmd::ReleaseReserve{
                                              .id       = bb.loco->id,
                                              .node_idx = node.node_idx,
-                                             .edge_dir = node.br_curved,
                                          });
-    if (node.type == NODE_BRANCH) {
-      std::ignore = send<TC::Ack>(bb.tcs_tid, TC::Cmd::ReleaseReserve{
-                                                  .id       = bb.loco->id,
-                                                  .node_idx = node.node_idx,
-                                                  .edge_dir = !node.br_curved,
-                                              });
-    }
 
     if (!res.has_value()) {
       bb.error_msg = "Could not release";
@@ -455,7 +447,6 @@ namespace {
           auto res = send<TC::Ack>(bb.tcs_tid, TC::Cmd::Reserve{
                                                    .id       = bb.loco->id,
                                                    .node_idx = node.node_idx,
-                                                   .edge_dir = node.br_curved,
                                                });
           if (!res.has_value()) {
             bb.error_msg = "Could not reserve";

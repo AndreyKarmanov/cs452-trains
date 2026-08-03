@@ -202,13 +202,10 @@ TC::Cmd::Any parse_command(StaticString<CLI_BUFFER_SIZE> &buf) {
   if (cmd_len == 3 && strncmp(cmd, "res", 3) == 0) {
     uint32_t loco_id = 0;
     Track::NodeName node_name{};
-    int edge_dir   = 0;
-    char dir_label = '\0';
 
     const char *parse_cursor = cur;
     if (parse_uint(parse_cursor, end, loco_id) &&
         parse_token(parse_cursor, end, node_name) &&
-        parse_edge_dir(parse_cursor, end, edge_dir, dir_label) &&
         done_parse(parse_cursor, end)) {
       auto node_idx = track.get_idx(node_name);
       if (!node_idx.has_value()) {
@@ -216,11 +213,11 @@ TC::Cmd::Any parse_command(StaticString<CLI_BUFFER_SIZE> &buf) {
         buf.set("Error: Unknown node name in res command");
         return out;
       }
-      out = TC::Cmd::Reserve{loco_id, node_idx.value(), edge_dir};
-      buf.set("Success: res ", loco_id, " ", node_name, " ", dir_label);
+      out = TC::Cmd::Reserve{loco_id, node_idx.value()};
+      buf.set("Success: res ", loco_id, " ", node_name);
     } else {
       out = TC::Cmd::Invalid{};
-      buf.set("Error: Format is res <train number> <node name> <S/C>");
+      buf.set("Error: Format is res <train number> <node name>");
     }
     return out;
   }
@@ -228,13 +225,10 @@ TC::Cmd::Any parse_command(StaticString<CLI_BUFFER_SIZE> &buf) {
   if (cmd_len == 3 && strncmp(cmd, "rel", 3) == 0) {
     uint32_t loco_id = 0;
     Track::NodeName node_name{};
-    int edge_dir   = 0;
-    char dir_label = '\0';
 
     const char *parse_cursor = cur;
     if (parse_uint(parse_cursor, end, loco_id) &&
         parse_token(parse_cursor, end, node_name) &&
-        parse_edge_dir(parse_cursor, end, edge_dir, dir_label) &&
         done_parse(parse_cursor, end)) {
       auto node_idx = track.get_idx(node_name);
       if (!node_idx.has_value()) {
@@ -242,11 +236,11 @@ TC::Cmd::Any parse_command(StaticString<CLI_BUFFER_SIZE> &buf) {
         buf.set("Error: Unknown node name in rel command");
         return out;
       }
-      out = TC::Cmd::ReleaseReserve{loco_id, node_idx.value(), edge_dir};
-      buf.set("Success: rel ", loco_id, " ", node_name, " ", dir_label);
+      out = TC::Cmd::ReleaseReserve{loco_id, node_idx.value()};
+      buf.set("Success: rel ", loco_id, " ", node_name);
     } else {
       out = TC::Cmd::Invalid{};
-      buf.set("Error: Format is rel <train number> <node name> <S/C>");
+      buf.set("Error: Format is rel <train number> <node name>");
     }
     return out;
   }
@@ -383,7 +377,7 @@ TC::Cmd::Any parse_command(StaticString<CLI_BUFFER_SIZE> &buf) {
 
   out = TC::Cmd::Invalid{};
   buf.set("Error: cmds: q, tr, sw, rv, lr, stop, go, reset, quirk, rt, "
-          "reg, nav");
+          "reg, nav, res, rel");
   return out;
 }
 

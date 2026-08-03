@@ -68,21 +68,6 @@
 // Train 15: 26000 + 582*v + 3.4*v^2
 // Train 17: 5190 + 908*v + 3*v^2  (5.19 + 0.908*v + 3*v^2 mm)
 
-struct Reservation {
-  uint8_t node_idx : 7 {0};
-  bool edge_dir : 1 {0};
-
-  bool operator==(const Reservation &other) const {
-    return node_idx == other.node_idx && edge_dir == other.edge_dir;
-  }
-};
-struct ReservationHasher {
-  constexpr size_t operator()(const Reservation &r) const noexcept {
-    return (static_cast<size_t>(r.node_idx) << 1) |
-           static_cast<size_t>(r.edge_dir);
-  }
-};
-
 struct StopParams {
   int c0;
   int c1;
@@ -193,7 +178,7 @@ struct TrackState {
   Buffer<uint16_t, MAX_SENSORS_RECENT> sensors{};
 
   // trains
-  Map<Reservation, uint32_t, TRACK_MAX, ReservationHasher> reservations{};
+  Map<uint8_t, uint32_t, TRACK_MAX> reservations{};
 
   // Map<int, TrainState, MAX_TRAINS> train_map{};
   std::array<TrainState, MAX_TRAINS> trains{

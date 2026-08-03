@@ -189,52 +189,35 @@ template <size_t TX_BUFFER_SIZE = 64> class TrainControlServer {
   }
 
   Message handle_command(const TC::Cmd::Reserve &cmd) {
-    if (cmd.node_idx < 0 || cmd.node_idx >= TRACK_MAX ||
-        (cmd.edge_dir != 0 && cmd.edge_dir != 1)) {
+    if (cmd.node_idx < 0 || cmd.node_idx >= TRACK_MAX) {
       return TC::Ack{.return_code = -1};
     }
 
     // already reserved by another train
-    auto res = track.get_reservation(cmd.node_idx, cmd.edge_dir);
+    auto res = track.get_reservation(cmd.node_idx);
     if (res != UNRESERVED && res != cmd.id) {
       return TC::Ack{.return_code = -1};
     }
 
-    state.reservations.set(
-        Reservation{
-            static_cast<uint8_t>(cmd.node_idx),
-            static_cast<bool>(cmd.edge_dir),
-        },
-        cmd.id);
+    state.reservations.set(static_cast<uint8_t>(cmd.node_idx), cmd.id);
 
-    track.reserve(cmd.node_idx, cmd.edge_dir, cmd.id);
+    track.reserve(cmd.node_idx, cmd.id);
     return TC::Ack{};
   }
 
   Message handle_command(const TC::Cmd::ReleaseReserve &cmd) {
-    if (cmd.node_idx < 0 || cmd.node_idx >= TRACK_MAX ||
-        (cmd.edge_dir != 0 && cmd.edge_dir != 1)) {
+    if (cmd.node_idx < 0 || cmd.node_idx >= TRACK_MAX) {
       return TC::Ack{.return_code = -1};
     }
 
     // can't release if not reserved by this train
-    auto res = track.get_reservation(cmd.node_idx, cmd.edge_dir);
+    auto res = track.get_reservation(cmd.node_idx);
     if (res != UNRESERVED && res != cmd.id) {
       return TC::Ack{.return_code = -1};
     }
 
-    state.reservations.remove(Reservation{static_cast<uint8_t>(cmd.node_idx),
-                                          static_cast<bool>(cmd.edge_dir)});
-
-    // also have to remove the reversed edge reservation
-    auto redge = track[cmd.node_idx].edge[cmd.edge_dir].reverse;
-    if (redge != nullptr) {
-      bool curved = (redge != &redge->src->edge[DIR_STRAIGHT]);
-      state.reservations.remove(
-          Reservation{static_cast<uint8_t>(redge->src->idx), curved});
-    }
-
-    track.release(cmd.node_idx, cmd.edge_dir, cmd.id);
+    state.reservations.remove(static_cast<uint8_t>(cmd.node_idx));
+    track.release(cmd.node_idx, cmd.id);
     return TC::Ack{};
   }
 

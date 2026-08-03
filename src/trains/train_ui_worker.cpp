@@ -30,10 +30,16 @@ template <size_t N>
 static void append_train_reservations(StaticString<N> &out, const Track &track,
                                       const TrackState &state,
                                       uint32_t train_id) {
-  for (const auto &[node, id] : state.reservations) {
+  for (const auto &[node_idx, id] : state.reservations) {
     if (id != train_id)
       continue;
-    out.append(format_node(track, node.node_idx, node.edge_dir), ",");
+    const auto &t_node = track[node_idx];
+    if (t_node.type == NODE_BRANCH) {
+      out.append(format_node(track, node_idx, false), ",");
+      out.append(format_node(track, node_idx, true), ",");
+    } else {
+      out.append(format_node(track, node_idx, false), ",");
+    }
   }
 }
 
@@ -94,11 +100,17 @@ void print_state(int tx_tid, int web_tid, const TrackState &state,
       auto train_path = train.e_path.decode(track);
       line.append("\033[K\n\r", train_path.to_string(&track), "\033[K\n\r");
 
-      for (const auto &[key, value] : state.reservations) {
+      for (const auto &[node_idx, value] : state.reservations) {
         if (value != train.id) {
           continue;
         }
-        line.append(format_node(track, key.node_idx, key.edge_dir), " ");
+        const auto &t_node = track[node_idx];
+        if (t_node.type == NODE_BRANCH) {
+          line.append(format_node(track, node_idx, false), " ");
+          line.append(format_node(track, node_idx, true), " ");
+        } else {
+          line.append(format_node(track, node_idx, false), " ");
+        }
       }
       line.append("\033[K\n\r");
       Puts(tx_tid, line);
