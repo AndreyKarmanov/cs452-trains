@@ -10,6 +10,7 @@
 #include "track_node.h"
 #include "train_control.h"
 #include "train_state.h"
+#include "uart_tx_server.h"
 #include <algorithm>
 #include <cstdint>
 #include <iterator>
@@ -735,24 +736,55 @@ namespace {
 
     std::optional<ReverseTree> rev_tree{std::in_place};
 
+    int improve_node_idx(int node_idx, Blackboard &bb) {
+      // check the next TRAIN_LENGTH mm to see if they are branches
+      // if so, then we must use the current position of the switch
+      // i.e. if it's straight, we must use the next straight branch
+      // we return a node index of the next one.
+
+      auto better_idx = node_idx;
+
+      // if the node is a branch, we must follow the state of the
+      auto node = bb.track[better_idx];
+      if (node.type == NODE_BRANCH) {
+        better_idx = node.edge[bb.state.is_switch_curved(node.num)].dest->idx;
+      } else {
+        better_idx = node.edge[DIR_STRAIGHT].dest->idx;
+      }
+
+      // if the next node is also a branch, we must follow the state of it.
+      // this is for the case where the node is tiny (4cm) and right infront of
+      // a switch
+      node = bb.track[better_idx];
+      if (node.type == NODE_BRANCH) {
+        better_idx = node.edge[bb.state.is_switch_curved(node.num)].dest->idx;
+      }
+
+      return better_idx;
+    }
+
     PathToNode(int goal_idx) : goal_idx(goal_idx) {}
 
     NodeResult tick(Blackboard &bb) override { return tick(bb, false); }
 
     NodeResult tick(Blackboard &bb, bool force_path = false) {
-      if (!bb.loco->last_sensor.has_value() && bb.path.empty()) {
+      if (bb.path.empty()) {
         bb.error_msg = "Failed to find start";
         return NodeResult::Failure;
       }
 
-      auto start_idx = bb.path.empty() ? bb.loco->last_sensor->sens.sid - 1
-                                       : bb.path.peek_last()->node_idx;
+      auto temp_idx  = bb.path.peek_last()->node_idx;
+      auto start_idx = improve_node_idx(temp_idx, bb);
+      Path extra_path{};
+      extra_path.track = &bb.track;
+      if (temp_idx != start_idx) {
+        extra_path = bb.track.find_path(temp_idx, start_idx).value();
+      }
       //  we need ot adjust the starting path to make sure that we aren't
       //  right on a branch
       // check if the start idx + dx_um along path is at a branch
 
-      auto startr_idx = bb.track[start_idx].reverse->idx;
-      auto goalr_idx  = bb.track[goal_idx].reverse->idx;
+      auto goalr_idx = bb.track[goal_idx].reverse->idx;
 
       if (auto last_node = bb.path.peek_last();
           last_node.has_value() &&
@@ -772,16 +804,29 @@ namespace {
         path_opt = bb.track.find_path(start_idx, goalr_idx);
       }
 
+      temp_idx        = bb.track[start_idx].reverse->idx;
+      auto startr_idx = improve_node_idx(bb.track[start_idx].reverse->idx, bb);
+
       // reverse start to goal
       if (!path_opt.has_value()) {
         path_opt       = bb.track.find_path(startr_idx, goal_idx);
         should_reverse = true;
+        if (temp_idx != startr_idx) {
+          extra_path = bb.track.find_path(temp_idx, startr_idx).value();
+        } else {
+          extra_path.clear();
+        }
       }
 
       // reverse start to reverse goal
       if (!path_opt.has_value()) {
         path_opt       = bb.track.find_path(startr_idx, goalr_idx);
         should_reverse = true;
+        if (temp_idx != startr_idx) {
+          extra_path = bb.track.find_path(temp_idx, startr_idx).value();
+        } else {
+          extra_path.clear();
+        }
       }
 
       if (!path_opt.has_value()) {
@@ -789,7 +834,7 @@ namespace {
         return NodeResult::Failure;
       }
 
-      auto new_path = path_opt.value();
+      auto new_path = extra_path + path_opt.value();
 
       bb.path.track = &bb.track;
 
