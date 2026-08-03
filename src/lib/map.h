@@ -185,6 +185,15 @@ public:
     }
   }
 
+  constexpr void clear() {
+    for (auto &slot : map) {
+      slot.state = Slot::State::EMPTY;
+      slot.key.reset();
+      slot.value.reset();
+    }
+    count = 0;
+  }
+
   constexpr bool operator==(const Map &other) const {
     if (count != other.count)
       return false;

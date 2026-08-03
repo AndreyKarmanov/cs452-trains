@@ -198,9 +198,6 @@ template <size_t TX_BUFFER_SIZE = 64> class TrainControlServer {
     if (res != UNRESERVED && res != cmd.id) {
       return TC::Ack{.return_code = -1};
     }
-
-    state.reservations.set(static_cast<uint8_t>(cmd.node_idx), cmd.id);
-
     track.reserve(cmd.node_idx, cmd.id);
     return TC::Ack{};
   }
@@ -215,8 +212,6 @@ template <size_t TX_BUFFER_SIZE = 64> class TrainControlServer {
     if (res != UNRESERVED && res != cmd.id) {
       return TC::Ack{.return_code = -1};
     }
-
-    state.reservations.remove(static_cast<uint8_t>(cmd.node_idx));
     track.release(cmd.node_idx, cmd.id);
     return TC::Ack{};
   }
@@ -239,6 +234,14 @@ template <size_t TX_BUFFER_SIZE = 64> class TrainControlServer {
   }
 
   void handle(const int tid, const TC::UIReady &) {
+    state.reservations.clear();
+    for (int node_idx = 0; node_idx < TRACK_MAX; ++node_idx) {
+      auto res = track.get_reservation(node_idx);
+      if (res != UNRESERVED) {
+        state.reservations.set(node_idx, res);
+      }
+    }
+
     reply(tid, TC::UIUpdate{state});
   }
 

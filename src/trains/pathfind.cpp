@@ -278,10 +278,6 @@ void Track::release(int node_idx, uint32_t id) {
   });
 }
 
-bool Track::has_reservation(const PathNode &node, uint32_t loco_id) {
-  return track[node.node_idx].res_loco_id == loco_id;
-}
-
 uint32_t Track::get_reservation(int node_idx) {
   uint32_t owner = UNRESERVED;
   walk_reservation_nodes(track, node_idx, [&](int idx) {
