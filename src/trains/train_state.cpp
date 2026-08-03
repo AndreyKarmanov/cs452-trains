@@ -9,6 +9,15 @@
 #define SENSOR_ROW (TRAIN_ROW + MAX_TRAINS + 2)
 #define SWITCH_ROW (SENSOR_ROW + 3)
 
+int train_head_um(const TrainState &train) {
+  return train.d_um +
+         (train.backward ? train.d_shoe_reverse_um : train.d_shoe_um);
+}
+
+int train_tail_um(const TrainState &train) {
+  return train_head_um(train) - TRAIN_LENGTH_UM;
+}
+
 std::optional<PathLocation> locate_train(const Track &track,
                                          const TrainState &train) {
   return train.e_path.decode(track).locate_at(train.d_um);

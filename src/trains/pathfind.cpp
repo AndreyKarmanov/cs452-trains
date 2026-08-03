@@ -525,11 +525,8 @@ StaticString<128> Path::to_string(const Track *track) const {
 std::optional<PathLocation> Path::locate_at(int offset_um) const {
   for (const auto &node : *this) {
     int seg_um = node.dx_next * 1000;
-    int diff   = offset_um - seg_um;
-    if (diff < 0) {
-      int pct = (seg_um > 0) ? (offset_um * 1000) / seg_um : 0;
-      return PathLocation{
-          .node_idx = node.node_idx, .br_curved = node.br_curved, .pct = pct};
+    if (offset_um < seg_um) {
+      return PathLocation{.node_idx = node.node_idx, .br_curved = node.br_curved};
     }
     offset_um -= seg_um;
   }

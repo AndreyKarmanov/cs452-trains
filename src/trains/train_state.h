@@ -6,8 +6,10 @@
 #include "pathfind.h"
 #include <stdint.h>
 
-#define MAX_TRAINS 6
+#define MAX_TRAINS 7
 #define MAX_SENSORS_RECENT 10
+
+constexpr int TRAIN_LENGTH_UM = 220'000; // um
 
 // Train 14 Stats:
 // Speed,Top,Accel,Decel
@@ -125,6 +127,8 @@ struct TrainState {
 
   // delta x
   int d_um{0};
+  int d_shoe_um{0};
+  int d_shoe_reverse_um{0};
 
   // stop dist
   int stop_dist_um{0};
@@ -182,7 +186,18 @@ struct TrackState {
 
   // Map<int, TrainState, MAX_TRAINS> train_map{};
   std::array<TrainState, MAX_TRAINS> trains{
-      {{.id = 13, .req_speed = 0, .backward = false, .light_on = true},
+      {{.id                = 13,
+        .req_speed         = 0,
+        .backward          = false,
+        .light_on          = true,
+        .d_shoe_um         = TRAIN_LENGTH_UM / 2,
+        .d_shoe_reverse_um = TRAIN_LENGTH_UM / 2},
+       {.id                = 10,
+        .req_speed         = 0,
+        .backward          = false,
+        .light_on          = true,
+        .d_shoe_um         = 50'000,
+        .d_shoe_reverse_um = 165'000},
        {.id          = 14,
         .req_speed   = 0,
         .backward    = false,
@@ -193,19 +208,22 @@ struct TrackState {
         .a_nmpt2 = {33, 33, 33, 33, 33, 33, 33, 56, 52, 57, 63, 64, 71, 75, 80},
         .d_nmpt2 = {33, 33, 33, 33, 33, 33, 43, 59, 68, 77, 82, 89, 92, 97,
                     112},
-        .stop_params = {1500, 1100, 2.8}},
+        .stop_params       = {1500, 1100, 2.8},
+        .d_shoe_um         = TRAIN_LENGTH_UM / 2,
+        .d_shoe_reverse_um = TRAIN_LENGTH_UM / 2},
        {.id          = 15,
         .req_speed   = 0,
         .backward    = false,
         .light_on    = true,
         .extra_delay = 3,
-
-        .v_max_umpt = {0, 8, 32, 50, 78, 94, 130, 176, 222, 273, 328, 389, 450,
-                       512, 584},
+        .v_max_umpt  = {0, 8, 32, 50, 78, 94, 130, 176, 222, 273, 328, 389, 450,
+                        512, 584},
         .a_nmpt2 = {33, 33, 33, 33, 33, 33, 33, 56, 52, 57, 63, 64, 71, 75, 78},
         .d_nmpt2 = {33, 1, 11, 20, 33, 40, 53, 66, 76, 85, 92, 99, 104, 108,
                     112},
-        .stop_params = {26000, 582, 3.4}},
+        .stop_params       = {26000, 582, 3.4},
+        .d_shoe_um         = TRAIN_LENGTH_UM / 2,
+        .d_shoe_reverse_um = TRAIN_LENGTH_UM / 2},
        {.id          = 17,
         .req_speed   = 0,
         .backward    = false,
@@ -216,19 +234,25 @@ struct TrackState {
         .a_nmpt2 = {33, 33, 33, 33, 33, 33, 60, 62, 63, 67, 73, 75, 80, 82, 84},
         .d_nmpt2 = {27, 27, 27, 28, 44, 34, 47, 61, 73, 83, 88, 96, 98, 101,
                     114},
-        .stop_params = {5190, 908, 3}},
-       {.id          = 18,
-        .req_speed   = 0,
-        .backward    = false,
-        .light_on    = true,
-        .extra_delay = 9},
+        .stop_params       = {5190, 908, 3},
+        .d_shoe_um         = 84'000,
+        .d_shoe_reverse_um = 162'000},
+       {.id                = 18,
+        .req_speed         = 0,
+        .backward          = false,
+        .light_on          = true,
+        .extra_delay       = 9,
+        .d_shoe_um         = 57'000,
+        .d_shoe_reverse_um = 164'000},
        {
-           .id          = 55,
-           .req_speed   = 0,
-           .backward    = false,
-           .light_on    = true,
-           .extra_delay = 12,
-           .stop_params = {2090, 908, 3},
+           .id                = 55,
+           .req_speed         = 0,
+           .backward          = false,
+           .light_on          = true,
+           .extra_delay       = 12,
+           .stop_params       = {2090, 908, 3},
+           .d_shoe_um         = TRAIN_LENGTH_UM / 2,
+           .d_shoe_reverse_um = TRAIN_LENGTH_UM / 2,
        }}};
 
   // track go / stop
@@ -249,3 +273,6 @@ struct TrackState {
 // Returns location on the train's current path at d_um from the first node.
 std::optional<PathLocation> locate_train(const Track &track,
                                          const TrainState &train);
+
+int train_head_um(const TrainState &train);
+int train_tail_um(const TrainState &train);

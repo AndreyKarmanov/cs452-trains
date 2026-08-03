@@ -73,14 +73,16 @@ void print_state(int tx_tid, int web_tid, const TrackState &state,
                 loc.has_value()
                     ? format_node(track, loc->node_idx, loc->br_curved)
                     : StaticString<8>("none"),
-                ", ", loc.has_value() ? loc->pct : 0, ")},\n\r");
+                ", ", train.d_um, ", ", train_tail_um(train) / 1000, ", ",
+                train_head_um(train) / 1000, ")},\n\r");
   }
   dump.append("]}");
   Puts(web_tid, dump);
   // }
 
   if (state.trains != prev.trains) {
-    line.set("\033[", TRAIN_ROW, ";2HTr | D | L | spd | est | stop | dx\n\r");
+    line.set("\033[", TRAIN_ROW,
+             ";2HTr | D | L | spd | est | stop | dx | head | tail\n\r");
     for (const TrainState &train : state.trains) {
 
       if (train == *prev.get_loco(train.id)) {
@@ -95,7 +97,12 @@ void print_state(int tx_tid, int web_tid, const TrackState &state,
       AppendPadded(line, train.ve_nm / 1000, 3);
       line.append(" | ");
       AppendPadded(line, train.stop_dist_um / 1000, 4);
-      line.append(" | ", train.d_um / 1000);
+      line.append(" | ");
+      AppendPadded(line, train.d_um / 1000, 4);
+      line.append(" | ");
+      AppendPadded(line, train_head_um(train) / 1000, 4);
+      line.append(" | ");
+      AppendPadded(line, train_tail_um(train) / 1000, 4);
 
       auto train_path = train.e_path.decode(track);
       line.append("\033[K\n\r", train_path.to_string(&track), "\033[K\n\r");
@@ -192,7 +199,8 @@ void ui_update_worker() {
                     loc.has_value()
                         ? format_node(track, loc->node_idx, loc->br_curved)
                         : StaticString<8>("none"),
-                    ", ", loc.has_value() ? loc->pct : 0, ")},\n\r");
+                    ", ", train.d_um, ", ", train_tail_um(train) / 1000, ", ",
+                    train_head_um(train) / 1000, ")},\n\r");
       }
       dump.append("]}");
       Puts(web_tid, dump);

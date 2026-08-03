@@ -20,9 +20,8 @@ struct PathNode {
 };
 
 struct PathLocation {
-  int node_idx;
-  bool br_curved;
-  int pct;
+  int node_idx{-1};
+  bool br_curved{false};
 };
 
 class Track;

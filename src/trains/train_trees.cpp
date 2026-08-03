@@ -25,8 +25,6 @@ namespace {
   constexpr int E3_SID              = sid('E', 3);
   constexpr int E6_SID              = sid('E', 6);
   constexpr size_t CRAWL_SPEED      = 4;
-  constexpr int TRAIN_LENGTH        = 200'000; // in um
-
   bool release_reserve(Blackboard &bb, const PathNode &node) {
     auto res = send<TC::Ack>(bb.tcs_tid, TC::Cmd::ReleaseReserve{
                                              .id       = bb.loco->id,
@@ -277,9 +275,6 @@ namespace {
       } else {
         auto &p               = bb.loco->stop_params;
         bb.loco->stop_dist_um = p.c0 + p.c1 * ve_um + p.c2 * ve_um * ve_um;
-        if (bb.loco->backward) {
-          bb.loco->stop_dist_um += TRAIN_LENGTH / 2; // going backward
-        }
       }
       return NodeResult::Success;
     }
@@ -435,7 +430,7 @@ namespace {
       int64_t stop_buf_um = bb.loco->stop_dist_um + EXTRA_BUFFER_UM;
 
       int64_t lookahead_um =
-          stop_buf_um + bb.loco->d_um +
+          stop_buf_um + train_head_um(*bb.loco) +
           static_cast<int64_t>(((bb.loco->ve_nm * TICKS_PER_S * 2) / 1000));
 
       for (auto &node : bb.path) {
@@ -481,7 +476,9 @@ namespace {
       if (bb.curr_tick - last_print_tick > TICKS_PER_S) {
         Offset_Puts(
             bb.txs_tid, 30 + bb.loco->id, bb.loco->id,
-            " Path dist: ", bb.path.dist_mm, " dx_um: ", bb.loco->d_um / 1000,
+            " Path dist: ", bb.path.dist_mm, " shoe: ", bb.loco->d_um / 1000,
+            " head: ", train_head_um(*bb.loco) / 1000,
+            " tail: ", train_tail_um(*bb.loco) / 1000,
             " res dist: ", res_dist_um / 1000,
             " last_res_dist: ", last_res_dist_um / 1000,
             " stop_buf: ", stop_buf_um / 1000, " stopped: ", reservation_stop,
@@ -506,7 +503,7 @@ namespace {
         }
         return NodeResult::Success;
       } else if (!reservation_stop &&
-                 res_dist_um - bb.loco->d_um <= stop_buf_um) {
+                 res_dist_um - train_head_um(*bb.loco) <= stop_buf_um) {
         // if we're coming up on stopping distance, we stop.
         go                 = SetSpeed{go.req_speed};
         reservation_stop   = true;
@@ -651,7 +648,7 @@ namespace {
                                         [](int acc, const PathNode &node) {
                                           return acc + node.dx_next;
                                         }) -
-          bb.loco->d_um + offset_mm * 1000;
+          train_head_um(*bb.loco) + offset_mm * 1000;
 
       if (remaining_um < bb.loco->stop_dist_um) {
         Debug_Puts(bb.txs_tid, "Stopping at done path: ", remaining_um, " < ",

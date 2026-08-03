@@ -7,7 +7,7 @@
             "command": "make",
             "args": [
                 "-C",
-                "${workspaceFolder}/kernel"
+                "${workspaceFolder}/src"
             ],
             "group": {
                 "kind": "build",
