@@ -182,8 +182,8 @@ template <size_t TX_BUFFER_SIZE = 64> class TrainControlServer {
     if (cmd.node_idx < 0 || cmd.node_idx >= TRACK_MAX) {
       return TC::Ack{.return_code = -1};
     }
-    if (TrainState *train = state.get_loco(cmd.id)) {
-      train->inital_node_idx = cmd.node_idx;
+    if (auto train = state.get_loco(cmd.id); train && train->e_path.empty()) {
+      train->e_path.push(cmd.node_idx);
     }
     return TC::Ack{};
   }
@@ -319,7 +319,7 @@ template <size_t TX_BUFFER_SIZE = 64> class TrainControlServer {
 
 public:
   static constexpr auto NAME                      = "TCSERVER";
-  static constexpr auto TRACK                     = Track::Layout::B;
+  static constexpr auto TRACK                     = Track::Layout::A;
   static constexpr auto TICKS_BETWEEN_TRAIN_TICKS = 10;
   TrainControlServer() : track(TRACK) {
     auto response = RegisterAs(NAME);

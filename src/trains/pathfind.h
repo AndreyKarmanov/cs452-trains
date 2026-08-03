@@ -126,7 +126,7 @@ public:
   }
 };
 
-struct EncodedPath : private Buffer<uint8_t, TRACK_MAX> {
+struct EncodedPath : public Buffer<uint8_t, TRACK_MAX> {
   EncodedPath() = default;
   EncodedPath(const Path &path) {
     for (const auto &node : path) {

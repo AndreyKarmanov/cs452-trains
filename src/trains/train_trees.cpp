@@ -9,6 +9,7 @@
 #include "track_data.h"
 #include "track_node.h"
 #include "train_control.h"
+#include "train_state.h"
 #include <algorithm>
 #include <cstdint>
 #include <iterator>
@@ -294,61 +295,48 @@ namespace {
   struct AttributeSensorNode : public LeafNode {
     static constexpr int PCT_TOLERANCE = 30;
 
+    void attribute(Blackboard &bb, SensorData *sens) {
+      if (bb.path.empty()) {
+        bb.path.push({.node_idx = sens->sid - 1, .type = NODE_SENSOR});
+      }
+    }
+
     NodeResult tick(Blackboard &bb) override {
       if (auto sens = std::get_if<SensorData>(&bb.new_event);
           sens && sens->new_state == 1) {
 
-        // auto attribute if no inital node
-        if (bb.loco->inital_node_idx == -1) {
-          bb.loco->last_sensor.emplace(
-              TrainState::SeenSensor{*sens, bb.curr_tick});
+        auto sens_idx = sens->sid - 1;
 
+        // if our path is empty attribute
+        if (bb.path.empty()) {
+          attribute(bb, sens);
           return NodeResult::Success;
         }
 
-        // filter for inital node
-        if (!bb.loco->last_sensor.has_value()) {
-          if (bb.loco->inital_node_idx + 1 != sens->sid) {
-            return NodeResult::Running;
-          }
-          bb.loco->last_sensor.emplace(
-              TrainState::SeenSensor{*sens, bb.curr_tick});
+        // if it's reserved on our path, attribute
+        if (std::ranges::contains(bb.path, sens_idx, [](PathNode &node) {
+              if (node.has_reservation) {
+                return node.node_idx;
+              }
+              return -1;
+            })) {
+          attribute(bb, sens);
           return NodeResult::Success;
         }
 
-        if (!bb.path.empty()) {
-          // check if the sensor is in the path, an dis reserved
-          auto idx = std::ranges::find(bb.path, sens->sid, [](PathNode &node) {
-            if (node.type == NODE_SENSOR && node.has_reservation) {
-              return node.node_idx + 1;
-            }
-            return -1;
-          });
+        // find the distance from our path to the sensor
+        auto path = bb.track.find_path(bb.path.peek()->node_idx, sens_idx);
 
-          if (idx != bb.path.end()) {
-            Debug_Puts(bb.txs_tid, sens->to_string(),
-                       " Attributed: ", bb.loco->id, " in reserved path");
-            bb.loco->last_sensor.emplace(
-                TrainState::SeenSensor{*sens, bb.curr_tick});
-            return NodeResult::Success;
-          }
-        }
-
-        auto start_node_idx = bb.path.empty()
-                                  ? bb.loco->last_sensor->sens.sid - 1
-                                  : bb.path.peek()->node_idx;
-        auto path           = bb.track.find_path(start_node_idx, sens->sid - 1);
-
-        // if there's no path, or 20% off our estimate, we ignore
+        // if no path, ignore
         if (!path.has_value()) {
           Debug_Puts(bb.txs_tid, sens->to_string(), " No Path: ", bb.loco->id);
           return NodeResult::Running;
         }
 
+        // if the distance is unreasonable, ignore
         auto sens_dist_um = path->dist_mm * 1000;
-        auto abs_d_um     = bb.loco->d_um < 0 ? -bb.loco->d_um : bb.loco->d_um;
-        if (sens_dist_um > (abs_d_um * (100 + PCT_TOLERANCE)) / 100 ||
-            sens_dist_um < (abs_d_um * (100 - PCT_TOLERANCE)) / 100) {
+        if (sens_dist_um < (bb.loco->d_um * (100 - PCT_TOLERANCE)) / 100 ||
+            sens_dist_um > (bb.loco->d_um * (100 + PCT_TOLERANCE)) / 100) {
           Debug_Puts(bb.txs_tid, sens->to_string(),
                      "Out of Range: ", bb.loco->id, " ", sens->to_string(),
                      " pos ", bb.loco->d_um * 100 / sens_dist_um, "% ",
@@ -360,8 +348,7 @@ namespace {
                    " ", sens->sid, " ", sens->to_string(), " pos ",
                    bb.loco->d_um * 100 / sens_dist_um, "% ",
                    (bb.loco->d_um - sens_dist_um) / 1000, " mm");
-        bb.loco->last_sensor.emplace(
-            TrainState::SeenSensor{*sens, bb.curr_tick});
+        attribute(bb, sens);
       }
 
       return NodeResult::Success;
@@ -369,23 +356,16 @@ namespace {
   };
 
   struct LocalizerNode : public LeafNode {
-
     NodeResult tick(Blackboard &bb) override {
       if (auto sens = std::get_if<SensorData>(&bb.new_event);
           sens && sens->new_state == 1) {
 
-        if (bb.path.empty()) {
-          bb.loco->d_um = 0;
-          return NodeResult::Success;
-        }
+        // look for the sensor in our path
+        auto idx =
+            std::ranges::find(bb.path, sens->sid - 1,
+                              [](PathNode &node) { return node.node_idx; });
 
-        // try to find the sensor in our path. If not there, repath.
-        auto idx = std::ranges::find(bb.path, sens->sid, [](PathNode &node) {
-          if (node.type == NODE_SENSOR) {
-            return node.node_idx + 1;
-          }
-          return -1;
-        });
+        // if we don't have sensor in path, repath
         if (idx == bb.path.end()) {
           Debug_Puts(bb.txs_tid, "Repathing from ", sens->sid,
                      sens->to_string(), " to ",
@@ -398,14 +378,12 @@ namespace {
             }
           }
           bb.path.clear();
+          bb.path.push({.node_idx = sens->sid - 1, .type = NODE_SENSOR});
         } else {
           // otherwise, we found the sensor in our path
           // we release everything up to it
-          // E.g.
           // Path = A > B > C > D > E
-          // Sensor = C
-          // We release A and B, and keep C > D > E
-          // this way, we know "dx_um" means "distance from C along the path"
+          // Sensor = C, keep only C > D > E
           for (auto it = bb.path.begin(); it != idx; ++it) {
             // release the reservations
             auto &node = *it;
@@ -416,11 +394,12 @@ namespace {
             }
           }
 
-          auto d_mm = std::accumulate(
-              bb.path.begin(), idx, 0,
-              [](int acc, const PathNode &node) { return acc + node.dx_next; });
-
+          // add the dists data to the log
           if (bb.loco->last_sensor.has_value()) {
+            auto d_mm = std::accumulate(bb.path.begin(), idx, 0,
+                                        [](int acc, const PathNode &node) {
+                                          return acc + node.dx_next;
+                                        });
             if (bb.dists.size() == bb.dists.capacity()) {
               bb.dists.pop();
             }
@@ -431,32 +410,30 @@ namespace {
                 .d_t  = bb.curr_tick - bb.loco->last_sensor->tick,
             });
           }
-          auto skipped_nodes = std::distance(bb.path.begin(), idx) + 1;
-          bb.path.pop(skipped_nodes - 1);
+          bb.loco->last_sensor.emplace(
+              TrainState::SeenSensor{.sens = *sens, .tick = bb.curr_tick});
+
+          // pop the path up to the sensor
+          bb.path.pop(std::distance(bb.path.begin(), idx));
         }
         bb.loco->e_path = bb.path;
         bb.loco->d_um   = 0;
       } else {
-        // count the number of nodes that we are past
-        auto count_nodes = std::ranges::fold_left(
-            bb.path, 0, [&, distance = 0](int acc, PathNode &node) mutable {
-              distance += node.dx_next;
-              if (distance * 1000 < bb.loco->d_um - TRAIN_LENGTH * 1.5) {
-                return acc + 1;
-              }
-              return acc;
-            });
-        int old_dist = bb.path.dist_mm;
-        for (int i = 0; i < count_nodes; ++i) {
-          auto node = bb.path.peek();
-          if (node.has_value()) {
-            if (node->has_reservation) {
-              release_reserve(bb, *node);
-            }
-            bb.path.pop();
+        // dynamically pop non-sensors from path if we are past them.
+        int released = 0;
+        int distance = 0;
+        for (auto &node : bb.path) {
+          distance += node.dx_next * 1000;
+          if (node.type == NODE_SENSOR || !node.has_reservation ||
+              distance + TRAIN_LENGTH > bb.loco->d_um) {
+            break;
           }
+          release_reserve(bb, node);
+          released += 1;
         }
-        bb.loco->d_um   -= (old_dist - bb.path.dist_mm) * 1000;
+        int old_dist_mm = bb.path.dist_mm;
+        bb.path.pop(released);
+        bb.loco->d_um   -= (old_dist_mm - bb.path.dist_mm) * 1000;
         bb.loco->e_path  = bb.path;
       }
       return NodeResult::Success;
@@ -464,8 +441,7 @@ namespace {
   };
 
   struct PathReservationNode : public LeafNode {
-    static constexpr int STOP_DIST_BUF_PCT = 20;
-    static constexpr int EXTRA_BUFFER_UM   = 300'000; // one train length
+    static constexpr int EXTRA_BUFFER_UM = 300'000;
     int last_print_tick{0};
     int last_res_dist_um{0};
     int stopped_since_tick{0};
@@ -480,9 +456,7 @@ namespace {
       int64_t res_dist_um = 0;
       bool fully_reserved{true};
 
-      int64_t stop_buf_um =
-          (bb.loco->stop_dist_um * (100 + STOP_DIST_BUF_PCT)) / 100 +
-          EXTRA_BUFFER_UM;
+      int64_t stop_buf_um = bb.loco->stop_dist_um + EXTRA_BUFFER_UM;
 
       int64_t lookahead_um =
           stop_buf_um + bb.loco->d_um +
@@ -573,8 +547,8 @@ namespace {
                  stopped_since_tick + TICKS_PER_S * (5 + bb.loco->extra_delay) <
                      static_cast<int>(bb.curr_tick)) {
         // we are stopped, so we can flip directions ez
-        // we try to navigate by finding a path starting at our latest reserved
-        // if we can find a path, we take that!
+        // we try to navigate by finding a path starting at our latest
+        // reserved if we can find a path, we take that!
 
         Debug_Puts(bb.txs_tid, bb.loco->id, " Deadlock reversing");
 
@@ -771,8 +745,12 @@ namespace {
         return NodeResult::Failure;
       }
 
-      auto start_idx  = bb.path.empty() ? bb.loco->last_sensor->sens.sid - 1
-                                        : bb.path.peek_last()->node_idx;
+      auto start_idx = bb.path.empty() ? bb.loco->last_sensor->sens.sid - 1
+                                       : bb.path.peek_last()->node_idx;
+      //  we need ot adjust the starting path to make sure that we aren't
+      //  right on a branch
+      // check if the start idx + dx_um along path is at a branch
+
       auto startr_idx = bb.track[start_idx].reverse->idx;
       auto goalr_idx  = bb.track[goal_idx].reverse->idx;
 
@@ -821,9 +799,9 @@ namespace {
           rev_tree.emplace();
           bb.loco->d_um = bb.path.dist_mm * 1000 - bb.loco->d_um;
 
-          // before we set the new path, the end of our new path is now reversed
-          // we may have reserved the final node, so we check it before
-          // reversing
+          // before we set the new path, the end of our new path is now
+          // reversed we may have reserved the final node, so we check it
+          // before reversing
           if (!bb.path.empty()) {
             if (auto last_node = bb.path.peek_last().value();
                 last_node.has_reservation) {
@@ -849,17 +827,16 @@ namespace {
     AttributeSensorNode attribute_sensor{};
     LocalizerNode localize{};
     PathReservationNode reserve{};
-    PathLookaheadNode lookahead{};
 
     Sequence loop{
-        &model, &set_speed, &attribute_sensor, &localize, &reserve, &lookahead,
+        &model, &set_speed, &attribute_sensor, &localize, &reserve,
     };
 
     NodeResult tick(Blackboard &bb) override {
 
       // if we're already moving, keep the same speed
       // otherwise sets to crawl speed to start localizing
-      if (!bb.loco->last_sensor.has_value() && bb.loco->req_speed != 0 &&
+      if (bb.path.empty() && bb.loco->req_speed != 0 &&
           set_speed.req_speed != bb.loco->req_speed) {
         set_speed = SetSpeed{bb.loco->req_speed};
       }
@@ -867,7 +844,7 @@ namespace {
       auto res = loop.tick(bb);
       if (res == NodeResult::Failure) {
         return NodeResult::Failure;
-      } else if (!bb.loco->last_sensor.has_value()) {
+      } else if (bb.path.empty()) {
         return NodeResult::Running;
       }
       return res;
@@ -1186,9 +1163,8 @@ namespace {
       if (res == NodeResult::Success) {
         if (random) {
           path_to_goal.emplace(static_cast<int>(prng.nextNum()));
-        } else {
-          path_to_goal->tick(bb, true);
         }
+        path_to_goal->tick(bb, true);
         max_speed    = SetSpeed{max_speed.req_speed};
         stop_at_done = StopAtDonePath{};
         wait         = WaitNode{TICKS_PER_S};

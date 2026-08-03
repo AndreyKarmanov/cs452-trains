@@ -98,7 +98,6 @@ struct TrainState {
   bool backward : 1 = false;
   bool light_on : 1 = true;
 
-  int inital_node_idx{-1};
   int extra_delay{0};
 
   // sensors attributed to this train train
