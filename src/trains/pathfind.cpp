@@ -204,91 +204,105 @@ Track::Track(Track::Layout layout) {
   }
 }
 
-void Track::reserve(int node_idx, uint32_t id) {
-  auto reserve_edge = [&](track_edge &edge) {
-    if (edge.dest == nullptr || edge.reverse == nullptr) {
+namespace {
+  template <typename Fn>
+  void for_each_outgoing_edge(track_node *track, int idx, Fn &&fn) {
+    auto &node = track[idx];
+    switch (node.type) {
+    case NODE_SENSOR:
+    case NODE_MERGE:
+    case NODE_ENTER:
+      fn(node.edge[DIR_AHEAD]);
+      break;
+    case NODE_BRANCH:
+      fn(node.edge[DIR_STRAIGHT]);
+      fn(node.edge[DIR_CURVED]);
+      break;
+    default:
+      break;
+    }
+  }
+
+  template <typename Fn>
+  void walk_reservation_nodes(track_node *track, int start_idx, Fn &&on_node) {
+    if (start_idx < 0 || start_idx >= TRACK_MAX) {
       return;
     }
-    edge.res_loco_id          = id;
-    edge.reverse->res_loco_id = id;
-  };
 
-  auto &node = track[node_idx];
-  switch (node.type) {
-  case NODE_SENSOR:
-  case NODE_MERGE:
-  case NODE_ENTER:
-    reserve_edge(node.edge[DIR_AHEAD]);
-    break;
-  case NODE_BRANCH:
-    reserve_edge(node.edge[DIR_STRAIGHT]);
-    reserve_edge(node.edge[DIR_CURVED]);
-    break;
-  default:
-    break;
+    int stack[TRACK_MAX]    = {0};
+    size_t top              = 0;
+    bool visited[TRACK_MAX] = {false};
+
+    visited[start_idx] = true;
+    stack[top++]       = start_idx;
+
+    while (top > 0) {
+      int idx = stack[--top];
+      if (idx < 0 || idx >= TRACK_MAX) {
+        continue;
+      }
+      on_node(idx);
+
+      for_each_outgoing_edge(track, idx, [&](const track_edge &edge) {
+        if (edge.dest == nullptr) {
+          return;
+        }
+
+        if (edge.dest->reverse == nullptr) {
+          return;
+        }
+
+        int rev_idx = edge.dest->reverse->idx;
+        if (rev_idx < 0 || rev_idx >= TRACK_MAX || visited[rev_idx]) {
+          return;
+        }
+
+        // Reserve reverse(destination) and recurse from there.
+        visited[rev_idx] = true;
+        stack[top++]     = rev_idx;
+      });
+    }
   }
+} // namespace
+
+void Track::reserve(int node_idx, uint32_t id) {
+  walk_reservation_nodes(track, node_idx,
+                         [&](int idx) { track[idx].res_loco_id = id; });
 }
 
 void Track::release(int node_idx, uint32_t id) {
-  auto release_edge = [&](track_edge &edge) {
-    if (edge.dest == nullptr || edge.reverse == nullptr) {
-      return;
+  walk_reservation_nodes(track, node_idx, [&](int idx) {
+    if (track[idx].res_loco_id == id) {
+      track[idx].res_loco_id = UNRESERVED;
     }
-    if (edge.res_loco_id != UNRESERVED &&
-        static_cast<uint32_t>(edge.res_loco_id) == id) {
-      edge.res_loco_id = UNRESERVED;
-    }
-    if (edge.reverse->res_loco_id != UNRESERVED &&
-        static_cast<uint32_t>(edge.reverse->res_loco_id) == id) {
-      edge.reverse->res_loco_id = UNRESERVED;
-    }
-  };
-
-  auto &node = track[node_idx];
-  switch (node.type) {
-  case NODE_SENSOR:
-  case NODE_MERGE:
-  case NODE_ENTER:
-    release_edge(node.edge[DIR_AHEAD]);
-    break;
-  case NODE_BRANCH:
-    release_edge(node.edge[DIR_STRAIGHT]);
-    release_edge(node.edge[DIR_CURVED]);
-    break;
-  default:
-    break;
-  }
+  });
 }
 
 bool Track::has_reservation(const PathNode &node, uint32_t loco_id) {
-  return track[node.node_idx].edge[node.br_curved].res_loco_id == loco_id;
+  return track[node.node_idx].res_loco_id == loco_id;
 }
 
 uint32_t Track::get_reservation(int node_idx) {
-  auto get_owner = [&](track_edge &edge) -> uint32_t {
-    if (edge.dest == nullptr) {
-      return UNRESERVED;
+  uint32_t owner = UNRESERVED;
+  walk_reservation_nodes(track, node_idx, [&](int idx) {
+    auto curr_owner = track[idx].res_loco_id;
+    if (curr_owner == UNRESERVED) {
+      return;
     }
-    return edge.res_loco_id;
-  };
 
-  auto &node = track[node_idx];
-  switch (node.type) {
-  case NODE_SENSOR:
-  case NODE_MERGE:
-  case NODE_ENTER:
-    return get_owner(node.edge[DIR_AHEAD]);
-  case NODE_BRANCH: {
-    auto straight = get_owner(node.edge[DIR_STRAIGHT]);
-    auto curved   = get_owner(node.edge[DIR_CURVED]);
-    if (straight != UNRESERVED) {
-      return straight;
+    if (owner == UNRESERVED) {
+      owner = curr_owner;
+      return;
     }
-    return curved;
-  }
-  default:
-    return UNRESERVED;
-  }
+
+    if (owner != curr_owner) {
+      // Inconsistent ownership across the reserved set means conflict.
+      owner = static_cast<uint32_t>(-1);
+      return;
+    }
+  });
+
+  return owner;
 }
 
 std::optional<int> Track::get_idx(const Track::NodeName &name) const {
@@ -526,7 +540,8 @@ std::optional<PathLocation> Path::locate_at(int offset_um) const {
   for (const auto &node : *this) {
     int seg_um = node.dx_next * 1000;
     if (offset_um < seg_um) {
-      return PathLocation{.node_idx = node.node_idx, .br_curved = node.br_curved};
+      return PathLocation{.node_idx  = node.node_idx,
+                          .br_curved = node.br_curved};
     }
     offset_um -= seg_um;
   }

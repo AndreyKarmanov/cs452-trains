@@ -308,6 +308,9 @@ namespace {
               }
               return -1;
             })) {
+          Debug_Puts(bb.txs_tid, sens->to_string(),
+                     " Attributed (in path): ", bb.loco->id, " ", sens->sid,
+                     " ", sens->to_string());
           attribute(bb, sens);
           return NodeResult::Success;
         }
