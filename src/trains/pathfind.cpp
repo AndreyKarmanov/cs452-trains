@@ -488,10 +488,11 @@ std::optional<Path> Track::find_path(int start_idx, int goal_idx,
   };
 
   auto relax = [&](int from_idx, int from_dist, int to_idx, int edge_dist) {
+    int cost = edge_dist;
     if (!is_traversable(to_idx)) {
-      return;
+      cost = edge_dist * 3;
     }
-    int new_dist = from_dist + edge_dist;
+    int new_dist = from_dist + cost;
     if (new_dist < best_dist[to_idx]) {
       best_dist[to_idx]   = new_dist;
       predecessor[to_idx] = from_idx;
