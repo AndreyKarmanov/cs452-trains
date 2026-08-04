@@ -602,13 +602,40 @@ static void assert_path_dist_consistent(const Path &path) {
 }
 
 void test_reservations() {
-  Track track_c(Track::Layout::B);
-  track_c.reserve(track_c["D7"].idx, 1);
+  constexpr const char *kExpectedSharedNodes[] = {
+      "B13",   "C2",    "D1",    "E1",    "BR153", "MR153", "BR154", "MR154",
+      "BR155", "MR155", "BR156", "MR156", "EN1",   "EX1",   "EN2",   "EX2",
+  };
 
-  for (int i = 0; i < 139; ++i) {
-    if (track_c[i].res_loco_id != UNRESERVED) {
-      debug_printf(CONSOLE, "node %s\n\r", track_c[i].name,
-                   track_c[i].res_loco_id);
+  constexpr size_t kNodeCount =
+      sizeof(kExpectedSharedNodes) / sizeof(kExpectedSharedNodes[0]);
+
+  for (size_t seed_i = 0; seed_i < kNodeCount; ++seed_i) {
+    Track track_c(Track::Layout::B);
+    constexpr uint32_t test_loco_id = 1;
+
+    const char *seed_name = kExpectedSharedNodes[seed_i];
+    auto seed_idx_opt     = track_c.get_idx(seed_name);
+    _assert(seed_idx_opt.has_value(), "missing seed reservation test node");
+
+    track_c.reserve(seed_idx_opt.value(), test_loco_id);
+
+    for (size_t check_i = 0; check_i < kNodeCount; ++check_i) {
+      const char *check_name = kExpectedSharedNodes[check_i];
+      auto check_idx_opt     = track_c.get_idx(check_name);
+      _assert(check_idx_opt.has_value(),
+              "missing expected reservation test node");
+
+      int check_idx      = check_idx_opt.value();
+      uint32_t owner     = track_c.get_reservation(check_idx);
+      uint32_t direct_id = track_c[check_idx].res_loco_id;
+
+      debug_printf(
+          CONSOLE,
+          "reservation closure seed=%s check=%s owner=%d direct=%d\n\r",
+          seed_name, check_name, owner, direct_id);
+      _assert(owner == test_loco_id,
+              "reservation closure mismatch in expected shared node set");
     }
   }
 }

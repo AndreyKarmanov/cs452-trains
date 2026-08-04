@@ -29,9 +29,13 @@ void set_timer_interrupt(uint32_t timer, uint32_t delay_us) {
 
 void update_timer_interrupt(uint32_t timer, uint32_t delta_us) {
   if (timer == 1) {
-    SYSTIME_REG(TIME_C1) = SYSTIME_REG(TIME_C1) + delta_us;
+    SYSTIME_REG(TIME_C1) = SYSTIME_REG(TIME_C1) + delta_us < time_get()
+                               ? time_get() + delta_us
+                               : SYSTIME_REG(TIME_C1) + delta_us;
   } else if (timer == 3) {
-    SYSTIME_REG(TIME_C3) = SYSTIME_REG(TIME_C3) + delta_us;
+    SYSTIME_REG(TIME_C3) = SYSTIME_REG(TIME_C3) + delta_us < time_get()
+                               ? time_get() + delta_us
+                               : SYSTIME_REG(TIME_C3) + delta_us;
   }
   SYSTIME_REG(TIME_CS) = (1u << timer);
 }

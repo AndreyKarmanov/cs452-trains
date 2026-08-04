@@ -305,7 +305,7 @@ template <size_t TX_BUFFER_SIZE = 64> class TrainControlServer {
 
 public:
   static constexpr auto NAME                      = "TCSERVER";
-  static constexpr auto TRACK                     = Track::Layout::B;
+  static constexpr auto TRACK                     = Track::Layout::A;
   static constexpr auto TICKS_BETWEEN_TRAIN_TICKS = 10;
   TrainControlServer() : track(TRACK) {
     auto response = RegisterAs(NAME);

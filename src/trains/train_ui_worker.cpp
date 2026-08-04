@@ -176,7 +176,7 @@ void ui_update_worker() {
     webserial_print_state(web_tid, state);
 
     prev_state = state;
-    Delay(cs_tid, TICKS_PER_S / 10);
+    Delay(cs_tid, TICKS_PER_S / 5);
   }
 
   Debug_Puts(tx_tid, "UI EXITING\n\r");

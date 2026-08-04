@@ -155,6 +155,8 @@ namespace {
           bb.error_msg = "Failed to set speed";
           return NodeResult::Failure;
         }
+        Debug_Puts(bb.txs_tid, bb.loco->id, " SetSpeed: ", req_speed,
+                   " sent at tick: ", bb.curr_tick);
       }
 
       return NodeResult::Running;
@@ -182,6 +184,8 @@ namespace {
           bb.error_msg = "Failed to set direction";
           return NodeResult::Failure;
         }
+        Debug_Puts(bb.txs_tid, bb.loco->id, " SetDirection: ", backward,
+                   " sent at tick: ", bb.curr_tick);
       }
 
       return NodeResult::Running;
@@ -314,9 +318,6 @@ namespace {
               }
               return -1;
             })) {
-          Debug_Puts(bb.txs_tid, sens->to_string(),
-                     " Attributed (in path): ", bb.loco->id, " ", sens->sid,
-                     " ", sens->to_string());
           attribute(bb, sens);
           return NodeResult::Success;
         }
@@ -529,8 +530,10 @@ namespace {
       // update how much we last reserved
       // if we reserve more, reset our stop time
       // don't give up on waiting if it's improving
+      bool improved_res = false;
       if (last_res_dist_um < res_dist_um) {
-        deadlock_t = bb.curr_tick + TICKS_PER_S * prng.nextNum();
+        improved_res = true;
+        deadlock_t   = bb.curr_tick + TICKS_PER_S * prng.nextNum();
       }
       last_res_dist_um = res_dist_um;
 
@@ -540,7 +543,7 @@ namespace {
         stopped = false;
         stop    = SetSpeed{0};
         go.tick(bb);
-      } else if (should_stop && !stopped) {
+      } else if (should_stop && !stopped && improved_res) {
         stopped    = true;
         deadlock_t = bb.curr_tick + TICKS_PER_S * prng.nextNum();
         go         = SetSpeed{bb.loco->req_speed > 0 ? bb.loco->req_speed
@@ -641,7 +644,6 @@ namespace {
 
       if (bb.path.empty()) {
         stopping = true;
-        Debug_Puts(bb.txs_tid, bb.loco->id, " StopAtDonePath: empty path");
         return stop.tick(bb);
       }
 
@@ -668,16 +670,7 @@ namespace {
                                         }) -
           train_head_um(*bb.loco) + offset_mm * 1000;
 
-      if (bb.curr_tick - last_print_tick > TICKS_PER_S) {
-        Debug_Puts(bb.txs_tid, bb.loco->id, " StopAtDonePath: ", stopping,
-                   " remaining_um: ", remaining_um,
-                   " stop_dist_um: ", bb.loco->stop_dist_um);
-        last_print_tick = bb.curr_tick;
-      };
-
       if (remaining_um < bb.loco->stop_dist_um) {
-        Debug_Puts(bb.txs_tid, "Stopping at done path: ", remaining_um, " < ",
-                   bb.loco->stop_dist_um);
         stopping = true;
         return stop.tick(bb);
       }
@@ -1183,13 +1176,14 @@ namespace {
                                            static_cast<int>(prng.nextNum())};
     SetSpeed max_speed{14};
     StopAtDonePath stop_at_done{};
-    WaitNode wait{TICKS_PER_S};
+    WaitNode wait{5 * TICKS_PER_S};
 
     ForeverNavigateTree(uint16_t speed) : random{true}, max_speed{speed} {
       seq.children.push(&localizer_tree);
       seq.children.push(&(*path_to_goal));
       seq.children.push(&max_speed);
       seq.children.push(&stop_at_done);
+      seq.children.push(&wait);
     }
 
     ForeverNavigateTree(int goal_idx, uint16_t speed)
@@ -1198,6 +1192,7 @@ namespace {
       seq.children.push(&(*path_to_goal));
       seq.children.push(&max_speed);
       seq.children.push(&stop_at_done);
+      seq.children.push(&wait);
     }
 
     NodeResult tick(Blackboard &bb) override {
