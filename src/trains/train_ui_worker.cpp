@@ -151,8 +151,6 @@ void print_state(int tx_tid, const TrackState &state, TrackState &prev) {
   }
 }
 void ui_update_worker() {
-  static Track track(TrainControlServer<>::TRACK);
-
   auto tcs_tid = WhoIs(TrainControlServer<>::NAME);
   _assert(tcs_tid >= 0, "TC SERVER NOT FOUND");
 
@@ -166,49 +164,18 @@ void ui_update_worker() {
   _assert(web_tid >= 0, "TX SERVER3 WHOIS FAILED");
 
   TrackState prev_state{};
-
-  int count = 0;
   while (true) {
     auto cans_reply = send<TC::UIUpdate>(tcs_tid, TC::UIReady{});
     if (!cans_reply.has_value()) {
       break;
     }
+    const auto &state = cans_reply->state;
 #if !defined(DATA_COLLECTION) || !DATA_COLLECTION
-    print_state(tx_tid, cans_reply->state, prev_state);
-    count += 1;
-
-    if (count >= 2) {
-      webserial_print_state(web_tid, cans_reply->state);
-      count = 0;
-    }
-#else
-    if (web_tid >= 0 &&
-        cans_reply->state.reservations != prev_state.reservations) {
-      StaticString<2048> dump{};
-      dump.append("{trains: [\n\r");
-      for (const TrainState &train : cans_reply->state.trains) {
-        auto path = train.e_path.decode(track);
-        auto loc  = locate_train(track, train);
-
-        StaticString<128> path_str{};
-        append_node_list(path_str, track, path);
-
-        StaticString<128> res{};
-        append_train_reservations(res, track, cans_reply->state, train.id);
-
-        dump.append("{num: ", train.id, ", path: \"", path_str,
-                    "\", reservations: \"", res, "\", location: (",
-                    loc.has_value()
-                        ? format_node(track, loc->node_idx, loc->br_curved)
-                        : StaticString<8>("none"),
-                    ", ", train.d_um, ", ", train_tail_um(train) / 1000, ", ",
-                    train_head_um(train) / 1000, ")},\n\r");
-      }
-      dump.append("]}");
-      Puts(web_tid, dump);
-    }
+    print_state(tx_tid, state, prev_state);
 #endif
-    prev_state = cans_reply->state;
+    webserial_print_state(web_tid, state);
+
+    prev_state = state;
     Delay(cs_tid, TICKS_PER_S / 10);
   }
 
