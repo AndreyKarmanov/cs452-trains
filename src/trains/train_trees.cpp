@@ -611,8 +611,8 @@ namespace {
         Debug_Puts(bb.txs_tid, bb.loco->id, " Pathing from ", startr_node.name,
                    " to ", g_node.name);
 
-        auto path_opt =
-            bb.track.find_path(startr_node.idx, g_node.idx, false, true, 0, &bb);
+        auto path_opt = bb.track.find_path(startr_node.idx, g_node.idx, false,
+                                           true, 0, &bb);
         if (!path_opt.has_value()) {
           Debug_Puts(bb.txs_tid, bb.loco->id, " No path found from ",
                      startr_node.name, " to ", g_node.name);
@@ -663,6 +663,11 @@ namespace {
 
         dir_node = SetDirectionNode{!bb.loco->backward};
         dir_node.tick(bb);
+
+        if (bb.loco->d_um > bb.path.peek()->dx_next * 1000) {
+          release_reserve(bb, *bb.path.peek());
+          bb.path.pop();
+        }
         Debug_Puts(bb.txs_tid, bb.loco->id, " Completed direction flip");
       }
       return NodeResult::Running;
@@ -807,7 +812,8 @@ namespace {
       extra_path.track = &bb.track;
       if (temp_idx != start_idx) {
         extra_path =
-            bb.track.find_path(temp_idx, start_idx, false, true, 0, &bb).value();
+            bb.track.find_path(temp_idx, start_idx, false, true, 0, &bb)
+                .value();
       }
       //  we need ot adjust the starting path to make sure that we aren't
       //  right on a branch
@@ -840,7 +846,8 @@ namespace {
 
       // reverse start to goal
       if (!path_opt.has_value()) {
-        path_opt = bb.track.find_path(startr_idx, goal_idx, false, true, 0, &bb);
+        path_opt =
+            bb.track.find_path(startr_idx, goal_idx, false, true, 0, &bb);
         should_reverse = true;
         if (temp_idx != startr_idx) {
           extra_path =
