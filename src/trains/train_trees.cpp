@@ -419,6 +419,8 @@ namespace {
     int last_print_tick{0};
     int last_res_dist_um{0};
     int stopped_since_tick{0};
+    int stop_wait{0};
+    Unif prng{time_get(), 1, 5};
 
     SetSpeed stop{0};
     bool reservation_stop{false};
@@ -514,6 +516,7 @@ namespace {
         reservation_stop   = true;
         stopped_since_tick = bb.curr_tick;
         last_res_dist_um   = res_dist_um;
+        stop_wait          = prng.nextNum();
         stop.tick(bb);
         return NodeResult::Running;
       } else if (reservation_stop && last_res_dist_um < res_dist_um) {
@@ -523,7 +526,7 @@ namespace {
         last_res_dist_um = res_dist_um;
         return go.tick(bb);
       } else if (reservation_stop &&
-                 stopped_since_tick + TICKS_PER_S * (5 + bb.loco->extra_delay) <
+                 stopped_since_tick + TICKS_PER_S * (5 + stop_wait) <
                      static_cast<int>(bb.curr_tick)) {
         // we are stopped, so we can flip directions ez
         // we try to navigate by finding a path starting at our latest
