@@ -25,11 +25,13 @@ namespace {
   constexpr int E3_SID              = sid('E', 3);
   constexpr int E6_SID              = sid('E', 6);
   constexpr size_t CRAWL_SPEED      = 4;
+
   bool release_reserve(Blackboard &bb, const PathNode &node) {
-    auto res = send<TC::Ack>(bb.tcs_tid, TC::Cmd::ReleaseReserve{
-                                             .id       = bb.loco->id,
-                                             .node_idx = node.node_idx,
-                                         });
+    TC::Cmd::ReleaseReserve msg{
+        .id       = bb.loco->id,
+        .node_idx = node.node_idx,
+    };
+    auto res = send<TC::Ack>(bb.tcs_tid, msg);
 
     if (!res.has_value()) {
       bb.error_msg = "Could not release";
@@ -134,23 +136,52 @@ namespace {
 
   struct SetSpeed : public LeafNode {
     uint16_t req_speed{0};
-    bool reached_speed = false;
-    bool sent_cmd      = false;
+    bool done{false};
+    bool sent{false};
+    int sent_time{0};
     SetSpeed(uint16_t speed) : req_speed(speed) {}
     NodeResult tick(Blackboard &bb) override {
-      if (reached_speed || (sent_cmd && bb.loco->req_speed == req_speed)) {
-        reached_speed = true;
+      if (done || (sent && bb.loco->req_speed == req_speed)) {
+        done = true;
         return NodeResult::Success;
       }
 
-      if (!sent_cmd) {
-        auto resp = send<TC::Ack>(
-            bb.tcs_tid, TC::Cmd::Speed{.id = bb.loco->id, .speed = req_speed});
+      if (!sent || (bb.curr_tick - sent_time > TICKS_PER_S * 2)) {
+        TC::Cmd::Speed msg{.id = bb.loco->id, .speed = req_speed};
+        auto resp = send<TC::Ack>(bb.tcs_tid, msg);
+        sent      = true;
+        sent_time = bb.curr_tick;
         if (!resp.has_value()) {
           bb.error_msg = "Failed to set speed";
           return NodeResult::Failure;
         }
-        sent_cmd = true;
+      }
+
+      return NodeResult::Running;
+    }
+  };
+
+  struct SetDirectionNode : public LeafNode {
+    bool backward{false};
+    bool done{false};
+    bool sent{false};
+    int sent_time{0};
+    SetDirectionNode(bool backward) : backward(backward) {}
+    NodeResult tick(Blackboard &bb) override {
+      if (done || (sent && bb.loco->backward == backward)) {
+        done = true;
+        return NodeResult::Success;
+      }
+
+      if (!sent || (bb.curr_tick - sent_time > TICKS_PER_S * 2)) {
+        TC::Cmd::Direction msg{.id = bb.loco->id, .backward = backward};
+        auto resp = send<TC::Ack>(bb.tcs_tid, msg);
+        sent      = true;
+        sent_time = bb.curr_tick;
+        if (!resp.has_value()) {
+          bb.error_msg = "Failed to set direction";
+          return NodeResult::Failure;
+        }
       }
 
       return NodeResult::Running;
@@ -185,30 +216,6 @@ namespace {
       auto resp = send<TC::Ack>(bb.tcs_tid, TC::Cmd::Go{});
       if (!resp.has_value()) {
         bb.error_msg = "Failed to go track";
-        return NodeResult::Failure;
-      }
-      return NodeResult::Running;
-    }
-  };
-
-  struct SetDirectionNode : public LeafNode {
-    bool done{false};
-    bool backward{false};
-    bool sent_cmd{false};
-    SetDirectionNode(bool backward) : backward(backward) {}
-    NodeResult tick(Blackboard &bb) override {
-
-      if (done || (sent_cmd && bb.loco->backward == backward)) {
-        done = true;
-        return NodeResult::Success;
-      }
-
-      auto resp =
-          send<TC::Ack>(bb.tcs_tid, TC::Cmd::Direction{.id       = bb.loco->id,
-                                                       .backward = backward});
-      sent_cmd = true;
-      if (!resp.has_value()) {
-        bb.error_msg = "Failed to set direction";
         return NodeResult::Failure;
       }
       return NodeResult::Running;
@@ -266,7 +273,6 @@ namespace {
         delta_um = (v_i_nm * t_d - (d * t_d * t_d) / 2 + v_m_nm * t_c) / 1000;
       }
 
-      // if the train is reversed, we are backing up
       bb.loco->d_um += delta_um;
 
       auto ve_um = bb.loco->ve_nm / (1'000);
@@ -871,14 +877,6 @@ namespace {
     };
 
     NodeResult tick(Blackboard &bb) override {
-
-      // if we're already moving, keep the same speed
-      // otherwise sets to crawl speed to start localizing
-      if (bb.path.empty() && bb.loco->req_speed != 0 &&
-          set_speed.req_speed != bb.loco->req_speed) {
-        set_speed = SetSpeed{bb.loco->req_speed};
-      }
-
       auto res = loop.tick(bb);
       if (res == NodeResult::Failure) {
         return NodeResult::Failure;
@@ -1151,7 +1149,7 @@ namespace {
     NodeResult tick(Blackboard &bb) override { return tree.tick(bb); }
   };
 
-  struct NavigateTree : public Sequence {
+  struct NavigateTree : public TreeNode {
 
     LocalizerTree localizer_tree{};
     PathToNode path_to_goal{sid('D', 4) - 1};
@@ -1159,14 +1157,17 @@ namespace {
     StopAtDonePath stop_at_done{};
     DebugPrintDists debug_print_dists{};
 
+    Sequence seq{
+        &localizer_tree,
+        &path_to_goal,
+        &max_speed,
+        &stop_at_done,
+    };
+
     NavigateTree(int goal_idx, uint16_t speed, int offset_mm)
-        : path_to_goal{goal_idx}, max_speed{speed}, stop_at_done{offset_mm} {
-      children.push(&localizer_tree);
-      children.push(&path_to_goal);
-      children.push(&max_speed);
-      children.push(&stop_at_done);
-      children.push(&debug_print_dists);
-    }
+        : path_to_goal{goal_idx}, max_speed{speed}, stop_at_done{offset_mm} {}
+
+    NodeResult tick(Blackboard &bb) override { return seq.tick(bb); }
   };
 
   struct ForeverNavigateTree : public TreeNode {
