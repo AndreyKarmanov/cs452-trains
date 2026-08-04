@@ -872,9 +872,15 @@ namespace {
     LocalizerNode localize{};
     PathReservationNode reserve{};
 
-    Sequence loop{
-        &model, &set_speed, &attribute_sensor, &localize, &reserve,
-    };
+    Sequence loop{};
+
+    LocalizerTree() {
+      loop.children.push(&model);
+      loop.children.push(&set_speed);
+      loop.children.push(&attribute_sensor);
+      loop.children.push(&localize);
+      loop.children.push(&reserve);
+    }
 
     NodeResult tick(Blackboard &bb) override {
       auto res = loop.tick(bb);
@@ -1157,15 +1163,15 @@ namespace {
     StopAtDonePath stop_at_done{};
     DebugPrintDists debug_print_dists{};
 
-    Sequence seq{
-        &localizer_tree,
-        &path_to_goal,
-        &max_speed,
-        &stop_at_done,
-    };
+    Sequence seq{};
 
     NavigateTree(int goal_idx, uint16_t speed, int offset_mm)
-        : path_to_goal{goal_idx}, max_speed{speed}, stop_at_done{offset_mm} {}
+        : path_to_goal{goal_idx}, max_speed{speed}, stop_at_done{offset_mm} {
+      seq.children.push(&localizer_tree);
+      seq.children.push(&path_to_goal);
+      seq.children.push(&max_speed);
+      seq.children.push(&stop_at_done);
+    }
 
     NodeResult tick(Blackboard &bb) override { return seq.tick(bb); }
   };
