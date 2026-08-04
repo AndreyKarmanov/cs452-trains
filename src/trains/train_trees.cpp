@@ -419,6 +419,7 @@ namespace {
     int last_print_tick{0};
     int last_res_dist_um{0};
     int stop_t{0};
+    Unif prng{time_get(), 1, 5};
 
     SetSpeed stop{0};
     bool stopped{false};
@@ -525,7 +526,8 @@ namespace {
       }
       last_res_dist_um = res_dist_um;
 
-      auto deadlock_time = stop_t + TICKS_PER_S * (5 + bb.loco->extra_delay);
+      auto deadlock_time =
+          stop_t + TICKS_PER_S * (prng.nextNum() + bb.loco->extra_delay);
 
       if (!should_stop && !stopped) {
         return NodeResult::Success;
