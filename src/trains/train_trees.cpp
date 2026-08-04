@@ -427,7 +427,7 @@ namespace {
     int last_print_tick{0};
     int last_res_dist_um{0};
     int stop_t{0};
-    Unif prng{time_get(), 5, 15};
+    Unif prng{time_get(), 3, 15};
 
     SetSpeed stop{0};
     bool stopped{false};
@@ -507,7 +507,7 @@ namespace {
                     " last res: ", last_res_dist_um / 1000,
                     " stopbuf: ", stop_dist_um / 1000, " stopped: ", stopped,
                     " should stop: ", should_stop, " fulres: ", fully_reserved,
-                    " time stop: ", bb.curr_tick - stop_t, "\033[K");
+                    " waiting for: ", deadlock_t - bb.curr_tick, "\033[K");
 
         last_print_tick = bb.curr_tick;
       }
@@ -530,9 +530,7 @@ namespace {
       // if we reserve more, reset our stop time
       // don't give up on waiting if it's improving
       if (last_res_dist_um < res_dist_um) {
-        stop_t = bb.curr_tick;
-        deadlock_t =
-            stop_t + TICKS_PER_S * (prng.nextNum() + bb.loco->extra_delay);
+        deadlock_t = bb.curr_tick + TICKS_PER_S * prng.nextNum();
       }
       last_res_dist_um = res_dist_um;
 
@@ -543,18 +541,15 @@ namespace {
         stop    = SetSpeed{0};
         go.tick(bb);
       } else if (should_stop && !stopped) {
-        stopped = true;
-        stop_t  = bb.curr_tick;
-        deadlock_t =
-            stop_t + TICKS_PER_S * (prng.nextNum() + bb.loco->extra_delay);
-        go = SetSpeed{bb.loco->req_speed > 0 ? bb.loco->req_speed
-                                             : go.req_speed};
+        stopped    = true;
+        deadlock_t = bb.curr_tick + TICKS_PER_S * prng.nextNum();
+        go         = SetSpeed{bb.loco->req_speed > 0 ? bb.loco->req_speed
+                                                     : go.req_speed};
         stop.tick(bb);
       } else if (should_stop && stopped && deadlock_t < bb.curr_tick) {
         // if we are in a deadlock, we try to reverse and go to path
         Debug_Puts(bb.txs_tid, bb.loco->id, " Deadlocked");
-        deadlock_t =
-            stop_t + TICKS_PER_S * (prng.nextNum() + bb.loco->extra_delay);
+        deadlock_t = bb.curr_tick + TICKS_PER_S * prng.nextNum();
 
         // we first must validate if we can even reverse to the goal node
         // assume we have a path from A -> B -> C -> D -> E -> F
