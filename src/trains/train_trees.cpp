@@ -321,6 +321,8 @@ namespace {
           return NodeResult::Success;
         }
 
+        return NodeResult::Running;
+
         // find the distance from our path to the sensor
         auto path = bb.track.find_path(bb.path.peek()->node_idx, sens_idx);
 
@@ -425,10 +427,11 @@ namespace {
     int last_print_tick{0};
     int last_res_dist_um{0};
     int stop_t{0};
-    Unif prng{time_get(), 1, 5};
+    Unif prng{time_get(), 5, 15};
 
     SetSpeed stop{0};
     bool stopped{false};
+    uint32_t deadlock_t{0};
     SetDirectionNode dir_node{false};
     SetSpeed go{8};
     PathReservationNode(uint16_t go_speed = 8) : go(go_speed) {}
@@ -481,13 +484,13 @@ namespace {
               return NodeResult::Failure;
             }
           }
-        }
 
-        res_dist_um += node.dx_next * 1000;
+          res_dist_um += node.dx_next * 1000;
 
-        // if we are stopped and reserve more, we can go again.
-        if (stopped && res_dist_um > last_res_dist_um) {
-          break;
+          // if we are stopped and reserve more, we can go again.
+          if (stopped && res_dist_um > last_res_dist_um) {
+            break;
+          }
         }
       }
 
@@ -529,28 +532,30 @@ namespace {
       // don't give up on waiting if it's improving
       if (last_res_dist_um < res_dist_um) {
         stop_t = bb.curr_tick;
+        deadlock_t =
+            stop_t + TICKS_PER_S * (prng.nextNum() + bb.loco->extra_delay);
       }
       last_res_dist_um = res_dist_um;
-
-      auto deadlock_time =
-          stop_t + TICKS_PER_S * (prng.nextNum() + bb.loco->extra_delay);
 
       if (!should_stop && !stopped) {
         return NodeResult::Success;
       } else if (!should_stop && stopped) {
         stopped = false;
-        stop_t  = bb.curr_tick;
         stop    = SetSpeed{0};
         go.tick(bb);
       } else if (should_stop && !stopped) {
         stopped = true;
         stop_t  = bb.curr_tick;
-        go      = SetSpeed{go.req_speed};
+        deadlock_t =
+            stop_t + TICKS_PER_S * (prng.nextNum() + bb.loco->extra_delay);
+        go = SetSpeed{bb.loco->req_speed > 0 ? bb.loco->req_speed
+                                             : go.req_speed};
         stop.tick(bb);
-      } else if (should_stop && stopped &&
-                 deadlock_time < static_cast<int>(bb.curr_tick)) {
+      } else if (should_stop && stopped && deadlock_t < bb.curr_tick) {
         // if we are in a deadlock, we try to reverse and go to path
         Debug_Puts(bb.txs_tid, bb.loco->id, " Deadlocked");
+        deadlock_t =
+            stop_t + TICKS_PER_S * (prng.nextNum() + bb.loco->extra_delay);
 
         // we first must validate if we can even reverse to the goal node
         // assume we have a path from A -> B -> C -> D -> E -> F
@@ -750,8 +755,8 @@ namespace {
       }
 
       // if the next node is also a branch, we must follow the state of it.
-      // this is for the case where the node is tiny (4cm) and right infront of
-      // a switch
+      // this is for the case where the node is tiny (4cm) and right infront
+      // of a switch
       node = bb.track[better_idx];
       if (node.type == NODE_BRANCH) {
         better_idx = node.edge[bb.state.is_switch_curved(node.num)].dest->idx;
