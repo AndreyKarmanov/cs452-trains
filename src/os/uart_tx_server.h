@@ -4,13 +4,10 @@
 #include "debug.h"
 #include "message.h"
 #include "name_server.h"
-#include "syscall.h"
-#include "uart.h"
-#include "message.h"
 #include "static_string.h"
 #include "syscall.h"
+#include "uart.h"
 #include <cstring>
-
 
 struct UART0_TX_Traits {
   static constexpr const char *NAME = "TXSERVER";
@@ -104,7 +101,6 @@ using UART03_TX_Server = UART_TX_Server_T<UART3_TX_Traits>;
 void uart_tx_server_task();
 void uart03_tx_server_task();
 
-
 int Getc(int tid);
 
 template <size_t SIZE> int Puts(int tid, const StaticString<SIZE> &str) {
@@ -132,7 +128,7 @@ template <size_t SIZE> int Puts(int tid, const StaticString<SIZE> &str) {
 }
 
 template <size_t SIZE> int Debug_Puts(int tid, const StaticString<SIZE> &str) {
-  static constexpr int DEBUG_LINE_START = 40;
+  static constexpr int DEBUG_LINE_START = 50;
   static int debug_scroll_line          = 0;
 
   const int row = DEBUG_LINE_START + debug_scroll_line;
@@ -184,4 +180,3 @@ template <typename... Args> int Puts(int tid, const Args &...args) {
   str.set(args...);
   return Puts(tid, str);
 }
-
