@@ -297,7 +297,7 @@ uint32_t Track::get_reservation(int node_idx) {
 
     if (owner != curr_owner) {
       // Inconsistent ownership across the reserved set means conflict.
-      owner = static_cast<uint32_t>(-1);
+      owner = 155;
       return;
     }
   });
@@ -603,7 +603,14 @@ static void assert_path_dist_consistent(const Path &path) {
 
 void test_reservations() {
   Track track_c(Track::Layout::B);
-  track_c.reserve(track_c["C2"].idx, 1);
+  track_c.reserve(track_c["D7"].idx, 1);
+
+  for (int i = 0; i < 139; ++i) {
+    if (track_c[i].res_loco_id != UNRESERVED) {
+      debug_printf(CONSOLE, "node %s\n\r", track_c[i].name,
+                   track_c[i].res_loco_id);
+    }
+  }
 }
 
 void test_pathfind() {

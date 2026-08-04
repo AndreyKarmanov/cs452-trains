@@ -484,13 +484,12 @@ namespace {
               return NodeResult::Failure;
             }
           }
+        }
+        res_dist_um += node.dx_next * 1000;
 
-          res_dist_um += node.dx_next * 1000;
-
-          // if we are stopped and reserve more, we can go again.
-          if (stopped && res_dist_um > last_res_dist_um) {
-            break;
-          }
+        // if we are stopped and reserve more, we can go again.
+        if (stopped && res_dist_um > last_res_dist_um) {
+          break;
         }
       }
 
