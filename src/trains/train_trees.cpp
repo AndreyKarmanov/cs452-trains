@@ -480,12 +480,12 @@ namespace {
         Offset_Puts(
             bb.txs_tid, 30 + bb.loco->id, bb.loco->id,
             " Path dist: ", bb.path.dist_mm, " shoe: ", bb.loco->d_um / 1000,
-            " head: ", train_head_um(*bb.loco) / 1000,
-            " tail: ", train_tail_um(*bb.loco) / 1000,
+            " h: ", train_head_um(*bb.loco) / 1000,
+            " t: ", train_tail_um(*bb.loco) / 1000,
             " res dist: ", res_dist_um / 1000,
-            " last_res_dist: ", last_res_dist_um / 1000,
-            " stop_buf: ", stop_buf_um / 1000, " stopped: ", reservation_stop,
-            " time stopped: ", bb.curr_tick - stopped_since_tick, "\033K[");
+            " last res: ", last_res_dist_um / 1000,
+            " stopbuf: ", stop_buf_um / 1000, " stopped: ", reservation_stop,
+            " time stop: ", bb.curr_tick - stopped_since_tick, "\033[K");
 
         last_print_tick = bb.curr_tick;
       }
@@ -502,8 +502,10 @@ namespace {
         if (reservation_stop) {
           reservation_stop = false;
           stop             = SetSpeed{0};
+          last_res_dist_um = res_dist_um;
           return go.tick(bb);
         }
+        last_res_dist_um = res_dist_um;
         return NodeResult::Success;
       } else if (!reservation_stop &&
                  res_dist_um - train_head_um(*bb.loco) <= stop_buf_um) {
@@ -511,12 +513,14 @@ namespace {
         go                 = SetSpeed{go.req_speed};
         reservation_stop   = true;
         stopped_since_tick = bb.curr_tick;
+        last_res_dist_um   = res_dist_um;
         stop.tick(bb);
         return NodeResult::Running;
       } else if (reservation_stop && last_res_dist_um < res_dist_um) {
         // if we reserved more since last move, we can go again.
         reservation_stop = false;
         stop             = SetSpeed{0};
+        last_res_dist_um = res_dist_um;
         return go.tick(bb);
       } else if (reservation_stop &&
                  stopped_since_tick + TICKS_PER_S * (5 + bb.loco->extra_delay) <
@@ -527,7 +531,54 @@ namespace {
 
         Debug_Puts(bb.txs_tid, bb.loco->id, " Deadlock reversing");
 
-        auto last_reserved = bb.path.end();
+        // A B C D E F
+        // lets say reserved is A B C
+
+        auto goal_node_opt = bb.path.peek_last();
+        if (!goal_node_opt.has_value()) {
+          Debug_Puts(bb.txs_tid, bb.loco->id, " No goal node");
+          stop.tick(bb);
+          last_res_dist_um = res_dist_um;
+          return NodeResult::Running;
+        }
+        auto goal_node = goal_node_opt.value();
+        // goal_node = F
+
+        auto start_node_opt = bb.path.peek();
+        if (!start_node_opt.has_value()) {
+          Debug_Puts(bb.txs_tid, bb.loco->id, " No start node");
+          stop.tick(bb);
+          last_res_dist_um = res_dist_um;
+          return NodeResult::Running;
+        }
+        auto start_node = start_node_opt.value();
+        // A
+
+        if (!start_node.has_reservation) {
+          Debug_Puts(bb.txs_tid, bb.loco->id, " Start node not reserved");
+          stop.tick(bb);
+          last_res_dist_um = res_dist_um;
+          return NodeResult::Running;
+        }
+
+        const auto &startr_node = bb.track[start_node.node_idx].reverse;
+        // Ar
+        auto npath_opt =
+            bb.track.find_path(startr_node->idx, goal_node.node_idx);
+        if (!npath_opt.has_value()) {
+          Debug_Puts(bb.txs_tid, bb.loco->id, " No path found from ",
+                     startr_node->name, " to ",
+                     bb.track[goal_node.node_idx].name);
+          stop.tick(bb);
+          last_res_dist_um = res_dist_um;
+          return NodeResult::Running;
+        }
+        auto npath = npath_opt.value();
+        // Ar -> ... -> F
+        Debug_Puts(bb.txs_tid, bb.loco->id,
+                   " New Path: ", npath.to_string(&bb.track));
+
+        auto last_reserved = bb.path.begin();
         for (auto it = bb.path.begin(); it < bb.path.end(); it++) {
           auto node = *it;
           if (!node.has_reservation) {
@@ -535,71 +586,51 @@ namespace {
           }
           last_reserved = it;
         }
-
-        if (last_reserved == bb.path.end()) {
-          stopped_since_tick = bb.curr_tick;
-          Debug_Puts(bb.txs_tid, bb.loco->id,
-                     " Can't deadlock reverse, no reserved.");
-          // we don't have any reserved
-          // get scared and flip out
-          stop.tick(bb);
-          return NodeResult::Running;
-        }
-
+        // last_reserved = C
+        // C->D->E->F (distance == number of hops from first to last)
+        // unreserved_nodes = 3
         auto unreserved_nodes = std::distance(last_reserved, bb.path.end() - 1);
-        Puts(bb.web_tid, bb.loco->id, " Unres: ", unreserved_nodes,
-             " Old Path: ", bb.path.to_string(&bb.track));
+        Debug_Puts(bb.txs_tid, bb.loco->id, " Unres: ", unreserved_nodes,
+                   " Old Path: ", bb.path.to_string(&bb.track));
         for (int i = 0; i < unreserved_nodes; ++i) {
           if (!bb.path.pop_back().has_value()) {
+            Debug_Puts(bb.txs_tid, bb.loco->id, " Path pop failed");
             break;
           }
         }
-        auto new_path_start = bb.path.reverse();
 
-        auto start_node = new_path_start.peek_last();
-        auto goal_node  = bb.path.peek_last();
+        // A B C
+        Debug_Puts(bb.txs_tid, bb.loco->id,
+                   " Reserved Path: ", bb.path.to_string(&bb.track));
 
-        // we have something reserved.
-        // we create a new path.
-        auto new_path_opt =
-            bb.track.find_path(start_node->node_idx, goal_node->node_idx);
+        auto npath_start = bb.path.reverse();
+        // Cr->Br->Ar
+        Debug_Puts(bb.txs_tid, bb.loco->id, " Reversed Reverse Path: ",
+                   npath_start.to_string(&bb.track));
 
-        if (!new_path_opt.has_value()) {
-          stop.tick(bb);
-          return NodeResult::Running;
-        }
-        auto new_path = new_path_opt.value();
-
-        auto c_path = new_path_start + new_path;
-        Puts(bb.web_tid, bb.loco->id,
-             " New Path: ", c_path.to_string(&bb.track));
-
-        StaticString<128> path_str{};
-        path_str.append(bb.loco->id, " Res Path: ");
-        for (auto &node : c_path) {
-          if (!node.has_reservation) {
-            path_str.append(bb.track[node.node_idx].name, " NR ");
-          } else {
-            path_str.append(bb.track[node.node_idx].name, " R ");
-          }
-        }
-        Puts(bb.web_tid, path_str);
+        npath = npath_start + npath;
+        // Cr -> Br -> Ar + Ar -> ... -> F
+        Debug_Puts(bb.txs_tid, bb.loco->id,
+                   " Combined Path: ", npath.to_string(&bb.track));
 
         if (auto last_node = bb.path.peek_last().value();
             last_node.has_reservation) {
           release_reserve(bb, last_node);
-          last_res_dist_um = res_dist_um - last_node.dx_next * 1000;
         }
 
-        bb.loco->d_um   = bb.path.dist_mm * 1000 - bb.loco->d_um;
-        c_path.track    = &bb.track;
-        bb.path         = c_path;
+        // subtract train tail, as tail will become the new head
+        bb.loco->d_um   = npath_start.dist_mm * 1000 - bb.loco->d_um;
+        bb.path         = npath;
+        bb.path.track   = &bb.track;
         bb.loco->e_path = bb.path;
         dir_node        = SetDirectionNode{!bb.loco->backward};
         dir_node.tick(bb);
-        Puts(bb.web_tid, bb.loco->id, " Completed direction flip");
-
+        Debug_Puts(bb.txs_tid, bb.loco->id, " Completed direction flip");
         stopped_since_tick = bb.curr_tick;
+        last_res_dist_um   = res_dist_um;
+        reservation_stop   = false;
+        stop               = SetSpeed{0};
+        go.tick(bb);
         return NodeResult::Running;
       } else if (reservation_stop) {
         // otherwise, if we haven't reserved more, keep waiting
@@ -625,6 +656,11 @@ namespace {
 
     NodeResult tick(Blackboard &bb) override {
 
+      if (bb.path.empty()) {
+        stopping = true;
+        return stop.tick(bb);
+      }
+
       // stopping logic:
       // stopping: wait for ve = 0
       // not stopping: don't do anything?
@@ -639,11 +675,6 @@ namespace {
         return res;
       }
 
-      if (bb.path.empty()) {
-        stopping = true;
-        return stop.tick(bb);
-      }
-
       // todo: account for going to a reversed destination (invert offset)
       // todo: account for going in reverse (add offset?)
       int64_t remaining_um =
@@ -652,6 +683,13 @@ namespace {
                                           return acc + node.dx_next;
                                         }) -
           train_head_um(*bb.loco) + offset_mm * 1000;
+
+      if (bb.curr_tick - last_print_tick > TICKS_PER_S) {
+        Debug_Puts(bb.txs_tid, bb.loco->id, " StopAtDonePath: ", stopping,
+                   " remaining_um: ", remaining_um,
+                   " stop_dist_um: ", bb.loco->stop_dist_um);
+        last_print_tick = bb.curr_tick;
+      };
 
       if (remaining_um < bb.loco->stop_dist_um) {
         Debug_Puts(bb.txs_tid, "Stopping at done path: ", remaining_um, " < ",

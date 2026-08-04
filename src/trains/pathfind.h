@@ -40,16 +40,18 @@ public:
   constexpr void pop(size_t n) {
     for (size_t i = 0; i < n; i++) {
       auto elem = Buffer<PathNode, TRACK_MAX>::pop();
-      if (!elem.has_value())
+      if (!elem.has_value()) {
         break;
+      }
       dist_mm -= elem->dx_next;
     }
   }
 
   constexpr std::optional<PathNode> pop() {
     auto elem = Buffer<PathNode, TRACK_MAX>::pop();
-    if (elem.has_value())
+    if (elem.has_value()) {
       dist_mm -= elem->dx_next;
+    }
     return elem;
   }
 

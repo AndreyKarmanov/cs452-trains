@@ -69,6 +69,7 @@ template <> void TrainControlServer<>::train_tick_worker() {
     if (!rcv_msg.has_value()) {
       break;
     }
+    time = static_cast<uint32_t>(Time(cs_tid));
   }
 
   Debug_Puts(tx_tid, "tick worker EXITING\n\r");
