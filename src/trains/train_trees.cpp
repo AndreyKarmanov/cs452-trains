@@ -615,6 +615,16 @@ namespace {
         if (!path_opt.has_value()) {
           Debug_Puts(bb.txs_tid, bb.loco->id, " No path found from ",
                      startr_node.name, " to ", g_node.name);
+          //  no path, potentially an evil deadlock
+          // we pop the path at the back
+          if (bb.loco->d_um < start_node.dx_next * 1000) {
+            return NodeResult::Running;
+          }
+          auto old_dist = bb.path.dist_mm;
+          release_reserve(bb, start_node);
+          bb.path.pop();
+          auto delta_dist  = old_dist - bb.path.dist_mm;
+          bb.loco->d_um   -= delta_dist * 1000;
           return NodeResult::Running;
         }
         auto npath = path_opt.value();
