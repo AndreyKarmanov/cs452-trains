@@ -252,7 +252,7 @@ namespace {
           return;
         }
 
-        int rev_idx = edge.dest->reverse->idx;
+        int rev_idx = edge.dist > 0 ? edge.dest->reverse->idx : edge.dest->idx;
         if (rev_idx < 0 || rev_idx >= TRACK_MAX || visited[rev_idx]) {
           return;
         }
@@ -597,8 +597,22 @@ static void assert_path_dist_consistent(const Path &path) {
   }
 }
 
+void test_reservations() {
+  Track track_b(Track::Layout::B);
+  track_b.reserve(track_b["BR156"].idx, 1);
+  for (int i = 0; i < TRACK_MAX; ++i) {
+    auto res = track_b.get_reservation(i);
+    if (res != UNRESERVED) {
+      debug_printf(CONSOLE, "node %s has reservation %d\n\r", track_b[i].name,
+                   res);
+    }
+  }
+}
+
 void test_pathfind() {
   debug_puts(CONSOLE, "pathfind tests\n\r");
+
+  test_reservations();
 
   Track track_a(Track::Layout::A);
   Track track_b(Track::Layout::B);
