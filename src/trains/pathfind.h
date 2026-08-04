@@ -25,6 +25,7 @@ struct PathLocation {
 };
 
 class Track;
+struct Blackboard;
 
 class Path : public Buffer<PathNode, TRACK_MAX> {
 public:
@@ -109,11 +110,15 @@ public:
   }
   std::optional<track_edge> get_edge(int from_idx, int to_idx) const;
 
-  std::optional<Path> find_loop(int start_idx) const;
+  std::optional<Path> find_loop(int start_idx);
   std::optional<Path> find_path(int start_idx, int goal_idx,
-                                bool allow_reverse = false) const;
+                                bool allow_reverse = false,
+                                bool optimize = false, uint32_t train_id = 0,
+                                Blackboard *bb = nullptr);
   std::optional<Path> find_path(const NodeName &start, const NodeName &goal,
-                                bool allow_reverse = false) const;
+                                bool allow_reverse = false,
+                                bool optimize = false, uint32_t train_id = 0,
+                                Blackboard *bb = nullptr);
 
   const char *node_name(int node_idx) const;
 

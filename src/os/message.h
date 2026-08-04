@@ -1,6 +1,7 @@
 #pragma once
 
 #include "mrk.h"
+#include "pathfind.h"
 #include "static_string.h"
 #include "train_state.h"
 #include <cstdint>
@@ -224,9 +225,17 @@ namespace TC {
       int node_idx;
     };
 
-    using Any = std::variant<Invalid, Quit, Light, Function, Speed, Switch,
-                             Reverse, Stop, Go, Reset, RemoveTrains, RunTree,
-                             Direction, Nav, Reg, Reserve, ReleaseReserve>;
+    struct FindPath {
+      uint32_t id;
+      int start_idx;
+      int goal_idx;
+      bool allow_reverse;
+    };
+
+    using Any =
+        std::variant<Invalid, Quit, Light, Function, Speed, Switch, Reverse,
+                     Stop, Go, Reset, RemoveTrains, RunTree, Direction, Nav,
+                     Reg, Reserve, ReleaseReserve, FindPath>;
 
     static_assert(std::is_trivially_copyable<Any>::value,
                   "TC::Cmd::Any must be trivially copyable");
@@ -237,6 +246,11 @@ namespace TC {
     int return_code{0};
   };
   struct Quit {};
+
+  struct PathReply {
+    int return_code{0};
+    EncodedPath path;
+  };
 } // namespace TC
 
 struct ErrorMsg {
@@ -245,16 +259,18 @@ struct ErrorMsg {
 
 struct TaskExitMsg {};
 
-using Message = std::variant<
-    NS::RegisterMsg, NS::WhoIsMsg, NS::RegisterReplyMsg, NS::WhoIsReplyMsg,
-    RPS::SetupMsg, RPS::PlayMsg, RPS::QuitMsg, RPS::PlayReadyMsg,
-    RPS::PlayResultMsg, RPS::QuitAckMsg, CS::TimeMsg, CS::TimeReplyMsg,
-    CS::DelayMsg, CS::DelayUntilMsg, CS::DelayReplyMsg, CS::TickMsg,
-    FUT::ClientParamRequestMsg, FUT::ClientInitMsg, TX::SendMsg,
-    TX::InterruptMsg, TX::ReplyMsg, RX::GetcMsg, RX::GetcReplyMsg,
-    RX::InterruptMsg, RX::InterruptReplyMsg, ErrorMsg, TaskExitMsg, TC::UIReady,
-    TC::UIUpdate, TC::Cmd::Any, TC::Quit, TC::RX, TC::TXReady, TC::Tree::Msg,
-    TC::Tree::Ready, TC::Tree::Tick, TC::Tree::Exit, TC::Ack, MRKCmd>;
+using Message =
+    std::variant<NS::RegisterMsg, NS::WhoIsMsg, NS::RegisterReplyMsg,
+                 NS::WhoIsReplyMsg, RPS::SetupMsg, RPS::PlayMsg, RPS::QuitMsg,
+                 RPS::PlayReadyMsg, RPS::PlayResultMsg, RPS::QuitAckMsg,
+                 CS::TimeMsg, CS::TimeReplyMsg, CS::DelayMsg, CS::DelayUntilMsg,
+                 CS::DelayReplyMsg, CS::TickMsg, FUT::ClientParamRequestMsg,
+                 FUT::ClientInitMsg, TX::SendMsg, TX::InterruptMsg,
+                 TX::ReplyMsg, RX::GetcMsg, RX::GetcReplyMsg, RX::InterruptMsg,
+                 RX::InterruptReplyMsg, ErrorMsg, TaskExitMsg, TC::UIReady,
+                 TC::UIUpdate, TC::Cmd::Any, TC::Quit, TC::RX, TC::TXReady,
+                 TC::Tree::Msg, TC::Tree::Ready, TC::Tree::Tick, TC::Tree::Exit,
+                 TC::Ack, MRKCmd, TC::PathReply>;
 
 static_assert(std::is_trivially_copyable<Message>::value,
               "MessageVar must be trivially copyable");

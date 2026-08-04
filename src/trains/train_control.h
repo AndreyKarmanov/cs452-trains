@@ -220,6 +220,20 @@ template <size_t TX_BUFFER_SIZE = 64> class TrainControlServer {
     return TC::Ack{.return_code = -1};
   }
 
+  Message handle_command(const TC::Cmd::FindPath &cmd) {
+    if (cmd.start_idx < 0 || cmd.start_idx >= TRACK_MAX || cmd.goal_idx < 0 ||
+        cmd.goal_idx >= TRACK_MAX) {
+      return TC::PathReply{.return_code = -2, .path = EncodedPath{}};
+    }
+
+    auto res = track.find_path(cmd.start_idx, cmd.goal_idx, cmd.allow_reverse,
+                               false, cmd.id);
+    if (!res.has_value()) {
+      return TC::PathReply{.return_code = -1, .path = EncodedPath()};
+    }
+    return TC::PathReply{.return_code = 0, .path = EncodedPath(res.value())};
+  }
+
   void handle(const int tid, const TC::RX &msg) {
     auto mrk = decode_frame(msg.frame);
     state.update(mrk);

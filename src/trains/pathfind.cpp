@@ -1,8 +1,10 @@
 #include "pathfind.h"
+#include "behaviour_tree.h"
 #include "debug.h"
 #include "heap.h"
 #include "track_data.h"
 #include "uart.h"
+#include "uart_tx_server.h"
 #include <climits>
 
 static constexpr int INF = INT_MAX / 2;
@@ -168,11 +170,11 @@ Path Path::reverse() {
     auto new_node = new_edge->src;
 
     reversed_path.push({
-        .node_idx        = new_node->idx,
-        .type            = new_node->type,
-        .dx_next         = new_edge->dist,
-        .br_curved       = new_node->type == NODE_BRANCH &&
-                           new_edge == &new_node->edge[DIR_CURVED],
+        .node_idx  = new_node->idx,
+        .type      = new_node->type,
+        .dx_next   = new_edge->dist,
+        .br_curved = new_node->type == NODE_BRANCH &&
+                     new_edge == &new_node->edge[DIR_CURVED],
         .has_reservation = prev_node.has_reservation,
     });
   }
@@ -383,7 +385,7 @@ std::optional<Path> Track::build_path(int goal_idx,
   return result;
 }
 
-std::optional<Path> Track::find_loop(int start_idx) const {
+std::optional<Path> Track::find_loop(int start_idx) {
   // if the start and goal is the same
   // for each potential path from this node, find the shortest path that loops
   // back to goal node, then append on
@@ -393,11 +395,15 @@ std::optional<Path> Track::find_loop(int start_idx) const {
     auto forward_idx = node_idx(node.edge[DIR_STRAIGHT].dest);
     auto curved_idx  = node_idx(node.edge[DIR_CURVED].dest);
 
-    auto straight_p_o1 = find_path(start_idx, forward_idx, false);
-    auto straight_p_o2 = find_path(forward_idx, goal_idx, false);
+    auto straight_p_o1 =
+        find_path(start_idx, forward_idx, false, false, 0, nullptr);
+    auto straight_p_o2 =
+        find_path(forward_idx, goal_idx, false, false, 0, nullptr);
 
-    auto curved_p_o1 = find_path(start_idx, curved_idx, false);
-    auto curved_p_o2 = find_path(curved_idx, goal_idx, false);
+    auto curved_p_o1 =
+        find_path(start_idx, curved_idx, false, false, 0, nullptr);
+    auto curved_p_o2 =
+        find_path(curved_idx, goal_idx, false, false, 0, nullptr);
 
     if (straight_p_o1.has_value() && straight_p_o2.has_value()) {
       return straight_p_o1.value() + straight_p_o2.value();
@@ -420,7 +426,35 @@ std::optional<Path> Track::find_loop(int start_idx) const {
 }
 
 std::optional<Path> Track::find_path(int start_idx, int goal_idx,
-                                     bool allow_reverse) const {
+                                     bool allow_reverse, bool optimize,
+                                     uint32_t train_id, Blackboard *bb) {
+
+  // if we want to optimize, then we must send to tc server
+  if (optimize) {
+    if (bb == nullptr || bb->loco == nullptr) {
+      int tid = WhoIs(UART_TX_Server::NAME);
+      Debug_Puts(
+          tid, "find_path: optimize mode but no blackboard/loco. bad code pls "
+               "fix\n\r");
+      return std::nullopt;
+    }
+
+    // build the request to send to tc server
+    TC::Cmd::FindPath request{
+        .id            = bb->loco->id,
+        .start_idx     = start_idx,
+        .goal_idx      = goal_idx,
+        .allow_reverse = allow_reverse,
+    };
+
+    auto res = send<TC::PathReply>(bb->tcs_tid, request);
+
+    // return optimized path if exists. Otherwise, return normal path.
+    if (res.has_value() && res.value().return_code == 0) {
+      return res.value().path.decode(bb->track);
+    }
+  }
+
   if (start_idx < 0 || start_idx >= TRACK_MAX || goal_idx < 0 ||
       goal_idx >= TRACK_MAX)
     return std::nullopt;
@@ -441,7 +475,22 @@ std::optional<Path> Track::find_path(int start_idx, int goal_idx,
   Heap<std::pair<int, int>, TRACK_MAX> frontier;
   frontier.push({0, start_idx});
 
+  auto is_traversable = [&](int node_idx) {
+    if (train_id == 0) {
+      return true;
+    }
+    if (node_idx == start_idx) {
+      return true;
+    }
+
+    uint32_t owner = get_reservation(node_idx);
+    return owner == UNRESERVED || owner == train_id;
+  };
+
   auto relax = [&](int from_idx, int from_dist, int to_idx, int edge_dist) {
+    if (!is_traversable(to_idx)) {
+      return;
+    }
     int new_dist = from_dist + edge_dist;
     if (new_dist < best_dist[to_idx]) {
       best_dist[to_idx]   = new_dist;
@@ -492,13 +541,15 @@ std::optional<Path> Track::find_path(int start_idx, int goal_idx,
 
 std::optional<Path> Track::find_path(const Track::NodeName &from,
                                      const Track::NodeName &to,
-                                     bool allow_reverse) const {
+                                     bool allow_reverse, bool optimize,
+                                     uint32_t train_id, Blackboard *bb) {
   auto start_idx = get_idx(from);
   auto goal_idx  = get_idx(to);
   if (!start_idx.has_value() || !goal_idx.has_value())
     return std::nullopt;
 
-  return find_path(start_idx.value(), goal_idx.value(), allow_reverse);
+  return find_path(start_idx.value(), goal_idx.value(), allow_reverse, optimize,
+                   train_id, bb);
 }
 
 const char *Track::node_name(int node_idx) const {

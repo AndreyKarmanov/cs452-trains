@@ -611,7 +611,8 @@ namespace {
         Debug_Puts(bb.txs_tid, bb.loco->id, " Pathing from ", startr_node.name,
                    " to ", g_node.name);
 
-        auto path_opt = bb.track.find_path(startr_node.idx, g_node.idx);
+        auto path_opt =
+            bb.track.find_path(startr_node.idx, g_node.idx, false, true, 0, &bb);
         if (!path_opt.has_value()) {
           Debug_Puts(bb.txs_tid, bb.loco->id, " No path found from ",
                      startr_node.name, " to ", g_node.name);
@@ -805,7 +806,8 @@ namespace {
       Path extra_path{};
       extra_path.track = &bb.track;
       if (temp_idx != start_idx) {
-        extra_path = bb.track.find_path(temp_idx, start_idx).value();
+        extra_path =
+            bb.track.find_path(temp_idx, start_idx, false, true, 0, &bb).value();
       }
       //  we need ot adjust the starting path to make sure that we aren't
       //  right on a branch
@@ -824,11 +826,13 @@ namespace {
       bool should_reverse = false;
 
       // start to goal
-      auto path_opt = bb.track.find_path(start_idx, goal_idx);
+      auto path_opt =
+          bb.track.find_path(start_idx, goal_idx, false, true, 0, &bb);
 
       // start to reverse goal
       if (!path_opt.has_value()) {
-        path_opt = bb.track.find_path(start_idx, goalr_idx);
+        path_opt =
+            bb.track.find_path(start_idx, goalr_idx, false, true, 0, &bb);
       }
 
       temp_idx        = bb.track[start_idx].reverse->idx;
@@ -836,10 +840,12 @@ namespace {
 
       // reverse start to goal
       if (!path_opt.has_value()) {
-        path_opt       = bb.track.find_path(startr_idx, goal_idx);
+        path_opt = bb.track.find_path(startr_idx, goal_idx, false, true, 0, &bb);
         should_reverse = true;
         if (temp_idx != startr_idx) {
-          extra_path = bb.track.find_path(temp_idx, startr_idx).value();
+          extra_path =
+              bb.track.find_path(temp_idx, startr_idx, false, true, 0, &bb)
+                  .value();
         } else {
           extra_path.clear();
         }
@@ -847,10 +853,13 @@ namespace {
 
       // reverse start to reverse goal
       if (!path_opt.has_value()) {
-        path_opt       = bb.track.find_path(startr_idx, goalr_idx);
+        path_opt =
+            bb.track.find_path(startr_idx, goalr_idx, false, true, 0, &bb);
         should_reverse = true;
         if (temp_idx != startr_idx) {
-          extra_path = bb.track.find_path(temp_idx, startr_idx).value();
+          extra_path =
+              bb.track.find_path(temp_idx, startr_idx, false, true, 0, &bb)
+                  .value();
         } else {
           extra_path.clear();
         }
