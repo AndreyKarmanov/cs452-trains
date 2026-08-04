@@ -432,7 +432,7 @@ namespace {
 
     SetSpeed stop{0};
     bool stopped{false};
-    uint32_t deadlock_t{0};
+    uint64_t deadlock_t{0};
     SetDirectionNode dir_node{false};
     SetSpeed go{8};
     PathReservationNode(uint16_t go_speed = 8) : go(go_speed) {}
@@ -498,6 +498,16 @@ namespace {
           bb.path, [](const PathNode &node) { return node.has_reservation; });
 
       bool should_stop = res_dist_um - train_head_um(*bb.loco) <= stop_dist_um;
+
+      bool improved_res = false;
+      // update how much we last reserved
+      // if we reserve more, reset our stop time
+      // don't give up on waiting if it's improving
+      if (last_res_dist_um < res_dist_um) {
+        improved_res = true;
+        deadlock_t   = bb.curr_tick + TICKS_PER_S * prng.nextNum();
+      }
+
       if (bb.curr_tick - last_print_tick > TICKS_PER_S) {
         Offset_Puts(bb.txs_tid, 30 + bb.loco->id, bb.loco->id,
                     " Path dist: ", bb.path.dist_mm,
@@ -512,6 +522,7 @@ namespace {
 
         last_print_tick = bb.curr_tick;
       }
+      last_res_dist_um = res_dist_um;
 
       // we are fully reserved
       // don't have to worry about checking distances.
@@ -527,29 +538,19 @@ namespace {
         return NodeResult::Success;
       }
 
-      // update how much we last reserved
-      // if we reserve more, reset our stop time
-      // don't give up on waiting if it's improving
-      bool improved_res = false;
-      if (last_res_dist_um < res_dist_um) {
-        improved_res = true;
-        deadlock_t   = bb.curr_tick + TICKS_PER_S * prng.nextNum();
-      }
-      last_res_dist_um = res_dist_um;
-
       if (!should_stop && !stopped) {
         return NodeResult::Success;
-      } else if (!should_stop && stopped) {
+      } else if (!should_stop && stopped && improved_res) {
         stopped = false;
         stop    = SetSpeed{0};
         go.tick(bb);
-      } else if (should_stop && !stopped && improved_res) {
+      } else if (should_stop && !stopped) {
         stopped    = true;
         deadlock_t = bb.curr_tick + TICKS_PER_S * prng.nextNum();
         go         = SetSpeed{bb.loco->req_speed > 0 ? bb.loco->req_speed
                                                      : go.req_speed};
         stop.tick(bb);
-      } else if (should_stop && stopped && deadlock_t < bb.curr_tick) {
+      } else if (stopped && deadlock_t < bb.curr_tick) {
         // if we are in a deadlock, we try to reverse and go to path
         Debug_Puts(bb.txs_tid, bb.loco->id, " Deadlocked");
         deadlock_t = bb.curr_tick + TICKS_PER_S * prng.nextNum();
@@ -823,13 +824,13 @@ namespace {
         return NodeResult::Failure;
       }
 
-      auto new_path = extra_path + path_opt.value();
-
-      bb.path.track = &bb.track;
+      auto new_path  = extra_path + path_opt.value();
+      new_path.track = &bb.track;
 
       if (should_reverse) {
         auto res = rev_tree->tick(bb);
         if (res == NodeResult::Success) {
+          Debug_Puts(bb.txs_tid, bb.loco->id, " Done reversing to path");
           rev_tree.emplace();
           bb.loco->d_um = bb.path.dist_mm * 1000 - bb.loco->d_um;
 
@@ -850,6 +851,7 @@ namespace {
         bb.path = bb.path + new_path;
       }
 
+      bb.path.track   = &bb.track;
       bb.loco->e_path = bb.path;
       return NodeResult::Success;
     }
