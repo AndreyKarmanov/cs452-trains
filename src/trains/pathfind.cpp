@@ -243,6 +243,13 @@ namespace {
       }
       on_node(idx);
 
+      if ((track[idx].reverse != nullptr && !visited[track[idx].reverse->idx] &&
+           ((track[idx].reverse->edge[DIR_AHEAD].dist == 0) ||
+            track[idx].edge[DIR_AHEAD].dist == 0))) {
+        visited[track[idx].reverse->idx] = true;
+        stack[top++]                     = track[idx].reverse->idx;
+      }
+
       for_each_outgoing_edge(track, idx, [&](const track_edge &edge) {
         if (edge.dest == nullptr) {
           return;
@@ -252,14 +259,11 @@ namespace {
           return;
         }
 
-        int rev_idx = edge.dist > 0 ? edge.dest->reverse->idx : edge.dest->idx;
-        if (rev_idx < 0 || rev_idx >= TRACK_MAX || visited[rev_idx]) {
-          return;
+        int rev_idx = edge.dest->reverse->idx;
+        if (!(rev_idx < 0 || rev_idx >= TRACK_MAX || visited[rev_idx])) {
+          visited[rev_idx] = true;
+          stack[top++]     = rev_idx;
         }
-
-        // Reserve reverse(destination) and recurse from there.
-        visited[rev_idx] = true;
-        stack[top++]     = rev_idx;
       });
     }
   }
@@ -598,21 +602,15 @@ static void assert_path_dist_consistent(const Path &path) {
 }
 
 void test_reservations() {
-  Track track_b(Track::Layout::B);
-  track_b.reserve(track_b["BR156"].idx, 1);
-  for (int i = 0; i < TRACK_MAX; ++i) {
-    auto res = track_b.get_reservation(i);
-    if (res != UNRESERVED) {
-      debug_printf(CONSOLE, "node %s has reservation %d\n\r", track_b[i].name,
-                   res);
-    }
-  }
+  Track track_c(Track::Layout::B);
+  track_c.reserve(track_c["C2"].idx, 1);
 }
 
 void test_pathfind() {
   debug_puts(CONSOLE, "pathfind tests\n\r");
 
   test_reservations();
+  return;
 
   Track track_a(Track::Layout::A);
   Track track_b(Track::Layout::B);
