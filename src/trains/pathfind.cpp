@@ -490,7 +490,7 @@ std::optional<Path> Track::find_path(int start_idx, int goal_idx,
   auto relax = [&](int from_idx, int from_dist, int to_idx, int edge_dist) {
     int cost = edge_dist;
     if (!is_traversable(to_idx)) {
-      cost = edge_dist * 3 / 2;
+      cost = edge_dist * 3;
     }
     int new_dist = from_dist + cost;
     if (new_dist < best_dist[to_idx]) {
