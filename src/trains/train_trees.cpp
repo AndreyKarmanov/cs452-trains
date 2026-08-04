@@ -653,8 +653,6 @@ namespace {
         auto res = stop.tick(bb);
         if (res == NodeResult::Success) {
           if (bb.loco->ve_nm / 1000 > 0) {
-            Debug_Puts(bb.txs_tid, bb.loco->id,
-                       " StopAtDonePath: waiting for ve=0");
             return NodeResult::Running;
           }
           return NodeResult::Success;

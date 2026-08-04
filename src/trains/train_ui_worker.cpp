@@ -177,7 +177,7 @@ void ui_update_worker() {
     print_state(tx_tid, cans_reply->state, prev_state);
     count += 1;
 
-    if (count >= 5) {
+    if (count >= 2) {
       webserial_print_state(web_tid, cans_reply->state);
       count = 0;
     }
