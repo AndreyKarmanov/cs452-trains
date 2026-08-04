@@ -644,7 +644,6 @@ void test_pathfind() {
   debug_puts(CONSOLE, "pathfind tests\n\r");
 
   test_reservations();
-  return;
 
   Track track_a(Track::Layout::A);
   Track track_b(Track::Layout::B);
@@ -796,6 +795,9 @@ void test_pathfind() {
   print_path(track_b, "E8->A2 (after pop back)", concat2);
 
   print_path(track_b, "E8->A2 (after pop back)", concat2.reverse());
+
+  print_path(track_b, "D15->D2", track_b.find_path("D15", "D2").value());
+  print_path(track_b, "E3->D16", track_b.find_path("E3", "D16").value());
 
   // EncodedPath ep(track_a.find_path("B6", "B6").value());
   // Path decoded_path = ep.decode(track_a);

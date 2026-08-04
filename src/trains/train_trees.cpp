@@ -444,7 +444,8 @@ namespace {
       int64_t lookahead_um = stop_dist_um + train_head_um(*bb.loco) +
                              ((bb.loco->ve_nm * TICKS_PER_S * 2) / 1000);
 
-      for (auto &node : bb.path) {
+      for (auto it = bb.path.begin(); it != bb.path.end(); ++it) {
+        auto &node = *it;
 
         // only reserve how much we need
         // if we are stopped due to a reservation, we should always look ahead
@@ -476,13 +477,39 @@ namespace {
 
           // once we get hte reservation, set the branch
           if (node.type == NODE_BRANCH) {
-            TC::Cmd::Switch cmd(bb.track[node.node_idx].num, !node.br_curved);
-            auto res = send<TC::Ack>(bb.tcs_tid, cmd);
+            if (!(bb.track[node.node_idx].reverse->num > 100 &&
+                  !node.br_curved)) {
 
-            // SRR check
-            if (!res.has_value()) {
-              bb.error_msg = "Switch cmd failed";
-              return NodeResult::Failure;
+              TC::Cmd::Switch cmd(bb.track[node.node_idx].num, !node.br_curved);
+              auto res = send<TC::Ack>(bb.tcs_tid, cmd);
+              Debug_Puts(bb.txs_tid, bb.loco->id, " Setting ",
+                         bb.track[node.node_idx].name, " to ",
+                         node.br_curved ? "curved" : "straight");
+
+              // SRR check
+              if (!res.has_value()) {
+                bb.error_msg = "Switch cmd failed";
+                return NodeResult::Failure;
+              }
+            }
+          } else if (node.type == NODE_MERGE && it != bb.path.begin()) {
+            auto straight =
+                bb.track[node.node_idx].reverse->edge[DIR_STRAIGHT].dest->idx ==
+                bb.track[(*std::prev(it)).node_idx].reverse->idx;
+
+            if (!(bb.track[node.node_idx].reverse->num > 100 && straight)) {
+              TC::Cmd::Switch cmd(bb.track[node.node_idx].reverse->num,
+                                  straight);
+              Debug_Puts(bb.txs_tid, bb.loco->id, " Setting ",
+                         bb.track[node.node_idx].reverse->name, " to ",
+                         straight ? "straight" : "curved");
+              auto res = send<TC::Ack>(bb.tcs_tid, cmd);
+
+              // SRR check
+              if (!res.has_value()) {
+                bb.error_msg = "Switch cmd failed";
+                return NodeResult::Failure;
+              }
             }
           }
         }
