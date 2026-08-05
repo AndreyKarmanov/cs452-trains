@@ -442,7 +442,7 @@ namespace {
 
       int64_t stop_dist_um = bb.loco->stop_dist_um + STOP_OFFSET;
       int64_t lookahead_um = stop_dist_um + train_head_um(*bb.loco) +
-                             ((bb.loco->ve_nm * TICKS_PER_S * 2) / 1000);
+                             ((bb.loco->ve_nm * TICKS_PER_S * 1) / 1000);
 
       for (auto it = bb.path.begin(); it != bb.path.end(); ++it) {
         auto &node = *it;
@@ -664,9 +664,11 @@ namespace {
         dir_node = SetDirectionNode{!bb.loco->backward};
         dir_node.tick(bb);
 
-        if (bb.loco->d_um > bb.path.peek()->dx_next * 1000) {
-          release_reserve(bb, *bb.path.peek());
+        if (bb.loco->d_um > bb.path.peek()->dx_next * 1500) {
+          auto node = *bb.path.peek();
+          release_reserve(bb, node);
           bb.path.pop();
+          bb.loco->d_um -= node.dx_next * 1000;
         }
         Debug_Puts(bb.txs_tid, bb.loco->id, " Completed direction flip");
       }
