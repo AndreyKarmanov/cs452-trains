@@ -1328,10 +1328,9 @@ void run_tree() {
               return true;
             },
             [&](const TC::Tree::Update &msg) {
-              auto loco    = bb.loco;
+              auto loco_id = bb.loco->id;
               bb.state     = msg.state;
-              bb.loco      = bb.state.get_loco(loco->id);
-              bb.loco      = loco;
+              bb.loco      = bb.state.get_loco(loco_id);
               bb.new_event = msg.mrk;
               bb.curr_tick = msg.time;
               return true;
