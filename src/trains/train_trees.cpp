@@ -1029,7 +1029,6 @@ namespace {
 
       auto cursor_it = std::prev(cursor_rev_it.base());
 
-      // --- top speed: steady-state loops, average time first (sum d / sum t)
       int64_t speed_d_um = 0;
       int64_t speed_t    = 0;
 
@@ -1046,8 +1045,6 @@ namespace {
                    log.d_um / 1000, ",", log.d_t, ",speed,", cal_speed);
       }
 
-      // --- decel: loop starts with a drop v_f -> v_c at the loop sensor,
-      // then cruises at v_c for the rest of the loop
       int64_t decel_d_um = 0;
       int64_t decel_t    = 0;
 
@@ -1063,8 +1060,6 @@ namespace {
                    log.d_um / 1000, ",", log.d_t, ",decel,", cal_speed);
       }
 
-      // --- accel: only the first loop after the v_c -> v_f speed-up carries
-      // the transient; later loops are pure cruise and only amplify v_f error
       int64_t accel_d_um = 0;
       int64_t accel_t    = 0;
 
@@ -1080,8 +1075,6 @@ namespace {
                    log.d_um / 1000, ",", log.d_t, ",accel,", cal_speed);
       }
 
-      // --- solve the constant-accel model
-      // v_f from this run's steady loops; v_c from the crawl-speed table
       if (speed_t == 0 || decel_t == 0 || accel_t == 0) {
         bb.error_msg = "Calibration collected no data";
         return NodeResult::Failure;
