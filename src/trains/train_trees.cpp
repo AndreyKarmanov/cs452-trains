@@ -417,7 +417,8 @@ namespace {
           bb.path.pop(std::distance(bb.path.begin(), idx));
         }
         bb.loco->e_path = bb.path;
-        bb.loco->d_um   = 0;
+        bb.loco->d_um =
+            bb.loco->backward ? bb.loco->d_shoe_reverse_um : bb.loco->d_shoe_um;
       }
       return NodeResult::Success;
     }
@@ -441,7 +442,7 @@ namespace {
       int64_t res_dist_um = 0;
 
       int64_t stop_dist_um = bb.loco->stop_dist_um + STOP_OFFSET;
-      int64_t lookahead_um = stop_dist_um + train_head_um(*bb.loco) +
+      int64_t lookahead_um = stop_dist_um + bb.loco->d_um +
                              ((bb.loco->ve_nm * TICKS_PER_S * 1) / 1000);
 
       for (auto it = bb.path.begin(); it != bb.path.end(); ++it) {
@@ -524,7 +525,7 @@ namespace {
       bool fully_reserved = std::ranges::all_of(
           bb.path, [](const PathNode &node) { return node.has_reservation; });
 
-      bool should_stop = res_dist_um - train_head_um(*bb.loco) <= stop_dist_um;
+      bool should_stop = res_dist_um - bb.loco->d_um <= stop_dist_um;
 
       bool improved_res = false;
       // update how much we last reserved
@@ -538,9 +539,7 @@ namespace {
       if (bb.curr_tick - last_print_tick > TICKS_PER_S) {
         Offset_Puts(bb.txs_tid, 30 + bb.loco->id, bb.loco->id,
                     " Path dist: ", bb.path.dist_mm,
-                    " shoe: ", bb.loco->d_um / 1000,
-                    " h: ", train_head_um(*bb.loco) / 1000,
-                    " t: ", train_tail_um(*bb.loco) / 1000,
+                    " dist: ", bb.loco->d_um / 1000,
                     " res dist: ", res_dist_um / 1000,
                     " last res: ", last_res_dist_um / 1000,
                     " stopbuf: ", stop_dist_um / 1000, " stopped: ", stopped,
@@ -650,7 +649,8 @@ namespace {
 
         Debug_Puts(bb.txs_tid, bb.loco->id,
                    " Old d_mm: ", bb.loco->d_um / 1000);
-        bb.loco->d_um = bb.path.dist_mm * 1000 - bb.loco->d_um;
+        bb.loco->d_um =
+            bb.path.dist_mm * 1000 - bb.loco->d_um - TRAIN_LENGTH_UM;
         Debug_Puts(bb.txs_tid, bb.loco->id,
                    " New d_mm: ", bb.loco->d_um / 1000);
 
@@ -714,7 +714,7 @@ namespace {
                                         [](int acc, const PathNode &node) {
                                           return acc + node.dx_next;
                                         }) -
-          train_head_um(*bb.loco) + offset_mm * 1000;
+          bb.loco->d_um + offset_mm * 1000;
 
       if (remaining_um < bb.loco->stop_dist_um) {
         stopping = true;
