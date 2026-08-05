@@ -650,7 +650,7 @@ namespace {
         Debug_Puts(bb.txs_tid, bb.loco->id,
                    " Old d_mm: ", bb.loco->d_um / 1000);
         bb.loco->d_um =
-            bb.path.dist_mm * 1000 - bb.loco->d_um - TRAIN_LENGTH_UM;
+            bb.path.dist_mm * 1000 - bb.loco->d_um + TRAIN_LENGTH_UM;
         Debug_Puts(bb.txs_tid, bb.loco->id,
                    " New d_mm: ", bb.loco->d_um / 1000);
 
@@ -888,7 +888,7 @@ namespace {
           Debug_Puts(bb.txs_tid, bb.loco->id, " Done reversing to path");
           rev_tree.emplace();
           bb.loco->d_um =
-              bb.path.dist_mm * 1000 - bb.loco->d_um - TRAIN_LENGTH_UM;
+              bb.path.dist_mm * 1000 - bb.loco->d_um + TRAIN_LENGTH_UM;
 
           // before we set the new path, the end of our new path is now
           // reversed we may have reserved the final node, so we check it
