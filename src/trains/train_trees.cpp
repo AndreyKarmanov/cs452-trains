@@ -707,8 +707,6 @@ namespace {
         return res;
       }
 
-      // todo: account for going to a reversed destination (invert offset)
-      // todo: account for going in reverse (add offset?)
       int64_t remaining_um =
           1000 * std::ranges::fold_left(bb.path, 0,
                                         [](int acc, const PathNode &node) {

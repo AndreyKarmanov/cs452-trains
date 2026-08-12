@@ -35,7 +35,7 @@ namespace Kernel {
   inline Scheduler<MAX_TASKS, PRIORITY_LEVELS> scheduler;
 
   inline Map<Event, Buffer<int, MAX_TASKS>, TOTAL_EVENT_TYPES> event_buffers;
-  inline uint64_t initalized_events{0};
+  inline uint64_t initialized_events{0};
 
   inline IdleManager idle_manager;
   inline Map<Syscall, int, 32> syscall_cycle_totals;

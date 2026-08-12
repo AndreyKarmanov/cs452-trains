@@ -91,18 +91,18 @@ int _create(int priority, void (*function)(), int parent_tid) {
 
 static void uninitialize_event(Event event) {
   using namespace Kernel;
-  initalized_events &= ~(1u << static_cast<int>(event));
+  initialized_events &= ~(1u << static_cast<int>(event));
 }
 
 static void handle_event(Event event, int arg0 = 0);
 
-static void initalize_event(Event event) {
+static void initialize_event(Event event) {
   using namespace Kernel;
 
-  // check if we've already initalized this event
-  if (initalized_events & (1u << static_cast<int>(event)))
+  // check if we've already initialized this event
+  if (initialized_events & (1u << static_cast<int>(event)))
     return;
-  initalized_events |= (1u << static_cast<int>(event));
+  initialized_events |= (1u << static_cast<int>(event));
 
   switch (event) {
   case Event::CLOCK_TICK: {
@@ -245,7 +245,7 @@ static void handle_event(Event event, int arg0) {
 
       // reset the delay for the next task.
       if (!event_buf->empty()) {
-        initalize_event(event);
+        initialize_event(event);
       }
       return; // return if only the first should wake
     }
@@ -287,14 +287,14 @@ static void handle_uart_tx(size_t line, Event event, uint32_t pactl_bit,
 }
 
 static void handle_uart_irq() {
-  const uint32_t pactl = read_pactl_cs();
-
-  if ((pactl & PACTL_UART0_IRQ) && is_uart_mis_rx_pending(CONSOLE)) {
+  if (is_uart_mis_rx_pending(CONSOLE)) {
     handle_event(Event::UART_RX_IRQ);
   }
 
-  handle_uart_tx(CONSOLE, Event::UART_TX_IRQ, PACTL_UART0_IRQ, pactl);
-  handle_uart_tx(WEBSERIAL, Event::UART3_TX_IRQ, PACTL_UART3_IRQ, pactl);
+  // Shared UART IRQ line can be noisy / hard to source-demux in emulation.
+  // Broadcast TX wakeups; spurious notifier wakeups are acceptable.
+  handle_event(Event::UART_TX_IRQ);
+  handle_event(Event::UART3_TX_IRQ);
 }
 
 static void handle_mcp2515_irq() {
@@ -571,7 +571,7 @@ void handle(int tid, Syscall request) {
     }
     auto event_buf = event_buffers.get_ref(event);
     event_buf->push(tid);
-    initalize_event(event);
+    initialize_event(event);
     break;
   }
   case Syscall::PARK: {

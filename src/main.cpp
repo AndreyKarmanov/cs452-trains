@@ -50,23 +50,3 @@ extern "C" int kmain() {
   debug_printf(CONSOLE, "KERNEL HALTED\n\r");
   return 0;
 }
-
-#if !defined(MMU)
-#include <cstddef>
-
-// define our own memset to avoid SIMD instructions emitted from the compiler
-void *memset(void *s, int c, size_t n) {
-  for (char *it = reinterpret_cast<char *>(s); n > 0; --n)
-    *it++ = c;
-  return s;
-}
-
-// define our own memcpy to avoid SIMD instructions emitted from the compiler
-void *memcpy(void *dest, const void *src, size_t n) {
-  char *sit   = reinterpret_cast<char *>(const_cast<void *>(src));
-  char *cdest = reinterpret_cast<char *>(dest);
-  for (size_t i = 0; i < n; ++i)
-    *cdest++ = *sit++;
-  return dest;
-}
-#endif
