@@ -23,6 +23,14 @@ bool _assert(bool condition, const char *msg, const std::source_location loc) {
   return condition;
 }
 
+[[noreturn]] void panic(const char *msg, const std::source_location loc) {
+  debug_printf(CONSOLE, "PANIC: %s at %s:%u\n", msg, loc.file_name(),
+               loc.line());
+  for (;;) {
+    asm volatile("wfi");
+  }
+}
+
 void dump_memory_region(size_t address, size_t count) {
   auto *words = reinterpret_cast<volatile const uint32_t *>(address);
 

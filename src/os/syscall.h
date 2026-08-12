@@ -16,11 +16,11 @@ enum class Syscall {
   RECEIVE         = 6,
   REPLY           = 7,
   AWAIT_EVENT     = 8,
-  PARK            = 9,
-  KERNEL_IDLE_PCT = 10,
-  TX_CAN          = 11,
-  RX_CAN          = 12,
-  EMIT_EVENT      = 13,
+  EMIT_EVENT      = 9,
+  PARK            = 10,
+  KERNEL_IDLE_PCT = 11,
+  TX_CAN          = 12,
+  RX_CAN          = 13,
 };
 
 // make sure that event count is the last event!!

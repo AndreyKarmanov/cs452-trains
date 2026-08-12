@@ -36,15 +36,22 @@ extern "C" int kmain() {
   data_cache_set(DATA_CACHE);
   instruction_cache_set(INSTRUCTION_CACHE);
 
-  using namespace Kernel;
-  _create(0, first_user_task);
+  auto tid = kernel_runtime.task_table.create_task(0, first_user_task, 0);
+  auto td  = kernel_runtime.task_table.lookup_td(tid);
+  kernel_runtime.scheduler.schedule(*td);
   for (;;) {
-    auto tid = scheduler.get_task();
+    auto tid = kernel_runtime.scheduler.get_task();
     if (!tid.has_value()) {
+      _assert(false, "no tasks to schedule");
       break; // error
     }
     auto active_tid = tid.value();
-    auto request    = activate(active_tid);
+    auto td         = kernel_runtime.task_table.lookup_td(active_tid);
+    if (td == nullptr) {
+      _assert(false, "invalid tid");
+      break;
+    }
+    auto request = activate_task(*td);
     handle(active_tid, request);
   }
   debug_printf(CONSOLE, "KERNEL HALTED\n\r");

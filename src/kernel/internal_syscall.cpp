@@ -1,20 +1,18 @@
 #include "internal_syscall.h"
+#include "constants.h"
 #include "debug.h"
 #include "gic.h"
 #include "idle_manager.h"
 #include "kernel_state.h"
-#include "map.h"
 #include "mcp2515.h"
 #include "message.h"
 #include "rpi.h"
-#include "scheduler.h"
 #include "syscall.h"
 #include "task_descriptor.h"
 #include "time.h"
 #include "uart.h"
 #include <cstdint>
 #include <cstring>
-#include <optional>
 
 uint64_t get_cycle_count() {
   uint64_t cycle_count;
@@ -39,234 +37,7 @@ extern "C" void default_handler(int n) {
       static_cast<unsigned int>(elr_el1), static_cast<unsigned int>(spsr_el1));
 }
 
-extern "C" void task_entry_wrapper(void (*function)()) {
-  function();
-  exit();
-}
-
 // Allocates a new task, initalizes descriptor and stack
-int _create(int priority, void (*function)(), int parent_tid) {
-  using namespace Kernel;
-
-  if (0 > priority || priority >= PRIORITY_LEVELS) {
-    return -1; // invalid priority
-  }
-
-  auto descriptor_index_opt = task_allocator.allocate();
-  if (descriptor_index_opt == std::nullopt) {
-    _assert(false, "No free task descriptors");
-    return -2; // no free task descriptors
-  }
-  auto td_idx = descriptor_index_opt.value();
-  auto tid    = next_tid++;
-
-  // define task stack (grows downwards)
-  uint64_t task_stack_base =
-      reinterpret_cast<uint64_t>(&task_stacks[td_idx][TASK_STACK_SIZE]);
-  uint64_t task_stack_end = task_stack_base - TASK_STACK_SIZE;
-
-  // clear stack memory (not required but helpful)
-  std::memset(reinterpret_cast<void *>(task_stack_end), 0, TASK_STACK_SIZE);
-
-  // build & push inital trapframe
-  TrapFrame *tf =
-      reinterpret_cast<TrapFrame *>(task_stack_base - sizeof(TrapFrame));
-  tf->elr_el1      = reinterpret_cast<uint64_t>(task_entry_wrapper);
-  tf->x[0]         = reinterpret_cast<uint64_t>(function);
-  tf->spsr_el1     = 0;
-  tf->is_interrupt = 0;
-
-  auto &td =
-      task_descriptors[td_idx] = {.td_idx     = td_idx,
-                                  .tid        = tid,
-                                  .parent_tid = parent_tid,
-                                  .priority   = priority,
-                                  .state      = TaskStatus::READY,
-                                  .sp_el0     = reinterpret_cast<uint64_t>(tf)};
-
-  tid_to_descriptor.set(tid, td_idx);
-  Kernel::scheduler.schedule(td);
-  return tid;
-}
-
-static void uninitialize_event(Event event) {
-  using namespace Kernel;
-  initialized_events &= ~(1u << static_cast<int>(event));
-}
-
-static void handle_event(Event event, int arg0 = 0);
-
-static void initialize_event(Event event) {
-  using namespace Kernel;
-
-  // check if we've already initialized this event
-  if (initialized_events & (1u << static_cast<int>(event)))
-    return;
-  initialized_events |= (1u << static_cast<int>(event));
-
-  switch (event) {
-  case Event::CLOCK_TICK: {
-    set_interrupt_group0(GIC_TIMER_IRQ_C1, true);
-    set_interrupt_core_routing(0, GIC_TIMER_IRQ_C1, true);
-    set_interrupt(GIC_TIMER_IRQ_C1, true);
-    clear_timer_interrupt(1);
-    set_timer_interrupt(1, TICK_TIME_US);
-    break;
-  }
-  case Event::DELAY_5S: {
-    set_interrupt_group0(GIC_TIMER_IRQ_C3, true);
-    set_interrupt_core_routing(0, GIC_TIMER_IRQ_C3, true);
-    set_interrupt(GIC_TIMER_IRQ_C3, true);
-    clear_timer_interrupt(3);
-    set_timer_interrupt(3, TIME_1S_US * 5);
-    break;
-  }
-  case Event::UART_RX_IRQ: {
-    // unmask rtim and rxim
-    enable_uart_interrupt(UARTInterruptType::RTIM);
-    enable_uart_interrupt(UARTInterruptType::RXIM);
-    break;
-  }
-  case Event::UART_TX_IRQ: {
-    enable_uart_interrupt(UARTInterruptType::TXIM);
-    break;
-  }
-  case Event::UART3_TX_IRQ: {
-    enable_uart_interrupt(UARTInterruptType::TXIM, WEBSERIAL);
-    break;
-  }
-  case Event::CAN_RX_IRQ: {
-    auto active = mcp2515_get_active_irq();
-    if (active.rxi0ie || active.rxi1e) {
-      // short circuit, handle them if they're already active
-      handle_event(Event::CAN_RX_IRQ);
-    } else {
-      // set up interrupts
-      set_interrupt_group0(GIC_MCP2515_IRQ, true);
-      set_interrupt_core_routing(0, GIC_MCP2515_IRQ, true);
-      set_interrupt(GIC_MCP2515_IRQ, true);
-      enable_mcp2515_interrupt(CANINT{.rxi1e = true, .rxi0ie = true});
-    }
-    break;
-  }
-  case Event::CAN_TX_IRQ: {
-    auto active = mcp2515_get_active_irq();
-    if (active.tx0ie || active.tx1ie || active.tx2ie || mcp2515_tx_ready()) {
-      // short circuit, handle them if they're already active
-      handle_event(Event::CAN_TX_IRQ);
-    } else {
-      // set up interrupts
-      set_interrupt_group0(GIC_MCP2515_IRQ, true);
-      set_interrupt_core_routing(0, GIC_MCP2515_IRQ, true);
-      set_interrupt(GIC_MCP2515_IRQ, true);
-      enable_mcp2515_interrupt(CANINT{
-          .tx2ie = true,
-          .tx1ie = true,
-          .tx0ie = true,
-      });
-    }
-    break;
-  }
-  default: {
-    break;
-  }
-  }
-}
-
-static void handle_event(Event event, int arg0) {
-  using namespace Kernel;
-
-  // one-time handling
-  switch (event) {
-  case Event::CLOCK_TICK: {
-    update_timer_interrupt(1, TICK_TIME_US);
-    clear_timer_interrupt(1);
-    break;
-  }
-  case Event::DELAY_5S: {
-    clear_timer_interrupt(3);
-    uninitialize_event(event);
-    break;
-  }
-  case Event::UART_RX_IRQ: {
-    // mask so no RX IRQ fires until notifier re-await_event
-    disable_uart_interrupt(UARTInterruptType::RXIM);
-    disable_uart_interrupt(UARTInterruptType::RTIM);
-    uninitialize_event(event);
-    break;
-  }
-  case Event::UART_TX_IRQ: {
-    // immediately disable after firing as they will keep firing
-    disable_uart_interrupt(UARTInterruptType::TXIM);
-    uninitialize_event(event);
-    break;
-  }
-  case Event::UART3_TX_IRQ: {
-    disable_uart_interrupt(UARTInterruptType::TXIM, WEBSERIAL);
-    uninitialize_event(event);
-    break;
-  }
-  case Event::CAN_RX_IRQ: {
-    uninitialize_event(event);
-    break;
-  }
-  case Event::CAN_TX_IRQ: {
-    uninitialize_event(event);
-    break;
-  }
-  default: {
-    break;
-  }
-  }
-
-  if (!event_buffers.contains(event)) {
-    debug_printf(CONSOLE, "No waiting tasks for %d\n\r",
-                 static_cast<int>(event));
-    return;
-  }
-
-  // handle buffer of waiting tasks
-  // some events may require all tasks to wake
-  // some events may require the first to wake
-  auto event_buf = event_buffers.get_ref(event);
-  auto tid_opt   = event_buf->pop();
-  while (tid_opt.has_value()) {
-    auto tid    = tid_opt.value();
-    auto td_opt = lookup_td(tid);
-    if (!td_opt.has_value()) {
-      _assert(false, "invalid tid in event buffer");
-      tid_opt = event_buf->pop();
-      continue;
-    }
-
-    switch (event) {
-    case Event::DELAY_5S: {
-      scheduler.schedule(*td_opt.value());
-
-      // reset the delay for the next task.
-      if (!event_buf->empty()) {
-        initialize_event(event);
-      }
-      return; // return if only the first should wake
-    }
-    case Event::CAN_RX_IRQ: {
-      scheduler.schedule(*td_opt.value());
-      return;
-    }
-    case Event::TASK_EXIT: {
-      ((TrapFrame *)(td_opt.value()->sp_el0))->x[0] = arg0;
-      scheduler.schedule(*td_opt.value());
-      break;
-    }
-    default: {
-      scheduler.schedule(*td_opt.value());
-      break;
-    }
-    }
-
-    tid_opt = event_buf->pop();
-  }
-}
 
 // Wake the TX notifier only when FR says we can send (!TXFF).
 // If not ready, mask the firing source without waking.
@@ -280,21 +51,32 @@ static void handle_uart_tx(size_t line, Event event, uint32_t pactl_bit,
     return;
   }
   if (can_transmit_io(line)) {
-    handle_event(event);
+    kernel_runtime.event_controller.handle_event(event);
     return;
   }
   disable_uart_interrupt(UARTInterruptType::TXIM, line);
 }
 
+// static void handle_uart_irq() {
+//   const uint32_t pactl = read_pactl_cs();
+
+//   if ((pactl & PACTL_UART0_IRQ) && is_uart_mis_rx_pending(CONSOLE)) {
+//     kernel_runtime.event_controller.handle_event(Event::UART_RX_IRQ);
+//   }
+
+//   handle_uart_tx(CONSOLE, Event::UART_TX_IRQ, PACTL_UART0_IRQ, pactl);
+//   handle_uart_tx(WEBSERIAL, Event::UART3_TX_IRQ, PACTL_UART3_IRQ, pactl);
+// }
+
 static void handle_uart_irq() {
   if (is_uart_mis_rx_pending(CONSOLE)) {
-    handle_event(Event::UART_RX_IRQ);
+    kernel_runtime.event_controller.handle_event(Event::UART_RX_IRQ);
   }
 
   // Shared UART IRQ line can be noisy / hard to source-demux in emulation.
   // Broadcast TX wakeups; spurious notifier wakeups are acceptable.
-  handle_event(Event::UART_TX_IRQ);
-  handle_event(Event::UART3_TX_IRQ);
+  kernel_runtime.event_controller.handle_event(Event::UART_TX_IRQ);
+  kernel_runtime.event_controller.handle_event(Event::UART3_TX_IRQ);
 }
 
 static void handle_mcp2515_irq() {
@@ -305,9 +87,9 @@ static void handle_mcp2515_irq() {
   }
   disable_mcp2515_interrupt(source);
   if (source.rxi0ie || source.rxi1e) {
-    handle_event(Event::CAN_RX_IRQ);
+    kernel_runtime.event_controller.handle_event(Event::CAN_RX_IRQ);
   } else if (source.tx0ie || source.tx1ie || source.tx2ie) {
-    handle_event(Event::CAN_TX_IRQ);
+    kernel_runtime.event_controller.handle_event(Event::CAN_TX_IRQ);
   } else {
     debug_printf(CONSOLE, "Unhandled MCP2515 IRQ %d\n\r", source);
   }
@@ -331,11 +113,11 @@ static void handle_interrupt() {
     // interrupt id to event mapping
     switch (interrupt_id) {
     case GIC_TIMER_IRQ_C1:
-      handle_event(Event::CLOCK_TICK);
+      kernel_runtime.event_controller.handle_event(Event::CLOCK_TICK);
       break;
     case GIC_TIMER_IRQ_C3:
       debug_printf(CONSOLE, "5 second delay event\n\r");
-      handle_event(Event::DELAY_5S);
+      kernel_runtime.event_controller.handle_event(Event::DELAY_5S);
       break;
     case GIC_UART_IRQ:
       handle_uart_irq();
@@ -352,21 +134,18 @@ static void handle_interrupt() {
   }
 }
 
-Syscall activate(int tid) {
-  auto td_opt = Kernel::lookup_td(tid);
-  _assert(td_opt.has_value(), "invalid tid");
-  auto td   = td_opt.value();
-  td->state = TaskStatus::RUNNING;
+Syscall activate_task(TaskDescriptor &td) {
+  td.state = TaskStatus::RUNNING;
 
   // clear I and F bits in saved Pstate to allow interrupts in user mode.
-  auto *user_tf         = reinterpret_cast<Kernel::TrapFrame *>(td->sp_el0);
+  auto *user_tf         = reinterpret_cast<TrapFrame *>(td.sp_el0);
   uint64_t pstate_mask  = 0x3 << 6;
   user_tf->spsr_el1    &= ~pstate_mask;
 
   // switch to user mode
   // this will return when task makes a syscall
-  Kernel::TrapFrame *tf = _switch_to_user(td->sp_el0);
-  td->sp_el0            = reinterpret_cast<uint64_t>(tf);
+  TrapFrame *tf = _switch_to_user(td.sp_el0);
+  td.sp_el0     = reinterpret_cast<uint64_t>(tf);
 
   // check if interrupt
   if (tf->is_interrupt) {
@@ -382,58 +161,57 @@ Syscall activate(int tid) {
   return svc_imm;
 }
 
-void handle(int tid, Syscall request) {
+void handle(TaskId tid, Syscall request) {
   // this will handle the given request code and perform the appropriate action
   // (e.g. for syscalls) ESR_EL1 will have exception code, holds n form svc N
 
-  using namespace Kernel;
-  auto td_opt = lookup_td(tid);
-  _assert(td_opt.has_value(), "invalid tid");
-  auto td       = td_opt.value();
+  auto td = kernel_runtime.task_table.lookup_td(tid);
+  if (td == nullptr) {
+    panic("invalid tid");
+  }
   TrapFrame *tf = reinterpret_cast<TrapFrame *>(td->sp_el0);
 
-  uint64_t start_cycle = get_cycle_count();
   switch (request) {
   case Syscall::CREATE: {
-    int new_tid =
-        _create(tf->x[0], reinterpret_cast<void (*)()>(tf->x[1]), tid);
+    int priority       = tf->x[0];
+    void (*function)() = reinterpret_cast<void (*)()>(tf->x[1]);
+    TaskId new_tid =
+        kernel_runtime.task_table.create_task(priority, function, tid);
     tf->x[0] = new_tid;
-    scheduler.schedule(*td);
+    kernel_runtime.scheduler.schedule(new_tid, priority);
+    kernel_runtime.scheduler.schedule(*td);
     break;
   }
   case Syscall::MY_TID: {
     tf->x[0] = tid;
-    scheduler.schedule(*td);
+    kernel_runtime.scheduler.schedule(*td);
     break;
   }
   case Syscall::MY_PARENT_TID: {
     tf->x[0] = td->parent_tid;
-    scheduler.schedule(*td);
+    kernel_runtime.scheduler.schedule(*td);
     break;
   }
   case Syscall::YIELD: {
     td->state = TaskStatus::READY;
-    scheduler.schedule(*td);
+    kernel_runtime.scheduler.schedule(*td);
     break;
   }
   case Syscall::EXIT: {
     td->state = TaskStatus::TERMINATED;
-    tid_to_descriptor.remove(tid);
-    task_allocator.free(td->td_idx);
 
     TaskExitMsg msg{};
 
     // wake sender queue to alert of task exist
     auto to_tid_opt = td->sender_queue.pop();
     while (to_tid_opt.has_value()) {
-      auto to_tid    = to_tid_opt.value();
-      auto to_td_opt = lookup_td(to_tid);
-      _assert(to_td_opt.has_value(), "invalid tid in sender queue");
-      if (!to_td_opt.has_value()) {
+      auto to_tid = to_tid_opt.value();
+      auto to_td  = kernel_runtime.task_table.lookup_td(to_tid);
+      _assert(to_td != nullptr, "invalid tid in sender queue");
+      if (to_td == nullptr) {
         to_tid_opt = td->sender_queue.pop();
         continue;
       }
-      auto to_td = to_td_opt.value();
       auto to_tf = reinterpret_cast<TrapFrame *>(to_td->sp_el0);
 
       char *rcv_reply = reinterpret_cast<char *>(to_tf->x[3]);
@@ -441,27 +219,26 @@ void handle(int tid, Syscall request) {
 
       std::memcpy(rcv_reply, &msg, rcv_len);
       to_td->state = TaskStatus::READY;
-      scheduler.schedule(*to_td);
+      kernel_runtime.scheduler.schedule(*to_td);
       to_tid_opt = td->sender_queue.pop();
     }
 
-    handle_event(Event::TASK_EXIT, tid);
+    kernel_runtime.task_table.delete_task(tid);
+    kernel_runtime.event_controller.handle_event(Event::TASK_EXIT, tid);
     break;
   }
   case Syscall::SEND: {
     int to_tid = tf->x[0];
 
-    auto to_td_opt = lookup_td(to_tid);
-    if (!to_td_opt.has_value()) {
+    auto to_td = kernel_runtime.task_table.lookup_td(to_tid);
+    if (to_td == nullptr) {
       tf->x[0] = -1; // invalid tid
-      scheduler.schedule(*td);
+      kernel_runtime.scheduler.schedule(*td);
       break;
     }
-
-    auto to_td = to_td_opt.value();
     if (to_tid == tid) {
       tf->x[0] = -2; // can't send to self
-      scheduler.schedule(*td);
+      kernel_runtime.scheduler.schedule(*td);
       break;
     }
 
@@ -484,7 +261,7 @@ void handle(int tid, Syscall request) {
       // skip the W4_RECEIVE state, someone was already waiting
       td->state    = TaskStatus::W4_REPLY;
       to_td->state = TaskStatus::READY;
-      scheduler.schedule(*to_td);
+      kernel_runtime.scheduler.schedule(*to_td);
     } else {
       td->state = TaskStatus::W4_RECEIVE;
       to_td->sender_queue.push(tid);
@@ -497,9 +274,8 @@ void handle(int tid, Syscall request) {
     if (from_tid_opt.has_value()) {
       int from_tid = from_tid_opt.value();
 
-      auto to_td_opt = lookup_td(from_tid);
-      _assert(to_td_opt.has_value(), "invalid tid");
-      auto to_td   = to_td_opt.value();
+      auto to_td = kernel_runtime.task_table.lookup_td(from_tid);
+      _assert(to_td != nullptr, "invalid tid");
       auto from_tf = reinterpret_cast<TrapFrame *>(to_td->sp_el0);
 
       // set who msg is from (follow int ptr)
@@ -519,7 +295,7 @@ void handle(int tid, Syscall request) {
       // however no impact on scheduling
       to_td->state = TaskStatus::W4_REPLY;
       td->state    = TaskStatus::READY;
-      scheduler.schedule(*td);
+      kernel_runtime.scheduler.schedule(*td);
     } else {
       td->state = TaskStatus::W4_SEND;
     }
@@ -528,18 +304,17 @@ void handle(int tid, Syscall request) {
   case Syscall::REPLY: {
     int to_tid = tf->x[0];
 
-    auto to_td_opt = lookup_td(to_tid);
-    if (!to_td_opt.has_value()) {
+    auto to_td = kernel_runtime.task_table.lookup_td(to_tid);
+    if (to_td == nullptr) {
       tf->x[0] = -1; // invalid tid
       _assert(false, "invalid tid");
-      scheduler.schedule(*td);
+      kernel_runtime.scheduler.schedule(*td);
       break;
     }
-    auto to_td = to_td_opt.value();
 
     if (to_td->state != TaskStatus::W4_REPLY) {
       tf->x[0] = -2; // task not waiting for reply
-      scheduler.schedule(*td);
+      kernel_runtime.scheduler.schedule(*td);
       break;
     }
 
@@ -553,72 +328,56 @@ void handle(int tid, Syscall request) {
     std::memcpy(rcv_reply, reply, len);
 
     to_td->state = TaskStatus::READY;
-    scheduler.schedule(*to_td);
-    scheduler.schedule(*td);
+    kernel_runtime.scheduler.schedule(*to_td);
+    kernel_runtime.scheduler.schedule(*td);
     break;
   }
   case Syscall::AWAIT_EVENT: {
     auto raw_event = static_cast<int>(tf->x[0]);
-    if (raw_event < 0 || raw_event > static_cast<int>(Event::EVENT_COUNT)) {
+    if (raw_event < 0 || raw_event >= static_cast<int>(Event::EVENT_COUNT)) {
       tf->x[0] = -1;
-      scheduler.schedule(*td);
+      kernel_runtime.scheduler.schedule(*td);
       break;
     }
-
     auto event = static_cast<Event>(raw_event);
-    if (!event_buffers.contains(event)) {
-      event_buffers.set(event, {});
-    }
-    auto event_buf = event_buffers.get_ref(event);
-    event_buf->push(tid);
-    initialize_event(event);
-    break;
-  }
-  case Syscall::PARK: {
-    idle_manager.go_idle();
-    td->state = TaskStatus::READY;
-    scheduler.schedule(*td);
-    break;
-  }
-  case Syscall::KERNEL_IDLE_PCT: {
-    tf->x[0] = idle_manager.get_idle_time_percentage();
-    scheduler.schedule(*td);
-    break;
-  }
-  case Syscall::TX_CAN: {
-    const CANFRAME *frame_ptr = reinterpret_cast<const CANFRAME *>(tf->x[0]);
-    CANFRAME frame            = *frame_ptr;
-    tf->x[0]                  = mcp2515_send(frame);
-    scheduler.schedule(*td);
-    break;
-  }
-  case Syscall::RX_CAN: {
-    CANFRAME *frame_ptr = reinterpret_cast<CANFRAME *>(tf->x[0]);
-    tf->x[0]            = mcp2515_recieve(*frame_ptr);
-    scheduler.schedule(*td);
+    kernel_runtime.event_controller.await_event(event, tid);
     break;
   }
   case Syscall::EMIT_EVENT: {
     auto raw_event = static_cast<int>(tf->x[0]);
     if (raw_event < 0 || raw_event >= static_cast<int>(Event::EVENT_COUNT)) {
       tf->x[0] = -1;
-      scheduler.schedule(*td);
+      kernel_runtime.scheduler.schedule(*td);
       break;
     }
-    handle_event(static_cast<Event>(raw_event));
-    scheduler.schedule(*td);
+    kernel_runtime.event_controller.handle_event(static_cast<Event>(raw_event));
+    kernel_runtime.scheduler.schedule(*td);
     break;
   }
+  case Syscall::PARK: {
+    kernel_runtime.idle_manager.go_idle();
+    td->state = TaskStatus::READY;
+    kernel_runtime.scheduler.schedule(*td);
+    break;
   }
-  uint64_t end_cycle = get_cycle_count();
-  if (syscall_cycle_counts.contains(request)) {
-    uint64_t total_cycles = syscall_cycle_totals.get(request).value();
-    uint64_t count_cycles = syscall_cycle_counts.get(request).value();
-    syscall_cycle_totals.set(request, total_cycles + 1);
-    syscall_cycle_counts.set(request, count_cycles + (end_cycle - start_cycle));
-  } else {
-    syscall_cycle_totals.set(request, 1);
-    syscall_cycle_counts.set(request, end_cycle - start_cycle);
+  case Syscall::KERNEL_IDLE_PCT: {
+    tf->x[0] = kernel_runtime.idle_manager.get_idle_time_percentage();
+    kernel_runtime.scheduler.schedule(*td);
+    break;
+  }
+  case Syscall::TX_CAN: {
+    const CANFRAME *frame_ptr = reinterpret_cast<const CANFRAME *>(tf->x[0]);
+    CANFRAME frame            = *frame_ptr;
+    tf->x[0]                  = mcp2515_send(frame);
+    kernel_runtime.scheduler.schedule(*td);
+    break;
+  }
+  case Syscall::RX_CAN: {
+    CANFRAME *frame_ptr = reinterpret_cast<CANFRAME *>(tf->x[0]);
+    tf->x[0]            = mcp2515_recieve(*frame_ptr);
+    kernel_runtime.scheduler.schedule(*td);
+    break;
+  }
   }
   return;
 }
