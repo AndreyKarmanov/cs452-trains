@@ -108,6 +108,7 @@ static void fire_command(char *buf, size_t blen, int tx_tid) {
   } else if (strncmp(cmd, "c", 1) == 0) {
     int tid = create(3, shell_task);
     Puts(tx_tid, "Created new shell ", tid);
+    await_task(tid);
   } else if (strncmp(cmd, "d", 1) == 0) {
     char *cursor = cmd + 1;
     size_t address;

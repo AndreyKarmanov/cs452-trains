@@ -37,8 +37,7 @@ extern "C" int kmain() {
   instruction_cache_set(INSTRUCTION_CACHE);
 
   auto tid = kernel_runtime.task_table.create_task(0, first_user_task, 0);
-  auto td  = kernel_runtime.task_table.lookup_td(tid);
-  kernel_runtime.scheduler.schedule(*td);
+  kernel_runtime.scheduler.schedule(tid, 0);
   for (;;) {
     auto tid = kernel_runtime.scheduler.get_task();
     if (!tid.has_value()) {
