@@ -1,14 +1,14 @@
 #include "syscall.h"
-#include "debug.h"
 #include "message.h"
+#include <cstdint>
 
 int create(int priority, void (*function)()) {
   // this Create will trap to the kernel
   // and the kernel will return the tid of the created task
   // explicitly store in these registers
-  register int r0 asm("x0")                       = priority;
-  [[gnu::unused]] register void (*r1)() asm("x1") = function;
-  asm volatile("svc %1" : "=r"(r0) : "i"(Syscall::CREATE) : "memory");
+  register int r0 asm("x0")       = priority;
+  register void (*r1)() asm("x1") = function;
+  asm volatile("svc %2" : "+r"(r0) : "r"(r1), "i"(Syscall::CREATE) : "memory");
   return r0;
 }
 
@@ -59,9 +59,9 @@ int send(int tid, const char *msg, int msg_len, char *reply, int reply_len) {
   register char *r3 asm("x3")       = reply;
   register int r4 asm("x4")         = reply_len;
 
-  asm volatile("svc %6"
-               : "=r"(r0)
-               : "r"(r0), "r"(r1), "r"(r2), "r"(r3), "r"(r4), "i"(Syscall::SEND)
+  asm volatile("svc %5"
+               : "+r"(r0)
+               : "r"(r1), "r"(r2), "r"(r3), "r"(r4), "i"(Syscall::SEND)
                : "memory");
   return r0;
 }
@@ -71,16 +71,15 @@ void receive(int *tid, Message &msg) {
 }
 
 int receive(int *tid, char *msg, int msg_len) {
-  register int *r0_in asm("x0") = tid;
-  register char *r1 asm("x1")   = msg;
-  register int r2 asm("x2")     = msg_len;
-  register int r0_out asm("x0");
+  register uintptr_t r0 asm("x0") = reinterpret_cast<uintptr_t>(tid);
+  register char *r1 asm("x1")     = msg;
+  register int r2 asm("x2")       = msg_len;
 
-  asm volatile("svc %4"
-               : "=r"(r0_out)
-               : "r"(r0_in), "r"(r1), "r"(r2), "i"(Syscall::RECEIVE)
+  asm volatile("svc %3"
+               : "+r"(r0)
+               : "r"(r1), "r"(r2), "i"(Syscall::RECEIVE)
                : "memory");
-  return r0_out;
+  return static_cast<int>(r0);
 }
 
 void reply(int tid, const Message &msg) {
@@ -92,9 +91,9 @@ int reply(int tid, const char *reply, int reply_len) {
   register const char *r1 asm("x1") = reply;
   register int r2 asm("x2")         = reply_len;
 
-  asm volatile("svc %4"
-               : "=r"(r0)
-               : "r"(r0), "r"(r1), "r"(r2), "i"(Syscall::REPLY)
+  asm volatile("svc %3"
+               : "+r"(r0)
+               : "r"(r1), "r"(r2), "i"(Syscall::REPLY)
                : "memory");
   return r0;
 }
@@ -110,18 +109,14 @@ void await_task(int tid) {
 }
 
 int await_event(Event event) {
-  register int r0_in asm("x0") = static_cast<int>(event);
-  register int r0_out asm("x0");
-  asm volatile("svc %2"
-               : "=r"(r0_out)
-               : "r"(r0_in), "i"(Syscall::AWAIT_EVENT)
-               : "memory");
-  return r0_out;
+  register int r0 asm("x0") = static_cast<int>(event);
+  asm volatile("svc %1" : "+r"(r0) : "i"(Syscall::AWAIT_EVENT) : "memory");
+  return r0;
 }
 
 void emit_event(Event event) {
-  register auto r0 asm("x0") = event;
-  asm volatile("svc %1" : "=r"(r0) : "i"(Syscall::EMIT_EVENT) : "memory");
+  register int r0 asm("x0") = static_cast<int>(event);
+  asm volatile("svc %1" : : "r"(r0), "i"(Syscall::EMIT_EVENT) : "memory");
 }
 
 void park() { asm volatile("svc %0" : : "i"(Syscall::PARK) : "memory"); }
@@ -134,13 +129,13 @@ int kernel_idle_pct() {
 }
 
 bool tx_can(const CANFRAME &frame) {
-  register const CANFRAME *r0 asm("x0") = &frame;
-  asm volatile("svc %1" : : "r"(r0), "i"(Syscall::TX_CAN) : "memory");
-  return r0;
+  register uintptr_t r0 asm("x0") = reinterpret_cast<uintptr_t>(&frame);
+  asm volatile("svc %1" : "+r"(r0) : "i"(Syscall::TX_CAN) : "memory");
+  return r0 != 0;
 }
 
 bool rx_can(CANFRAME &frame) {
-  register CANFRAME *r0 asm("x0") = &frame;
-  asm volatile("svc %1" : : "r"(r0), "i"(Syscall::RX_CAN) : "memory");
-  return r0;
+  register uintptr_t r0 asm("x0") = reinterpret_cast<uintptr_t>(&frame);
+  asm volatile("svc %1" : "+r"(r0) : "i"(Syscall::RX_CAN) : "memory");
+  return r0 != 0;
 }

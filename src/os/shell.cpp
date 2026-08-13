@@ -98,10 +98,10 @@ static void fire_command(char *buf, size_t blen, int tx_tid) {
     exit();
   } else if (strncmp(cmd, "p", 1) == 0) {
     int parent_tid = my_parent_tid();
-    Puts(tx_tid, "My parent tid is ", parent_tid, "\n\r");
+    Puts(tx_tid, "My parent tid ", parent_tid, "\n\r");
   } else if (strncmp(cmd, "m", 1) == 0) {
     int tid = my_tid();
-    Puts(tx_tid, "My tid is ", tid, "\n\r");
+    Puts(tx_tid, "My tid ", tid, "\n\r");
   } else if (strncmp(cmd, "y", 1) == 0) {
     yield();
     Puts(tx_tid, "Yielded\n\r");

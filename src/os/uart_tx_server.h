@@ -98,11 +98,8 @@ private:
 using UART_TX_Server   = UART_TX_Server_T<UART0_TX_Traits>;
 using UART03_TX_Server = UART_TX_Server_T<UART3_TX_Traits>;
 
-// Keep cursor-preserving output in one UART request. The TX server serializes
-// requests, so the terminal cannot observe another request between DECSC and
-// DECRC. DEC's ESC 7/ESC 8 pair is broadly supported by serial terminals.
-inline constexpr const char *SAVE_CURSOR    = "\0337";
-inline constexpr const char *RESTORE_CURSOR = "\0338";
+inline constexpr auto SAVE_CURSOR    = "\033[s";
+inline constexpr auto RESTORE_CURSOR = "\033[u";
 
 void uart_tx_server_task();
 void uart03_tx_server_task();
@@ -144,8 +141,8 @@ template <size_t SIZE> int Debug_Puts(int tid, const StaticString<SIZE> &str) {
   debug_scroll_line = (debug_scroll_line + 1);
 #endif
   StaticString<TX::MAX_DATA_LENGTH> out;
-  out.set(SAVE_CURSOR, "\033[", row, ";1H\033[K", str,
-          "\n\r\033[K", RESTORE_CURSOR);
+  out.set(SAVE_CURSOR, "\033[", row, ";1H\033[K", str, "\n\r\033[K",
+          RESTORE_CURSOR);
   return Puts(tid, out);
 }
 
