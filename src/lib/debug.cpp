@@ -17,15 +17,19 @@ namespace {
 
 bool _assert(bool condition, const char *msg, const std::source_location loc) {
   if (!condition) {
-    debug_printf(CONSOLE, "FAIL: %s at %s:%u\n", msg, loc.file_name(),
-                 loc.line());
+    debug_printf(CONSOLE, "ASSERT: %s at %s:%u in %s\n", msg, loc.file_name(),
+                 loc.line(), loc.function_name());
   }
   return condition;
 }
 
-[[noreturn]] void panic(const char *msg, const std::source_location loc) {
-  debug_printf(CONSOLE, "PANIC: %s at %s:%u\n", msg, loc.file_name(),
-               loc.line());
+void panic_if(bool condition, const char *msg, const std::source_location loc) {
+  if (!condition) {
+    return;
+  }
+
+  debug_printf(CONSOLE, "PANIC: %s at %s:%u in %s\n", msg, loc.file_name(),
+               loc.line(), loc.function_name());
   for (;;) {
     asm volatile("wfi");
   }

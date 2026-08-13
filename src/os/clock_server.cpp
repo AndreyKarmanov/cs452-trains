@@ -25,24 +25,24 @@ void clock_server_task() {
 
 int Time(int tid) {
   auto res = send<CS::TimeReplyMsg>(tid, CS::TimeMsg{});
-  if (!res) {
-    return res.error();
+  if (!res.has_value()) {
+    return -1;
   }
   return res->ticks;
 }
 
 int Delay(int tid, uint32_t ticks) {
   auto res = send<CS::DelayReplyMsg>(tid, CS::DelayMsg{.ticks = ticks});
-  if (!res) {
-    return res.error();
+  if (!res.has_value()) {
+    return -1;
   }
   return res->ticks;
 }
 
 int DelayUntil(int tid, uint32_t ticks) {
   auto res = send<CS::DelayReplyMsg>(tid, CS::DelayUntilMsg{.ticks = ticks});
-  if (!res) {
-    return res.error();
+  if (!res.has_value()) {
+    return -1;
   }
   return res->ticks;
 }

@@ -37,20 +37,22 @@ extern "C" int kmain() {
   instruction_cache_set(INSTRUCTION_CACHE);
 
   auto tid = kernel_runtime.task_table.create_task(0, first_user_task, 0);
-  kernel_runtime.scheduler.schedule(tid, 0);
+  panic_if(!tid.has_value(), "failed to create initial task");
+  kernel_runtime.scheduler.schedule(tid.value(), 0);
+
   for (;;) {
     auto tid = kernel_runtime.scheduler.get_task();
     if (!tid.has_value()) {
-      _assert(false, "no tasks to schedule");
-      break; // error
+      _assert(false, "KERNEL: no tasks to schedule");
+      break;
     }
     auto active_tid = tid.value();
     auto td         = kernel_runtime.task_table.lookup_td(active_tid);
-    if (td == nullptr) {
-      _assert(false, "invalid tid");
+    if (!td.has_value()) {
+      _assert(false, "KERNEL: invalid tid in scheduler");
       break;
     }
-    auto request = activate_task(*td);
+    auto request = activate_task(*td.value());
     handle(active_tid, request);
   }
   debug_printf(CONSOLE, "KERNEL HALTED\n\r");

@@ -151,15 +151,17 @@ void EventController::handle_event(Event event, int arg0) {
   while (tid_opt.has_value()) {
     auto tid = tid_opt.value();
     auto td  = kernel_runtime.task_table.lookup_td(tid);
-    if (td == nullptr) {
+    if (!td.has_value()) {
       _assert(false, "invalid tid in event buffer");
       tid_opt = event_buf->pop();
       continue;
     }
 
+    auto *task = td.value();
+
     switch (event) {
     case Event::DELAY_5S: {
-      kernel_runtime.scheduler.schedule(*td);
+      kernel_runtime.scheduler.schedule(*task);
 
       // reset the delay for the next task.
       if (!event_buf->empty()) {
@@ -168,16 +170,16 @@ void EventController::handle_event(Event event, int arg0) {
       return; // return if only the first should wake
     }
     case Event::CAN_RX_IRQ: {
-      kernel_runtime.scheduler.schedule(*td);
+      kernel_runtime.scheduler.schedule(*task);
       return;
     }
     case Event::TASK_EXIT: {
-      ((TrapFrame *)(td->sp_el0))->x[0] = arg0;
-      kernel_runtime.scheduler.schedule(*td);
+      ((TrapFrame *)(task->sp_el0))->x[0] = arg0;
+      kernel_runtime.scheduler.schedule(*task);
       break;
     }
     default: {
-      kernel_runtime.scheduler.schedule(*td);
+      kernel_runtime.scheduler.schedule(*task);
       break;
     }
     }

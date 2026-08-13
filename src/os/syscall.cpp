@@ -47,7 +47,10 @@ int my_parent_tid() {
 
 void yield() { asm volatile("svc %0" : : "i"(Syscall::YIELD) : "memory"); }
 
-void exit() { asm volatile("svc %0" : : "i"(Syscall::EXIT) : "memory"); }
+[[noreturn]] void exit() {
+  asm volatile("svc %0" : : "i"(Syscall::EXIT) : "memory");
+  __builtin_unreachable();
+}
 
 int send(int tid, const char *msg, int msg_len, char *reply, int reply_len) {
   register int r0 asm("x0")         = tid;

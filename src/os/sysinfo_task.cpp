@@ -21,9 +21,10 @@ void sysinfo_task() {
     auto tenths        = (time_us / 100'000) % 10;
 
 #if !defined(DATA_COLLECTION) || !DATA_COLLECTION
-    Puts(tx_tid, "\033[s\033[", SYSINFO_ROW, ";1H", "TIME: ", (minutes / 10),
-         (minutes % 10), ":", (seconds / 10), (seconds % 10), ".", tenths,
-         " IDLE: ", idle_pct, "%\033[u");
+    Puts(tx_tid, SAVE_CURSOR, "\033[", SYSINFO_ROW, ";1H", "TIME: ",
+      (minutes / 10), (minutes % 10), ":", (seconds / 10),
+      (seconds % 10), ".", tenths, " IDLE: ", idle_pct, "%",
+      RESTORE_CURSOR);
 #endif
 
     ticks = DelayUntil(cs_tid, ticks + UPDATE_INTERVAL_TICKS);

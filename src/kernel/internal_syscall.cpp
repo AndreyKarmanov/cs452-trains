@@ -165,20 +165,24 @@ void handle(TaskId tid, Syscall request) {
   // this will handle the given request code and perform the appropriate action
   // (e.g. for syscalls) ESR_EL1 will have exception code, holds n form svc N
 
-  auto td = kernel_runtime.task_table.lookup_td(tid);
-  if (td == nullptr) {
-    panic("invalid tid");
-  }
+  auto td_opt = kernel_runtime.task_table.lookup_td(tid);
+  panic_if(!td_opt.has_value(), "KERNEL: invalid tid in handle");
+  auto *td      = td_opt.value();
   TrapFrame *tf = reinterpret_cast<TrapFrame *>(td->sp_el0);
 
   switch (request) {
   case Syscall::CREATE: {
     int priority       = tf->x[0];
     void (*function)() = reinterpret_cast<void (*)()>(tf->x[1]);
-    TaskId new_tid =
+    auto new_tid =
         kernel_runtime.task_table.create_task(priority, function, tid);
-    tf->x[0] = new_tid;
-    kernel_runtime.scheduler.schedule(new_tid, priority);
+    if (!new_tid.has_value()) {
+      tf->x[0] = -1;
+      kernel_runtime.scheduler.schedule(*td);
+      break;
+    }
+    tf->x[0] = new_tid.value();
+    kernel_runtime.scheduler.schedule(new_tid.value(), priority);
     kernel_runtime.scheduler.schedule(*td);
     break;
   }
@@ -202,17 +206,17 @@ void handle(TaskId tid, Syscall request) {
 
     TaskExitMsg msg{};
 
-    // wake sender queue to alert of task exist
     auto to_tid_opt = td->sender_queue.pop();
     while (to_tid_opt.has_value()) {
-      auto to_tid = to_tid_opt.value();
-      auto to_td  = kernel_runtime.task_table.lookup_td(to_tid);
-      _assert(to_td != nullptr, "invalid tid in sender queue");
-      if (to_td == nullptr) {
+      const auto to_tid = to_tid_opt.value();
+      auto to_td_opt    = kernel_runtime.task_table.lookup_td(to_tid);
+      if (!to_td_opt.has_value()) {
+        _assert(false, "invalid tid in sender queue");
         to_tid_opt = td->sender_queue.pop();
         continue;
       }
-      auto to_tf = reinterpret_cast<TrapFrame *>(to_td->sp_el0);
+      auto *to_td = to_td_opt.value();
+      auto *to_tf = reinterpret_cast<TrapFrame *>(to_td->sp_el0);
 
       char *rcv_reply = reinterpret_cast<char *>(to_tf->x[3]);
       int rcv_len     = to_tf->x[4];
@@ -230,12 +234,13 @@ void handle(TaskId tid, Syscall request) {
   case Syscall::SEND: {
     int to_tid = tf->x[0];
 
-    auto to_td = kernel_runtime.task_table.lookup_td(to_tid);
-    if (to_td == nullptr) {
+    auto to_td_opt = kernel_runtime.task_table.lookup_td(to_tid);
+    if (!to_td_opt.has_value()) {
       tf->x[0] = -1; // invalid tid
       kernel_runtime.scheduler.schedule(*td);
       break;
     }
+    auto *to_td = to_td_opt.value();
     if (to_tid == tid) {
       tf->x[0] = -2; // can't send to self
       kernel_runtime.scheduler.schedule(*td);
@@ -243,22 +248,18 @@ void handle(TaskId tid, Syscall request) {
     }
 
     if (to_td->state == TaskStatus::W4_SEND) {
-      auto to_tf = reinterpret_cast<TrapFrame *>(to_td->sp_el0);
+      auto *to_tf = reinterpret_cast<TrapFrame *>(to_td->sp_el0);
 
-      // set the sender tid (x0 is a pointer to a int)
       *reinterpret_cast<int *>(to_tf->x[0]) = tid;
 
-      // overwrite x0 to return value of message length
       int msg_len = tf->x[2];
       int rcv_len = to_tf->x[2];
       int len = to_tf->x[0] = std::min(msg_len, rcv_len);
 
-      // copy message from sender to receiver
       const char *msg = reinterpret_cast<const char *>(tf->x[1]);
       char *rcv_buf   = reinterpret_cast<char *>(to_tf->x[1]);
       std::memcpy(rcv_buf, msg, len);
 
-      // skip the W4_RECEIVE state, someone was already waiting
       td->state    = TaskStatus::W4_REPLY;
       to_td->state = TaskStatus::READY;
       kernel_runtime.scheduler.schedule(*to_td);
@@ -274,27 +275,27 @@ void handle(TaskId tid, Syscall request) {
     if (from_tid_opt.has_value()) {
       int from_tid = from_tid_opt.value();
 
-      auto to_td = kernel_runtime.task_table.lookup_td(from_tid);
-      _assert(to_td != nullptr, "invalid tid");
-      auto from_tf = reinterpret_cast<TrapFrame *>(to_td->sp_el0);
+      auto from_td_opt = kernel_runtime.task_table.lookup_td(from_tid);
+      if (!from_td_opt.has_value()) {
+        _assert(false, "invalid tid");
+        td->state = TaskStatus::W4_SEND;
+        break;
+      }
+      auto *from_td = from_td_opt.value();
+      auto *from_tf = reinterpret_cast<TrapFrame *>(from_td->sp_el0);
 
-      // set who msg is from (follow int ptr)
       *reinterpret_cast<int *>(tf->x[0]) = from_tid;
 
-      // set msg length (overwrite x0 / arg0)
       int msg_len = from_tf->x[2];
       int rcv_len = tf->x[2];
       int len = tf->x[0] = std::min(msg_len, rcv_len);
 
-      // copy over buffer
       const char *msg = reinterpret_cast<const char *>(from_tf->x[1]);
       char *rcv_buf   = reinterpret_cast<char *>(tf->x[1]);
       std::memcpy(rcv_buf, msg, len);
 
-      // update sender task to waiting for reply
-      // however no impact on scheduling
-      to_td->state = TaskStatus::W4_REPLY;
-      td->state    = TaskStatus::READY;
+      from_td->state = TaskStatus::W4_REPLY;
+      td->state      = TaskStatus::READY;
       kernel_runtime.scheduler.schedule(*td);
     } else {
       td->state = TaskStatus::W4_SEND;
@@ -304,13 +305,14 @@ void handle(TaskId tid, Syscall request) {
   case Syscall::REPLY: {
     int to_tid = tf->x[0];
 
-    auto to_td = kernel_runtime.task_table.lookup_td(to_tid);
-    if (to_td == nullptr) {
+    auto to_td_opt = kernel_runtime.task_table.lookup_td(to_tid);
+    if (!to_td_opt.has_value()) {
       tf->x[0] = -1; // invalid tid
       _assert(false, "invalid tid");
       kernel_runtime.scheduler.schedule(*td);
       break;
     }
+    auto *to_td = to_td_opt.value();
 
     if (to_td->state != TaskStatus::W4_REPLY) {
       tf->x[0] = -2; // task not waiting for reply
@@ -318,7 +320,7 @@ void handle(TaskId tid, Syscall request) {
       break;
     }
 
-    auto to_tf        = reinterpret_cast<TrapFrame *>(to_td->sp_el0);
+    auto *to_tf       = reinterpret_cast<TrapFrame *>(to_td->sp_el0);
     const char *reply = reinterpret_cast<const char *>(tf->x[1]);
     int reply_len     = tf->x[2];
 

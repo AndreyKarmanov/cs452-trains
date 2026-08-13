@@ -1,6 +1,7 @@
 #pragma once
 
 #include "debug.h"
+#include "kernel/constants.h"
 #include "message.h"
 #include "mrk.h"
 #include <cstddef>
@@ -42,26 +43,27 @@ int create(int priority, void (*function)());
 int my_tid();
 int my_parent_tid();
 void yield();
-void exit();
+[[noreturn]] void exit();
 void park();
 int kernel_idle_pct();
 
 int send(int tid, const char *msg, int msglen, char *reply, int rplen);
-template <typename T> std::expected<T, int> send(int tid, Message msg) {
-  Message reply_msg;
+template <typename T>
+[[nodiscard]] Result<T> send(int tid, const Message &msg) {
+  Message reply_msg{};
 
   auto rcv_len = send(tid, reinterpret_cast<const char *>(&msg), sizeof(msg),
                       reinterpret_cast<char *>(&reply_msg), sizeof(reply_msg));
 
   if (rcv_len < 0) {
-    return std::unexpected(rcv_len);
+    return std::unexpected(KernelError::SendFailed);
   }
 
   if (auto *val_ptr = std::get_if<T>(&reply_msg)) {
     return *val_ptr;
   }
 
-  return std::unexpected(-2);
+  return std::unexpected(KernelError::InvalidMessageType);
 }
 
 void receive(int *tid, Message &msg);

@@ -11,8 +11,8 @@ struct TaskTable {
   std::array<TaskDescriptor, MAX_TASKS> descriptors{};
   Map<TaskId, size_t, MAX_TASKS> tid_to_descriptor{};
 
-  TaskId create_task(TaskPriority priority, void (*function)(),
-                     TaskId parent_tid);
+  Result<TaskId> create_task(TaskPriority priority, void (*function)(),
+                             TaskId parent_tid);
   void delete_task(TaskId tid);
-  TaskDescriptor *lookup_td(TaskId tid);
+  Result<TaskDescriptor *> lookup_td(TaskId tid);
 };

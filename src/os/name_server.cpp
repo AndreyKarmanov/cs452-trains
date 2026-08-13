@@ -14,8 +14,8 @@ void name_server_task() {
 int RegisterAs(const StaticString<NS::MAX_NAME_LEN> &name) {
   NS::RegisterMsg msg{.name = name};
   auto res = send<NS::RegisterReplyMsg>(NAMESERVER_TID, Message{msg});
-  if (!res) {
-    return res.error();
+  if (!res.has_value()) {
+    return -1;
   }
   return static_cast<int>(res->status);
 }
@@ -23,8 +23,8 @@ int RegisterAs(const StaticString<NS::MAX_NAME_LEN> &name) {
 int WhoIs(const StaticString<NS::MAX_NAME_LEN> &name) {
   NS::WhoIsMsg msg{.name = name};
   auto res = send<NS::WhoIsReplyMsg>(NAMESERVER_TID, Message{msg});
-  if (!res) {
-    return res.error();
+  if (!res.has_value()) {
+    return -1;
   }
   return res->tid;
 }
